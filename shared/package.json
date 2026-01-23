@@ -1,0 +1,19 @@
+{
+  "name": "@ai-accountant/shared",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "dayjs": "^1.11.13",
+    "file-saver": "^2.0.5",
+    "xlsx": "^0.18.5"
+  },
+  "peerDependencies": {
+    "react": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/file-saver": "^2.0.7"
+  }
+}

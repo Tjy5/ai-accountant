@@ -13,36 +13,14 @@ import ExportModal from './ExportModal.tsx';
 import ImportModal from './ImportModal.tsx';
 import EditTransactionModal from './EditTransactionModal.tsx';
 import API_BASE_URL from './config.ts';
-import api from './utils/api';
+import api from '../../shared/utils/api';
+import type { Transaction, TransactionFormData } from '../../shared/types';
 
 // Dynamically import the Dashboard component
 const Dashboard = lazy(() => import('./Dashboard.tsx'));
 
 dayjs.locale('zh-cn');
-
-// 1. 数据模型
-interface Transaction {
-  id: number;
-  type: 'income' | 'expense';
-  category: string;
-  amount: number;
-  description: string;
-  date: string;
-  created_at: string;
-  is_voice_input?: boolean; // 标识是否通过语音输入创建
-  voice_input_text?: string; // 存储语音转文字的原始内容
-}
-
-type TransactionFormData = {
-  type: 'income' | 'expense';
-  category: string;
-  amount: number;
-  description?: string;
-  // 可能包含来自表单的 dayjs 对象或字符串
-  date?: any;
-  is_voice_input?: boolean; // 标识是否通过语音输入创建
-  voice_input_text?: string; // 存储语音转文字的原始内容
-};
+api.setBaseUrl(API_BASE_URL);
 
 const { Header, Content } = Layout;
 

@@ -76,16 +76,21 @@ function parseTransactionRow(row, headers) {
   };
 }
 
-async function insertTransactions(db, transactions) {
+async function insertTransactions(db, userId, transactions) {
+  const uid = Number(userId);
+  if (!uid || !Number.isFinite(uid)) {
+    throw new Error('Invalid userId for insertTransactions');
+  }
   await db.run('BEGIN');
   try {
     const stmt = await db.prepare(`
-      INSERT INTO transactions (type, amount, category, description, date, is_voice_input, voice_input_text, tags, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      INSERT INTO transactions (user_id, type, amount, category, description, date, is_voice_input, voice_input_text, tags, created_at, updated_at, deleted_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), NULL)
     `);
     let insertedCount = 0;
     for (const transaction of transactions) {
       await stmt.run([
+        uid,
         transaction.type,
         transaction.amount,
         transaction.category,
