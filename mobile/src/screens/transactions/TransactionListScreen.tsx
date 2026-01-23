@@ -10,16 +10,22 @@ export default function TransactionListScreen() {
   const [items, setItems] = useState<TransactionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
-    const rows = await listTransactions(user.id);
-    setItems(rows);
+    try {
+      const rows = await listTransactions(user.id);
+      setItems(rows);
+    } catch (err: any) {
+      console.error('Failed to load transactions:', err);
+    }
   }, [user]);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
+      setSyncError(null);
       load().catch(() => undefined).finally(() => setLoading(false));
     }, [load])
   );
@@ -27,8 +33,20 @@ export default function TransactionListScreen() {
   const onRefresh = useCallback(async () => {
     if (!user) return;
     setRefreshing(true);
+    setSyncError(null);
     try {
       await syncNow(user.id);
+      await load();
+    } catch (err: any) {
+      const message = err?.message || '同步失败';
+      if (message.includes('Network') || message.includes('network') || message.includes('fetch')) {
+        setSyncError('网络连接失败，请检查网络后重试');
+      } else if (message.includes('401') || message.includes('Unauthorized')) {
+        setSyncError('登录已过期，请重新登录');
+      } else {
+        setSyncError(`同步失败: ${message}`);
+      }
+      // Still load local data even if sync fails
       await load();
     } finally {
       setRefreshing(false);
@@ -61,6 +79,12 @@ export default function TransactionListScreen() {
 
   return (
     <View style={styles.container} accessibilityLabel="交易记录列表">
+      {syncError ? (
+        <Pressable style={styles.errorBanner} onPress={() => setSyncError(null)} accessibilityLabel="点击关闭错误提示">
+          <Text style={styles.errorText}>{syncError}</Text>
+          <Text style={styles.errorClose}>×</Text>
+        </Pressable>
+      ) : null}
       <FlatList
         data={items}
         keyExtractor={(it) => `${it.id}`}
@@ -102,6 +126,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 12, backgroundColor: '#f5f5f5' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { textAlign: 'center', marginTop: 24, color: '#666' },
+  errorBanner: { backgroundColor: '#fff2f0', borderWidth: 1, borderColor: '#ffccc7', borderRadius: 8, padding: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  errorText: { color: '#f5222d', fontSize: 14, flex: 1 },
+  errorClose: { color: '#f5222d', fontSize: 20, fontWeight: '600', marginLeft: 8 },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#eee' },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   category: { fontSize: 16, fontWeight: '600' },
