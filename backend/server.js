@@ -7,10 +7,7 @@ const { toArabicString } = require('chinese-numbers-to-arabic');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const { parseTransactionRow, insertTransactions, parseWorkbook } = require('./services/importService');
-const {
-  NaturalLanguageExpenseModel,
-  getCategoryForProduct
-} = require('./natural-language-expense-model');
+
 
 // 设置环境变量来禁用 dotenv 提示
 process.env.DOTENV_CONFIG_QUIET = 'true';
@@ -19,7 +16,7 @@ process.env.DOTENV_CONFIG_SILENT = 'true';
 require('dotenv').config();
 
 const app = express();
-const naturalLanguageModel = new NaturalLanguageExpenseModel();
+// const naturalLanguageModel = new NaturalLanguageExpenseModel();
 const errorHandler = require('./middleware/errorHandler');
 const budgetsRouterFactory = require('./routes/budgets');
 const categoriesRouterFactory = require('./routes/categories');
@@ -46,9 +43,9 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-        file.mimetype === 'application/vnd.ms-excel' ||
-        file.mimetype === 'text/csv' ||
-        file.originalname.endsWith('.csv')) {
+      file.mimetype === 'application/vnd.ms-excel' ||
+      file.mimetype === 'text/csv' ||
+      file.originalname.endsWith('.csv')) {
       cb(null, true);
     } else {
       cb(new Error('只支持 Excel (.xlsx, .xls) 和 CSV 文件'));
@@ -75,7 +72,7 @@ let db;
     const { exec } = require('child_process');
     const { promisify } = require('util');
     const execAsync = promisify(exec);
-    
+
     try {
       // 运行数据库迁移
       const { stdout } = await execAsync('npm run migrate', { cwd: __dirname });
@@ -375,41 +372,8 @@ app.delete('/api/transactions/:id', async (req, res) => {
   }
 });
 
-// 文本分析接口
-app.post('/api/analyze-text', async (req, res) => {
-  try {
-    const { text } = req.body;
-
-    if (!text || typeof text !== 'string') {
-      return res.status(400).json({ error: '请提供有效的文本' });
-    }
-
-    // 使用自然语言模型分析文本
-    const result = await naturalLanguageModel.understand(text);
-    
-    // 构建响应数据
-    const transactions = result.items.map(item => ({
-      type: 'expense',
-      category: item.category || '其他',
-      amount: item.price,
-      description: item.name,
-      date: new Date().toISOString().split('T')[0],
-      is_voice_input: true,
-      voice_input_text: text
-    }));
-
-    res.json({
-      originalText: text,
-      transactions,
-      confidence: result.confidence || 0.8,
-      totalAmount: result.totalAmount
-    });
-
-  } catch (error) {
-    console.error('❌ 文本分析失败:', error);
-    res.status(500).json({ error: '文本分析失败' });
-  }
-});
+// 文本分析接口 - 已移除
+// app.post('/api/analyze-text', async (req, res) => { ... });
 
 // 用户偏好上报接口
 app.post('/api/preferences', async (req, res) => {
@@ -461,7 +425,7 @@ app.post('/api/transactions/import', upload.single('file'), async (req, res) => 
 
     // 解析工作簿
     const result = parseWorkbook(workbook);
-    
+
     if (result.errors.length > 0) {
       return res.status(400).json({
         error: '文件解析失败',
