@@ -6,9 +6,20 @@ export interface ApiError extends Error {
 }
 
 let BASE_URL = '';
+let DEFAULT_HEADERS: Record<string, string> = {};
 
 export const setBaseUrl = (url: string) => {
   BASE_URL = url;
+};
+
+export const setAuthToken = (token?: string | null) => {
+  const t = token ? String(token).trim() : '';
+  if (t.length > 0) {
+    DEFAULT_HEADERS = { ...DEFAULT_HEADERS, Authorization: `Bearer ${t}` };
+    return;
+  }
+  const { Authorization, ...rest } = DEFAULT_HEADERS;
+  DEFAULT_HEADERS = rest;
 };
 
 const buildUrl = (path: string, params?: Record<string, string | number | boolean | Array<string | number>>): string => {
@@ -33,7 +44,7 @@ const request = async <T>(method: HttpMethod, path: string, options?: {
   const url = buildUrl(path, options?.params);
   const init: RequestInit = { method };
   const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData;
-  const headers: Record<string, string> = { ...(options?.headers || {}) };
+  const headers: Record<string, string> = { ...DEFAULT_HEADERS, ...(options?.headers || {}) };
   if (!isFormData) {
     headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   }
@@ -57,6 +68,7 @@ const request = async <T>(method: HttpMethod, path: string, options?: {
 
 export const api = {
   setBaseUrl,
+  setAuthToken,
   get: <T>(path: string, params?: Record<string, any>) => request<T>('GET', path, { params }),
   post: <T>(path: string, body?: any) => request<T>('POST', path, { body }),
   put: <T>(path: string, body?: any) => request<T>('PUT', path, { body }),

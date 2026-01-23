@@ -155,3 +155,7 @@ vite.config.ts.timestamp-*
 # Database files
 *.sqlite
 .ace-tool/
+
+# Temporary build output
+mobile/tsc_output*.txt
+mobile/tmpclaude*
