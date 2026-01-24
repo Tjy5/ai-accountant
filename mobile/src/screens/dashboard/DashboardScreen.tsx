@@ -164,7 +164,7 @@ export default function DashboardScreen() {
                   style={{ data: { stroke: '#ff4d4f', strokeWidth: 2 } }}
                 />
                 <VictoryAxis style={{ grid: { stroke: '#f0f0f0' } }} />
-                <VictoryAxis dependentAxis tickFormat={(t) => `${(t / 1000).toFixed(0)}k`} style={{ grid: { stroke: '#f0f0f0' } }} />
+                <VictoryAxis dependentAxis tickFormat={(t: any) => `${(t / 1000).toFixed(0)}k`} style={{ grid: { stroke: '#f0f0f0' } }} />
               </VictoryChart>
               <View style={styles.legend}>
                 <View style={styles.legendItem}>
@@ -192,7 +192,7 @@ export default function DashboardScreen() {
                 data={pieData}
                 horizontal
                 style={{ data: { fill: '#1890ff' } }}
-                labels={({ datum }) => `¥${datum.y.toFixed(0)}`}
+                labels={({ datum }: { datum: any }) => `¥${datum.y.toFixed(0)}`}
               />
               <VictoryAxis style={{ grid: { stroke: 'none' } }} />
               <VictoryAxis dependentAxis style={{ grid: { stroke: '#f0f0f0' } }} />
