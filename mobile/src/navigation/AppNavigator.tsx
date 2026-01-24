@@ -14,6 +14,8 @@ import EditTransactionScreen from '../screens/transactions/EditTransactionScreen
 import CategoryListScreen from '../screens/categories/CategoryListScreen';
 import EditCategoryScreen from '../screens/categories/EditCategoryScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
+import BudgetListScreen from '../screens/budgets/BudgetListScreen';
+import EditBudgetScreen from '../screens/budgets/EditBudgetScreen';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -35,6 +37,7 @@ export type RootStackParamList = {
   TransactionEdit: { id: number };
   CategoryList: undefined;
   CategoryEdit: { id?: number };
+  BudgetEdit: { id?: number; budgetType?: 'total' | 'category'; parentId?: number };
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -81,7 +84,7 @@ function MainTabs() {
       <Tab.Screen name="Transactions" component={TransactionListScreen} options={{ title: '明细' }} />
       <Tab.Screen name="Dashboard" component={() => <PlaceholderScreen title="统计" />} />
       <Tab.Screen name="Add" component={AddTransactionScreen} options={{ title: '新增' }} />
-      <Tab.Screen name="Budget" component={() => <PlaceholderScreen title="预算" />} />
+      <Tab.Screen name="Budget" component={BudgetListScreen} options={{ title: '预算' }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
     </Tab.Navigator>
   );
@@ -107,6 +110,7 @@ export default function AppNavigator() {
             <RootStack.Screen name="TransactionEdit" component={EditTransactionScreen} options={{ headerShown: true, title: '编辑交易' }} />
             <RootStack.Screen name="CategoryList" component={CategoryListScreen} options={{ headerShown: true, title: '分类管理' }} />
             <RootStack.Screen name="CategoryEdit" component={EditCategoryScreen} options={{ headerShown: true, title: '编辑分类' }} />
+            <RootStack.Screen name="BudgetEdit" component={EditBudgetScreen} options={{ headerShown: true, title: '编辑预算' }} />
           </>
         ) : (
           <RootStack.Screen name="AuthStack" component={AuthNavigator} />

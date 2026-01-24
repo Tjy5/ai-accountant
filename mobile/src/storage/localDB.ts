@@ -283,6 +283,133 @@ export const softDeleteLocalCategory = async (userId: number, id: number): Promi
   return now;
 };
 
+export const listBudgets = async (userId: number): Promise<BudgetRecord[]> => {
+  return await queryAll<BudgetRecord>(
+    'SELECT * FROM budgets WHERE user_id = ? AND deleted_at IS NULL ORDER BY budget_type DESC, created_at DESC',
+    [userId]
+  );
+};
+
+export const getBudget = async (userId: number, id: number): Promise<BudgetRecord | null> => {
+  return await queryFirst<BudgetRecord>(
+    'SELECT * FROM budgets WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [id, userId]
+  );
+};
+
+export const createLocalBudget = async (
+  userId: number,
+  data: {
+    budget_type: 'category' | 'total';
+    category?: string | null;
+    category_id?: string | null;
+    parent_id?: number | null;
+    monthly_limit: number;
+    quarterly_limit?: number | null;
+    yearly_limit?: number | null;
+    period?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    alert_threshold?: number | null;
+    is_active?: number | null;
+    description?: string | null;
+  }
+): Promise<BudgetRecord> => {
+  const now = new Date().toISOString();
+  const monthlyLimit = Number(data.monthly_limit);
+  if (!Number.isFinite(monthlyLimit) || monthlyLimit <= 0) {
+    throw new Error('Budget amount must be greater than 0');
+  }
+
+  if (data.budget_type === 'total') {
+    const existing = await queryFirst<{ id: number }>(
+      "SELECT id FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = 'total' LIMIT 1",
+      [userId]
+    );
+    if (existing) throw new Error('Total budget already exists');
+  }
+
+  const localId = generateLocalId();
+  await executeSql(
+    `INSERT INTO budgets (id, user_id, budget_type, category, category_id, parent_id, monthly_limit, quarterly_limit, yearly_limit, period, start_date, end_date, alert_threshold, is_active, description, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      localId, userId, data.budget_type, data.category ?? null, data.category_id ?? null, data.parent_id ?? null,
+      monthlyLimit, data.quarterly_limit != null ? Number(data.quarterly_limit) : null,
+      data.yearly_limit != null ? Number(data.yearly_limit) : null, data.period ?? null,
+      data.start_date ?? null, data.end_date ?? null,
+      data.alert_threshold != null ? Number(data.alert_threshold) : null,
+      data.is_active != null ? Number(data.is_active) : null,
+      data.description ?? null, now, now
+    ]
+  );
+  const row = await queryFirst<BudgetRecord>('SELECT * FROM budgets WHERE id = ? AND user_id = ?', [localId, userId]);
+  if (!row) throw new Error('Failed to create budget');
+  return row;
+};
+
+export const updateLocalBudget = async (
+  userId: number,
+  id: number,
+  data: {
+    budget_type: 'category' | 'total';
+    category?: string | null;
+    category_id?: string | null;
+    parent_id?: number | null;
+    monthly_limit: number;
+    quarterly_limit?: number | null;
+    yearly_limit?: number | null;
+    period?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    alert_threshold?: number | null;
+    is_active?: number | null;
+    description?: string | null;
+  }
+): Promise<BudgetRecord> => {
+  const now = new Date().toISOString();
+  const monthlyLimit = Number(data.monthly_limit);
+  if (!Number.isFinite(monthlyLimit) || monthlyLimit <= 0) {
+    throw new Error('Budget amount must be greater than 0');
+  }
+
+  if (data.budget_type === 'total') {
+    const existing = await queryFirst<{ id: number }>(
+      "SELECT id FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = 'total' AND id != ? LIMIT 1",
+      [userId, id]
+    );
+    if (existing) throw new Error('Total budget already exists');
+  }
+
+  const result = await executeSql(
+    `UPDATE budgets SET budget_type = ?, category = ?, category_id = ?, parent_id = ?, monthly_limit = ?, quarterly_limit = ?, yearly_limit = ?, period = ?, start_date = ?, end_date = ?, alert_threshold = ?, is_active = ?, description = ?, updated_at = ?
+     WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+    [
+      data.budget_type, data.category ?? null, data.category_id ?? null, data.parent_id ?? null,
+      monthlyLimit, data.quarterly_limit != null ? Number(data.quarterly_limit) : null,
+      data.yearly_limit != null ? Number(data.yearly_limit) : null, data.period ?? null,
+      data.start_date ?? null, data.end_date ?? null,
+      data.alert_threshold != null ? Number(data.alert_threshold) : null,
+      data.is_active != null ? Number(data.is_active) : null,
+      data.description ?? null, now, id, userId
+    ]
+  );
+  if (!result.changes) throw new Error('Budget not found');
+  const row = await queryFirst<BudgetRecord>('SELECT * FROM budgets WHERE id = ? AND user_id = ?', [id, userId]);
+  if (!row) throw new Error('Failed to load updated budget');
+  return row;
+};
+
+export const softDeleteLocalBudget = async (userId: number, id: number): Promise<string> => {
+  const now = new Date().toISOString();
+  const result = await executeSql(
+    'UPDATE budgets SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [now, now, id, userId]
+  );
+  if (!result.changes) throw new Error('Budget not found');
+  return now;
+};
+
 const normalizeIso = (val: any): string => {
   if (!val) return new Date().toISOString();
   return String(val);
@@ -401,7 +528,22 @@ export const upsertBudgets = async (userId: number, items: any[]): Promise<void>
     statements.push({
       sql: `INSERT INTO budgets (user_id, id, budget_type, category, category_id, monthly_limit, quarterly_limit, yearly_limit, period, start_date, end_date, alert_threshold, is_active, description, created_at, updated_at, deleted_at, parent_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET budget_type = excluded.budget_type, monthly_limit = excluded.monthly_limit, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at`,
+            ON CONFLICT(id) DO UPDATE SET
+              budget_type = excluded.budget_type,
+              category = excluded.category,
+              category_id = excluded.category_id,
+              monthly_limit = excluded.monthly_limit,
+              quarterly_limit = excluded.quarterly_limit,
+              yearly_limit = excluded.yearly_limit,
+              period = excluded.period,
+              start_date = excluded.start_date,
+              end_date = excluded.end_date,
+              alert_threshold = excluded.alert_threshold,
+              is_active = excluded.is_active,
+              description = excluded.description,
+              updated_at = excluded.updated_at,
+              deleted_at = excluded.deleted_at,
+              parent_id = excluded.parent_id`,
       params: [
         userId, id, item.budget_type ?? 'category', item.category ?? null, item.category_id ?? null,
         Number(item.monthly_limit) || 0, item.quarterly_limit != null ? Number(item.quarterly_limit) : null,
