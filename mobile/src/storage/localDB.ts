@@ -569,3 +569,54 @@ export const applyServerSync = async (
   await upsertCategories(userId, cats);
   await upsertBudgets(userId, buds);
 };
+
+export const getDashboardStats = async (userId: number, startDate: string, endDate: string) => {
+  const row = await queryFirst<{ income: number | null; expense: number | null; count: number | null }>(
+    `SELECT
+       COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+       COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense,
+       COUNT(*) as count
+     FROM transactions
+     WHERE user_id = ?
+       AND deleted_at IS NULL
+       AND DATE(date) >= DATE(?)
+       AND DATE(date) <= DATE(?)`,
+    [userId, startDate, endDate]
+  );
+  return {
+    income: Number(row?.income) || 0,
+    expense: Number(row?.expense) || 0,
+    count: Number(row?.count) || 0
+  };
+};
+
+export const getCategoryStats = async (userId: number, startDate: string, endDate: string) => {
+  const rows = await queryAll<{ category: string; total: number | null }>(
+    `SELECT category, COALESCE(SUM(amount), 0) as total FROM transactions
+     WHERE user_id = ?
+       AND type = 'expense'
+       AND deleted_at IS NULL
+       AND DATE(date) >= DATE(?)
+       AND DATE(date) <= DATE(?)
+     GROUP BY category
+     ORDER BY total DESC
+     LIMIT 10`,
+    [userId, startDate, endDate]
+  );
+  return rows.map(r => ({ category: String(r.category || ''), total: Number(r.total) || 0 }));
+};
+
+export const getMonthlyTrend = async (userId: number, startDate: string) => {
+  const rows = await queryAll<{ month: string | null; type: string | null; total: number | null }>(
+    `SELECT strftime('%Y-%m', DATE(date)) as month, type, COALESCE(SUM(amount), 0) as total FROM transactions
+     WHERE user_id = ?
+       AND deleted_at IS NULL
+       AND DATE(date) >= DATE(?)
+     GROUP BY month, type
+     ORDER BY month ASC`,
+    [userId, startDate]
+  );
+  return rows
+    .filter(r => r.month && (r.type === 'income' || r.type === 'expense'))
+    .map(r => ({ month: String(r.month), type: r.type as 'income' | 'expense', total: Number(r.total) || 0 }));
+};

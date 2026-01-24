@@ -16,6 +16,7 @@ import EditCategoryScreen from '../screens/categories/EditCategoryScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import BudgetListScreen from '../screens/budgets/BudgetListScreen';
 import EditBudgetScreen from '../screens/budgets/EditBudgetScreen';
+import DashboardScreen from '../screens/dashboard/DashboardScreen';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -82,7 +83,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Transactions" component={TransactionListScreen} options={{ title: '明细' }} />
-      <Tab.Screen name="Dashboard" component={() => <PlaceholderScreen title="统计" />} />
+      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: '统计' }} />
       <Tab.Screen name="Add" component={AddTransactionScreen} options={{ title: '新增' }} />
       <Tab.Screen name="Budget" component={BudgetListScreen} options={{ title: '预算' }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
