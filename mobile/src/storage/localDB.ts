@@ -223,6 +223,66 @@ export const createLocalTransaction = async (
   return row;
 };
 
+export const listCategories = async (userId: number): Promise<CategoryRecord[]> => {
+  return await queryAll<CategoryRecord>(
+    'SELECT * FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY usage_count DESC, name ASC',
+    [userId]
+  );
+};
+
+export const getCategory = async (userId: number, id: number): Promise<CategoryRecord | null> => {
+  return await queryFirst<CategoryRecord>(
+    'SELECT * FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [id, userId]
+  );
+};
+
+export const createLocalCategory = async (
+  userId: number,
+  data: { name: string; type: 'income' | 'expense' | 'both'; icon: string; color: string; description?: string }
+): Promise<CategoryRecord> => {
+  const now = new Date().toISOString();
+  const localId = generateLocalId();
+  await executeSql(
+    `INSERT INTO categories (id, user_id, name, type, icon, color, description, is_default, usage_count, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+    [localId, userId, data.name, data.type, data.icon, data.color, data.description ?? null, now, now]
+  );
+  const row = await queryFirst<CategoryRecord>(
+    'SELECT * FROM categories WHERE id = ? AND user_id = ?',
+    [localId, userId]
+  );
+  if (!row) throw new Error('Failed to create category');
+  return row;
+};
+
+export const updateLocalCategory = async (
+  userId: number,
+  id: number,
+  data: { name: string; type: 'income' | 'expense' | 'both'; icon: string; color: string; description?: string }
+): Promise<CategoryRecord> => {
+  const now = new Date().toISOString();
+  const result = await executeSql(
+    `UPDATE categories SET name = ?, type = ?, icon = ?, color = ?, description = ?, updated_at = ?
+     WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+    [data.name, data.type, data.icon, data.color, data.description ?? null, now, id, userId]
+  );
+  if (!result.changes) throw new Error('Category not found');
+  const row = await queryFirst<CategoryRecord>('SELECT * FROM categories WHERE id = ? AND user_id = ?', [id, userId]);
+  if (!row) throw new Error('Failed to load updated category');
+  return row;
+};
+
+export const softDeleteLocalCategory = async (userId: number, id: number): Promise<string> => {
+  const now = new Date().toISOString();
+  const result = await executeSql(
+    'UPDATE categories SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [now, now, id, userId]
+  );
+  if (!result.changes) throw new Error('Category not found');
+  return now;
+};
+
 const normalizeIso = (val: any): string => {
   if (!val) return new Date().toISOString();
   return String(val);
@@ -301,6 +361,11 @@ export const upsertCategories = async (userId: number, items: any[]): Promise<vo
             ON CONFLICT(id) DO UPDATE SET
               name = excluded.name,
               type = excluded.type,
+              icon = excluded.icon,
+              color = excluded.color,
+              description = excluded.description,
+              is_default = excluded.is_default,
+              usage_count = excluded.usage_count,
               updated_at = excluded.updated_at,
               deleted_at = excluded.deleted_at`,
       params: [

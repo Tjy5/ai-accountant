@@ -11,6 +11,8 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import TransactionListScreen from '../screens/transactions/TransactionListScreen';
 import AddTransactionScreen from '../screens/transactions/AddTransactionScreen';
 import EditTransactionScreen from '../screens/transactions/EditTransactionScreen';
+import CategoryListScreen from '../screens/categories/CategoryListScreen';
+import EditCategoryScreen from '../screens/categories/EditCategoryScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 
 export type AuthStackParamList = {
@@ -31,6 +33,8 @@ export type RootStackParamList = {
   MainTabs: undefined;
   TransactionDetail: { id: number };
   TransactionEdit: { id: number };
+  CategoryList: undefined;
+  CategoryEdit: { id?: number };
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -101,6 +105,8 @@ export default function AppNavigator() {
           <>
             <RootStack.Screen name="MainTabs" component={MainTabs} />
             <RootStack.Screen name="TransactionEdit" component={EditTransactionScreen} options={{ headerShown: true, title: '编辑交易' }} />
+            <RootStack.Screen name="CategoryList" component={CategoryListScreen} options={{ headerShown: true, title: '分类管理' }} />
+            <RootStack.Screen name="CategoryEdit" component={EditCategoryScreen} options={{ headerShown: true, title: '编辑分类' }} />
           </>
         ) : (
           <RootStack.Screen name="AuthStack" component={AuthNavigator} />
