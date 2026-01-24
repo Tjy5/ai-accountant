@@ -12,8 +12,13 @@ module.exports = function authMiddleware(req, res, next) {
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
 
+    const userId = parseInt(decoded.sub, 10);
+    if (!Number.isFinite(userId)) {
+      return res.status(401).json({ error: '无效的令牌', code: 'INVALID_TOKEN' });
+    }
+
     req.user = {
-      id: parseInt(decoded.sub, 10),
+      id: userId,
       email: decoded.email,
       name: decoded.name
     };

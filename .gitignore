@@ -159,3 +159,7 @@ vite.config.ts.timestamp-*
 # Temporary build output
 mobile/tsc_output*.txt
 mobile/tmpclaude*
+backend/tmpclaude*
+
+# OpenSpec collaboration workspace
+.openspec/

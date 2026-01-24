@@ -164,6 +164,45 @@ export const listTransactions = async (userId: number): Promise<TransactionRecor
   );
 };
 
+export const getTransaction = async (userId: number, id: number): Promise<TransactionRecord | null> => {
+  return await queryFirst<TransactionRecord>(
+    'SELECT * FROM transactions WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [id, userId]
+  );
+};
+
+export const updateLocalTransaction = async (
+  userId: number,
+  id: number,
+  data: { type: 'income' | 'expense'; category: string; amount: number; description?: string; date?: string }
+): Promise<TransactionRecord> => {
+  const now = new Date().toISOString();
+  const result = await executeSql(
+    `UPDATE transactions SET type = ?, category = ?, amount = ?, description = ?, date = COALESCE(?, date), updated_at = ?
+     WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+    [data.type, data.category, data.amount, data.description ?? null, data.date ?? null, now, id, userId]
+  );
+  if (!result.changes) {
+    throw new Error('Transaction not found');
+  }
+  const row = await queryFirst<TransactionRecord>(
+    'SELECT * FROM transactions WHERE id = ? AND user_id = ?',
+    [id, userId]
+  );
+  if (!row) throw new Error('Failed to load updated transaction');
+  return row;
+};
+
+export const softDeleteLocalTransaction = async (userId: number, id: number): Promise<string> => {
+  const now = new Date().toISOString();
+  const result = await executeSql(
+    'UPDATE transactions SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [now, now, id, userId]
+  );
+  if (!result.changes) throw new Error('Transaction not found');
+  return now;
+};
+
 export const createLocalTransaction = async (
   userId: number,
   data: { type: 'income' | 'expense'; category: string; amount: number; description?: string; date?: string }

@@ -6,7 +6,7 @@ module.exports = function budgetsRouter(db) {
   const router = express.Router();
 
   // Helper function to record budget history
-  const recordBudgetHistory = async (budgetId, action, oldValue, newValue, reason = null) => {
+  const recordBudgetHistory = async (userId, budgetId, action, oldValue, newValue, reason = null) => {
     try {
       // Normalize action values to match frontend expectations
       const normalizeActionForInsert = (a) => {
@@ -20,9 +20,9 @@ module.exports = function budgetsRouter(db) {
       };
       const actionValue = normalizeActionForInsert(action);
       await db.run(`
-        INSERT INTO budget_history (budget_id, action, old_value, new_value, reason, created_at)
-        VALUES (?, ?, ?, ?, ?, datetime('now'))
-      `, [budgetId, actionValue, oldValue, newValue, reason]);
+        INSERT INTO budget_history (budget_id, user_id, action, old_value, new_value, reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      `, [budgetId, userId, actionValue, oldValue, newValue, reason]);
     } catch (error) {
       console.error('❌ Failed to record budget history:', error);
     }
@@ -51,8 +51,12 @@ module.exports = function budgetsRouter(db) {
   // GET /budgets - Fetch budgets in a hierarchical structure
   router.get('/budgets', async (req, res, next) => {
     try {
-      const allBudgets = await db.all('SELECT * FROM budgets ORDER BY budget_type DESC, category');
-      
+      const userId = req.user.id;
+      const allBudgets = await db.all(
+        'SELECT * FROM budgets WHERE user_id = ? AND deleted_at IS NULL ORDER BY budget_type DESC, category',
+        [userId]
+      );
+
       const totalBudget = allBudgets.find(b => b.budget_type === 'total');
       const categoryBudgets = allBudgets.filter(b => b.budget_type === 'category');
 
@@ -61,7 +65,7 @@ module.exports = function budgetsRouter(db) {
         formattedTotalBudget.children = categoryBudgets.map(formatBudget);
         return res.json([formattedTotalBudget]); // Return as an array
       }
-      
+
       // If no total budget, just return category budgets or empty array
       res.json(categoryBudgets.map(formatBudget));
 
@@ -73,6 +77,7 @@ module.exports = function budgetsRouter(db) {
   // POST /budgets - Create a new budget (total or category)
   router.post('/budgets', async (req, res, next) => {
     try {
+      const userId = req.user.id;
       const { budgetType, categoryId } = req.body;
       const period = req.body.period || 'monthly';
       const budgetAmount = Number(req.body.budgetAmount) || 0;
@@ -109,16 +114,20 @@ module.exports = function budgetsRouter(db) {
       const useCustomDates = parsedStart && !isNaN(parsedStart.getTime()) && parsedEnd && !isNaN(parsedEnd.getTime());
 
       if (budgetType === 'total') {
-        const existingTotal = await db.get('SELECT id FROM budgets WHERE budget_type = ?', ['total']);
+        const existingTotal = await db.get(
+          'SELECT id FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = ?',
+          [userId, 'total']
+        );
         if (existingTotal) {
           return res.status(409).json({ error: 'A total budget already exists.' });
         }
-        
+
         // Insert total budget
         const result = await db.run(`
-          INSERT INTO budgets (budget_type, monthly_limit, quarterly_limit, yearly_limit, period, start_date, end_date, alert_threshold, is_active, description, created_at, updated_at)
-          VALUES ('total', ?, ?, ?, ?, ?, ?, 80, 1, ?, datetime('now'), datetime('now'))`,
+          INSERT INTO budgets (user_id, budget_type, monthly_limit, quarterly_limit, yearly_limit, period, start_date, end_date, alert_threshold, is_active, description, created_at, updated_at)
+          VALUES (?, 'total', ?, ?, ?, ?, ?, ?, 80, 1, ?, datetime('now'), datetime('now'))`,
           [
+            userId,
             monthlyLimit,
             quarterlyLimit,
             yearlyLimit,
@@ -130,18 +139,25 @@ module.exports = function budgetsRouter(db) {
         );
 
         // Record history
-        await recordBudgetHistory(result.lastID, 'created', null, monthlyLimit, 'Total budget created');
+        await recordBudgetHistory(userId, result.lastID, 'created', null, monthlyLimit, 'Total budget created');
 
-        const newBudget = await db.get('SELECT * FROM budgets WHERE id = ?', [result.lastID]);
+        const newBudget = await db.get(
+          'SELECT * FROM budgets WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+          [result.lastID, userId]
+        );
         return res.status(201).json(formatBudget(newBudget));
       } else if (budgetType === 'category') {
-        const totalBudget = await db.get('SELECT * FROM budgets WHERE budget_type = ?', ['total']);
+        const totalBudget = await db.get(
+          'SELECT * FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = ?',
+          [userId, 'total']
+        );
         if (!totalBudget) {
           return res.status(400).json({ error: 'Please set a total budget first.' });
         }
 
         const allocatedResult = await db.get(
-          'SELECT SUM(monthly_limit) as allocated FROM budgets WHERE budget_type = ?', ['category']
+          'SELECT SUM(monthly_limit) as allocated FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = ?',
+          [userId, 'category']
         );
         const allocatedSum = allocatedResult.allocated || 0;
 
@@ -152,11 +168,18 @@ module.exports = function budgetsRouter(db) {
         }
         
         // Insert category budget
-        const category = await db.get('SELECT name FROM categories WHERE id = ?', [categoryId]);
+        const category = await db.get(
+          'SELECT name FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+          [categoryId, userId]
+        );
+        if (!category) {
+          return res.status(404).json({ error: 'Category not found.' });
+        }
         const result = await db.run(`
-          INSERT INTO budgets (budget_type, category_id, category, parent_id, monthly_limit, quarterly_limit, yearly_limit, period, start_date, end_date, alert_threshold, is_active, description, created_at, updated_at)
-          VALUES ('category', ?, ?, ?, ?, ?, ?, ?, ?, ?, 80, 1, ?, datetime('now'), datetime('now'))`,
+          INSERT INTO budgets (user_id, budget_type, category_id, category, parent_id, monthly_limit, quarterly_limit, yearly_limit, period, start_date, end_date, alert_threshold, is_active, description, created_at, updated_at)
+          VALUES (?, 'category', ?, ?, ?, ?, ?, ?, ?, ?, ?, 80, 1, ?, datetime('now'), datetime('now'))`,
           [
+            userId,
             categoryId,
             category.name,
             totalBudget.id,
@@ -171,9 +194,12 @@ module.exports = function budgetsRouter(db) {
         );
 
         // Record history
-        await recordBudgetHistory(result.lastID, 'created', null, monthlyLimit, `Category budget created for ${category.name}`);
+        await recordBudgetHistory(userId, result.lastID, 'created', null, monthlyLimit, `Category budget created for ${category.name}`);
 
-        const newBudget = await db.get('SELECT * FROM budgets WHERE id = ?', [result.lastID]);
+        const newBudget = await db.get(
+          'SELECT * FROM budgets WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+          [result.lastID, userId]
+        );
         return res.status(201).json(formatBudget(newBudget));
       } else {
         return res.status(400).json({ error: 'Invalid budget type. Must be "total" or "category".' });
@@ -187,6 +213,7 @@ module.exports = function budgetsRouter(db) {
   // PUT /budgets/:id - Update a budget
   router.put('/budgets/:id', async (req, res, next) => {
     try {
+      const userId = req.user.id;
       const { id } = req.params;
       const period = req.body.period || 'monthly';
       const description = req.body.description || '';
@@ -216,7 +243,10 @@ module.exports = function budgetsRouter(db) {
       }
 
       // Get current budget
-      const currentBudget = await db.get('SELECT * FROM budgets WHERE id = ?', [id]);
+      const currentBudget = await db.get(
+        'SELECT * FROM budgets WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+        [id, userId]
+      );
       if (!currentBudget) {
         return res.status(404).json({ error: 'Budget not found.' });
       }
@@ -228,8 +258,8 @@ module.exports = function budgetsRouter(db) {
       if (currentBudget.budget_type === 'total') {
         // Update total budget
         const allocatedResult = await db.get(
-          'SELECT SUM(monthly_limit) as allocated FROM budgets WHERE budget_type = ? AND parent_id = ?',
-          ['category', currentBudget.id]
+          'SELECT SUM(monthly_limit) as allocated FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = ? AND parent_id = ?',
+          [userId, 'category', currentBudget.id]
         );
         const allocatedSum = allocatedResult.allocated || 0;
 
@@ -243,23 +273,26 @@ module.exports = function budgetsRouter(db) {
         await db.run(`
           UPDATE budgets
           SET monthly_limit = ?, quarterly_limit = ?, yearly_limit = ?, period = ?, description = ?, updated_at = datetime('now')
-          WHERE id = ?`,
-          [monthlyLimit, quarterlyLimit, yearlyLimit, period, description || '', id]
+          WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+          [monthlyLimit, quarterlyLimit, yearlyLimit, period, description || '', id, userId]
         );
 
         // Record history
-        await recordBudgetHistory(id, 'updated', currentBudget.monthly_limit, monthlyLimit, 'Total budget updated');
+        await recordBudgetHistory(userId, id, 'updated', currentBudget.monthly_limit, monthlyLimit, 'Total budget updated');
 
       } else if (currentBudget.budget_type === 'category') {
         // Update category budget
-        const totalBudget = await db.get('SELECT * FROM budgets WHERE budget_type = ?', ['total']);
+        const totalBudget = await db.get(
+          'SELECT * FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = ?',
+          [userId, 'total']
+        );
         if (!totalBudget) {
           return res.status(400).json({ error: 'Total budget not found.' });
         }
 
         const otherAllocatedResult = await db.get(
-          'SELECT SUM(monthly_limit) as allocated FROM budgets WHERE budget_type = ? AND parent_id = ? AND id != ?',
-          ['category', totalBudget.id, id]
+          'SELECT SUM(monthly_limit) as allocated FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = ? AND parent_id = ? AND id != ?',
+          [userId, 'category', totalBudget.id, id]
         );
         const otherAllocatedSum = otherAllocatedResult.allocated || 0;
 
@@ -273,18 +306,21 @@ module.exports = function budgetsRouter(db) {
         await db.run(`
           UPDATE budgets
           SET monthly_limit = ?, quarterly_limit = ?, yearly_limit = ?, period = ?, description = ?, updated_at = datetime('now')
-          WHERE id = ?`,
-          [monthlyLimit, quarterlyLimit, yearlyLimit, period, description || '', id]
+          WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+          [monthlyLimit, quarterlyLimit, yearlyLimit, period, description || '', id, userId]
         );
 
         // Record history
-        await recordBudgetHistory(id, 'updated', currentBudget.monthly_limit, monthlyLimit, 'Category budget updated');
+        await recordBudgetHistory(userId, id, 'updated', currentBudget.monthly_limit, monthlyLimit, 'Category budget updated');
 
       } else {
         return res.status(400).json({ error: 'Invalid budget type.' });
       }
 
-      const updatedBudget = await db.get('SELECT * FROM budgets WHERE id = ?', [id]);
+      const updatedBudget = await db.get(
+        'SELECT * FROM budgets WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+        [id, userId]
+      );
       return res.json(formatBudget(updatedBudget));
 
     } catch (err) {
@@ -295,17 +331,24 @@ module.exports = function budgetsRouter(db) {
   // DELETE /budgets/:id - Delete a budget
   router.delete('/budgets/:id', async (req, res, next) => {
     try {
+      const userId = req.user.id;
       const { id } = req.params;
 
       // Get current budget
-      const currentBudget = await db.get('SELECT * FROM budgets WHERE id = ?', [id]);
+      const currentBudget = await db.get(
+        'SELECT * FROM budgets WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+        [id, userId]
+      );
       if (!currentBudget) {
         return res.status(404).json({ error: 'Budget not found.' });
       }
 
       if (currentBudget.budget_type === 'total') {
         // Check for child budgets
-        const childCount = await db.get('SELECT COUNT(*) as count FROM budgets WHERE parent_id = ?', [id]);
+        const childCount = await db.get(
+          'SELECT COUNT(*) as count FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND parent_id = ?',
+          [userId, id]
+        );
         if (childCount.count > 0) {
           return res.status(400).json({
             error: `Cannot delete total budget with ${childCount.count} category budgets. Delete category budgets first or delete all at once.`
@@ -314,11 +357,14 @@ module.exports = function budgetsRouter(db) {
       }
 
       // Record history before deletion
-      await recordBudgetHistory(id, 'deleted', currentBudget.monthly_limit, null,
+      await recordBudgetHistory(userId, id, 'deleted', currentBudget.monthly_limit, null,
         `${currentBudget.budget_type === 'total' ? 'Total' : 'Category'} budget deleted`);
 
-      // Delete the budget (CASCADE will handle children if any)
-      await db.run('DELETE FROM budgets WHERE id = ?', [id]);
+      // Soft delete to support sync
+      await db.run(
+        'UPDATE budgets SET deleted_at = datetime(\'now\'), updated_at = datetime(\'now\') WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+        [id, userId]
+      );
 
       res.status(204).send();
 
@@ -330,14 +376,21 @@ module.exports = function budgetsRouter(db) {
   // GET /budget-status - Reworked for parent-child model
   router.get('/budget-status', async (req, res, next) => {
     try {
+      const userId = req.user.id;
       // Get total budget and category budgets
-      const totalBudget = await db.get('SELECT * FROM budgets WHERE budget_type = ?', ['total']);
+      const totalBudget = await db.get(
+        'SELECT * FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = ?',
+        [userId, 'total']
+      );
       if (!totalBudget) {
         return res.json({ message: 'No total budget set.' });
       }
 
       // Include all category budgets (even if legacy records lack parent_id)
-      const categoryBudgets = await db.all('SELECT * FROM budgets WHERE budget_type = ?', ['category']);
+      const categoryBudgets = await db.all(
+        'SELECT * FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = ?',
+        [userId, 'category']
+      );
 
       // Helper to get period range
       const pad2 = (n) => String(n).padStart(2, '0');
@@ -378,8 +431,8 @@ module.exports = function budgetsRouter(db) {
 
       // Calculate total spent (all expense transactions) within total budget period
       const totalSpentResult = await db.get(
-        'SELECT SUM(amount) as total FROM transactions t WHERE t.type = ? AND DATE(t.date) >= ? AND DATE(t.date) <= ?',
-        ['expense', totalRange.startStr, totalRange.endStr]
+        'SELECT SUM(amount) as total FROM transactions t WHERE t.user_id = ? AND t.deleted_at IS NULL AND t.type = ? AND DATE(t.date) >= ? AND DATE(t.date) <= ?',
+        [userId, 'expense', totalRange.startStr, totalRange.endStr]
       );
       const totalSpent = totalSpentResult.total || 0;
 
@@ -392,10 +445,14 @@ module.exports = function budgetsRouter(db) {
              FROM transactions t
              LEFT JOIN categories c
                ON LOWER(TRIM(t.category)) = LOWER(TRIM(c.name))
-            WHERE t.type = ?
+              AND c.user_id = ?
+              AND c.deleted_at IS NULL
+            WHERE t.user_id = ?
+              AND t.deleted_at IS NULL
+              AND t.type = ?
               AND (c.id = ? OR LOWER(TRIM(t.category)) = LOWER(TRIM(?)))
               AND DATE(t.date) >= ? AND DATE(t.date) <= ?`,
-          ['expense', categoryBudget.category_id || -1, categoryBudget.category || '', startStr, endStr]
+          [userId, userId, 'expense', categoryBudget.category_id || -1, categoryBudget.category || '', startStr, endStr]
         );
         const categorySpent = categorySpentResult.spent || 0;
 
@@ -433,12 +490,13 @@ module.exports = function budgetsRouter(db) {
   // GET /budget-history - Fetch budget change history
   router.get('/budget-history', async (req, res, next) => {
     try {
+      const userId = req.user.id;
       const page = Number(req.query.page) > 0 ? Number(req.query.page) : 1;
       const pageSize = Number(req.query.pageSize) > 0 ? Number(req.query.pageSize) : 50;
       const budgetId = req.query.budgetId ? Number(req.query.budgetId) : null;
 
-      const whereClauses = [];
-      const params = [];
+      const whereClauses = ['user_id = ?', 'deleted_at IS NULL'];
+      const params = [userId];
       if (budgetId) {
         whereClauses.push('budget_id = ?');
         params.push(budgetId);

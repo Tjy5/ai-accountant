@@ -10,6 +10,7 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import TransactionListScreen from '../screens/transactions/TransactionListScreen';
 import AddTransactionScreen from '../screens/transactions/AddTransactionScreen';
+import EditTransactionScreen from '../screens/transactions/EditTransactionScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 
 export type AuthStackParamList = {
@@ -97,7 +98,10 @@ export default function AppNavigator() {
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         {token ? (
-          <RootStack.Screen name="MainTabs" component={MainTabs} />
+          <>
+            <RootStack.Screen name="MainTabs" component={MainTabs} />
+            <RootStack.Screen name="TransactionEdit" component={EditTransactionScreen} options={{ headerShown: true, title: '编辑交易' }} />
+          </>
         ) : (
           <RootStack.Screen name="AuthStack" component={AuthNavigator} />
         )}

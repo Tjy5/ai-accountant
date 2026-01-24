@@ -1,5 +1,5 @@
 {
-  "lastRun": "009-add-parent-id-to-budgets.js",
+  "lastRun": "011-rebuild-multi-user-tables.js",
   "migrations": [
     {
       "title": "001-initial-schema.js",
@@ -36,6 +36,14 @@
     {
       "title": "009-add-parent-id-to-budgets.js",
       "timestamp": 1756268219725
+    },
+    {
+      "title": "010-add-multi-user-sync.js",
+      "timestamp": 1769189660484
+    },
+    {
+      "title": "011-rebuild-multi-user-tables.js",
+      "timestamp": 1769189660504
     }
   ]
 }

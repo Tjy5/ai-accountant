@@ -73,14 +73,18 @@ module.exports = function syncRouter(db) {
             if (!id || id <= 0) continue;
 
             const incomingUpdatedAt = item.updated_at || new Date().toISOString();
+            const incomingSeconds = toUnixSeconds(incomingUpdatedAt) || nowSeconds();
 
             const existing = await db.get(
-              'SELECT updated_at FROM transactions WHERE id = ? AND user_id = ?',
+              `SELECT updated_at, CAST(strftime('%s', updated_at) AS INTEGER) as updated_at_s
+               FROM transactions WHERE id = ? AND user_id = ?`,
               [id, userId]
             );
 
-            // 如果本地版本更新,跳过
-            if (existing && existing.updated_at >= incomingUpdatedAt) {
+            const existingSeconds = existing && existing.updated_at_s != null ? Number(existing.updated_at_s) : null;
+
+            // 如果服务端版本更新或相同,跳过 (LWW)
+            if (existingSeconds !== null && existingSeconds >= incomingSeconds) {
               report.ignored.transactions++;
               continue;
             }
@@ -131,13 +135,17 @@ module.exports = function syncRouter(db) {
             if (!id || id <= 0) continue;
 
             const incomingUpdatedAt = item.updated_at || new Date().toISOString();
+            const incomingSeconds = toUnixSeconds(incomingUpdatedAt) || nowSeconds();
 
             const existing = await db.get(
-              'SELECT updated_at FROM categories WHERE id = ? AND user_id = ?',
+              `SELECT updated_at, CAST(strftime('%s', COALESCE(updated_at, created_at)) AS INTEGER) as updated_at_s
+               FROM categories WHERE id = ? AND user_id = ?`,
               [id, userId]
             );
 
-            if (existing && existing.updated_at >= incomingUpdatedAt) {
+            const existingSeconds = existing && existing.updated_at_s != null ? Number(existing.updated_at_s) : null;
+
+            if (existingSeconds !== null && existingSeconds >= incomingSeconds) {
               report.ignored.categories++;
               continue;
             }
@@ -182,13 +190,17 @@ module.exports = function syncRouter(db) {
             if (!id || id <= 0) continue;
 
             const incomingUpdatedAt = item.updated_at || new Date().toISOString();
+            const incomingSeconds = toUnixSeconds(incomingUpdatedAt) || nowSeconds();
 
             const existing = await db.get(
-              'SELECT updated_at FROM budgets WHERE id = ? AND user_id = ?',
+              `SELECT updated_at, CAST(strftime('%s', COALESCE(updated_at, created_at)) AS INTEGER) as updated_at_s
+               FROM budgets WHERE id = ? AND user_id = ?`,
               [id, userId]
             );
 
-            if (existing && existing.updated_at >= incomingUpdatedAt) {
+            const existingSeconds = existing && existing.updated_at_s != null ? Number(existing.updated_at_s) : null;
+
+            if (existingSeconds !== null && existingSeconds >= incomingSeconds) {
               report.ignored.budgets++;
               continue;
             }
