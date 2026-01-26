@@ -1,8 +1,8 @@
-import { openDatabaseAsync, Database, RunResult } from 'expo-sqlite/next';
+import { openDatabaseAsync } from 'expo-sqlite/next';
 import { generateLocalId } from '../utils/uuid';
 
 const DB_NAME = 'ai_accountant.db';
-let db: Database | null = null;
+let db: any = null;
 
 export type SqlParams = Array<string | number | null | boolean>;
 
@@ -58,25 +58,25 @@ export interface BudgetRecord {
   parent_id: number | null;
 }
 
-export const openDatabase = async (): Promise<Database> => {
+export const openDatabase = async (): Promise<any> => {
   if (db) return db;
   db = await openDatabaseAsync(DB_NAME);
   return db;
 };
 
-export const executeSql = async (sql: string, params?: SqlParams): Promise<RunResult> => {
+export const executeSql = async (sql: string, params?: SqlParams): Promise<any> => {
   const database = await openDatabase();
   return await database.runAsync(sql, params || []);
 };
 
 export const queryAll = async <T = any>(sql: string, params?: SqlParams): Promise<T[]> => {
   const database = await openDatabase();
-  return await database.allAsync<T>(sql, params || []);
+  return await database.getAllAsync(sql, params || []);
 };
 
 export const queryFirst = async <T = any>(sql: string, params?: SqlParams): Promise<T | null> => {
-  const rows = await queryAll<T>(sql, params);
-  return rows[0] ?? null;
+  const database = await openDatabase();
+  return await database.getFirstAsync(sql, params || []);
 };
 
 export const initDatabase = async (): Promise<void> => {

@@ -26,7 +26,8 @@
       "package": "com.aiaccountant.mobile",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.DETECT_SCREEN_CAPTURE"
       ]
     },
     "web": {

@@ -33,8 +33,8 @@ export default function LoginScreen({ navigation }: Props) {
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
-        keyboardType="email-address"
-        placeholder="邮箱"
+        keyboardType="default"
+        placeholder="账号"
       />
       <TextInput
         style={styles.input}

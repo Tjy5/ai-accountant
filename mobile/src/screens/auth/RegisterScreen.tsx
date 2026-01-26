@@ -29,9 +29,9 @@ export default function RegisterScreen({ navigation }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>创建账号</Text>
-      <TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="邮箱" />
+      <TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="default" placeholder="账号" />
       <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="昵称（可选）" />
-      <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="密码（至少8位，含大小写+数字）" />
+      <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="密码" />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.primaryButton} onPress={onSubmit} disabled={submitting}>
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>注册</Text>}
