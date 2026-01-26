@@ -8,6 +8,20 @@ export interface ApiError extends Error {
 let BASE_URL = '';
 let DEFAULT_HEADERS: Record<string, string> = {};
 
+const getStoredAuthToken = (): string | null => {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw =
+      localStorage.getItem('token') ||
+      localStorage.getItem('authToken') ||
+      localStorage.getItem('jwt');
+    const t = raw ? String(raw).trim() : '';
+    return t ? t : null;
+  } catch {
+    return null;
+  }
+};
+
 export const setBaseUrl = (url: string) => {
   BASE_URL = url;
 };
@@ -45,6 +59,10 @@ const request = async <T>(method: HttpMethod, path: string, options?: {
   const init: RequestInit = { method };
   const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData;
   const headers: Record<string, string> = { ...DEFAULT_HEADERS, ...(options?.headers || {}) };
+  if (!headers.Authorization) {
+    const stored = getStoredAuthToken();
+    if (stored) headers.Authorization = `Bearer ${stored}`;
+  }
   if (!isFormData) {
     headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   }
@@ -54,7 +72,15 @@ const request = async <T>(method: HttpMethod, path: string, options?: {
   if (options?.body !== undefined) {
     init.body = isFormData ? options.body : (typeof options.body === 'string' ? options.body : JSON.stringify(options.body));
   }
-  const res = await fetch(url, init);
+  let res: any;
+  try {
+    res = await fetch(url, init);
+  } catch (e: any) {
+    const err: ApiError = new Error(e?.message ? String(e.message) : 'Network request failed');
+    err.status = 0;
+    err.details = { cause: e };
+    throw err;
+  }
   if (!res.ok) {
     let details: any = undefined;
     try { details = await res.json(); } catch {}
@@ -77,3 +103,14 @@ export const api = {
 };
 
 export default api;
+
+export function getApiErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const e = err as { status?: number; details?: { error?: string }; message?: string };
+    if (e.details?.error) return e.details.error;
+    if (e.message) return e.message;
+    if (e.status) return `HTTP ${e.status}`;
+  }
+  if (typeof err === 'string') return err;
+  return '未知错误';
+}

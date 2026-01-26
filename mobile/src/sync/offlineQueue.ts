@@ -37,6 +37,30 @@ export const enqueue = async (
   );
 };
 
+export const enqueueMany = async (
+  userId: number,
+  tableName: QueueTableName,
+  operation: QueueOperation,
+  payloads: any[]
+): Promise<void> => {
+  if (!Array.isArray(payloads) || payloads.length === 0) return;
+  const now = new Date().toISOString();
+  await executeSql('BEGIN');
+  try {
+    for (const payload of payloads) {
+      await executeSql(
+        `INSERT INTO offline_queue (user_id, table_name, operation, payload, created_at, attempts, last_error)
+         VALUES (?, ?, ?, ?, ?, 0, NULL)`,
+        [userId, tableName, operation, JSON.stringify(payload), now]
+      );
+    }
+    await executeSql('COMMIT');
+  } catch (e) {
+    await executeSql('ROLLBACK');
+    throw e;
+  }
+};
+
 export const getPendingCount = async (userId: number): Promise<number> => {
   const rows = await queryAll<{ count: number }>(
     'SELECT COUNT(*) as count FROM offline_queue WHERE user_id = ?',

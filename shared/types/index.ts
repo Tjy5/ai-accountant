@@ -132,3 +132,33 @@ export interface ExportOptions {
   fields: string[];
   filename?: string;
 }
+
+// AI Types
+export interface AITransactionDraft {
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+  description: string;
+  date: string;
+  confidence?: number;
+  sourceSpan?: { start: number; end: number };
+}
+
+export interface AIAnalysisResult {
+  transactions: AITransactionDraft[];
+  ignored: string[];
+  warnings: string[];
+}
+
+export interface AISettings {
+  apiBaseUrl: string;
+  apiKey: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  enabled: boolean;
+}
+
+export interface AISettingsResponse {
+  settings: AISettings;
+}

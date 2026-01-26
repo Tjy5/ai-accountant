@@ -61,6 +61,15 @@ export default function SettingsScreen() {
 
       <Pressable
         style={styles.menuItem}
+        onPress={() => navigation.navigate('AISettings')}
+        accessibilityLabel="AI 设置"
+      >
+        <Text style={styles.menuText}>AI 设置</Text>
+        <MaterialCommunityIcons name="chevron-right" size={24} color="#ccc" />
+      </Pressable>
+
+      <Pressable
+        style={styles.menuItem}
         onPress={() => navigation.navigate('CategoryList')}
         accessibilityLabel="分类管理"
       >

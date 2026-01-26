@@ -10,9 +10,14 @@ import {
   View,
   Modal,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../auth/AuthContext';
 import { createLocalTransaction } from '../../storage/localDB';
 import { enqueue } from '../../sync/offlineQueue';
+import { RootStackParamList } from '../../navigation/AppNavigator';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 // Simple date picker component since @react-native-community/datetimepicker may not be installed
 function SimpleDatePicker({
@@ -101,6 +106,7 @@ const pickerStyles = StyleSheet.create({
 });
 
 export default function AddTransactionScreen() {
+  const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [category, setCategory] = useState('');
@@ -161,6 +167,15 @@ export default function AddTransactionScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.select({ ios: 'padding', android: undefined })}>
+      <Pressable
+        style={styles.aiEntry}
+        onPress={() => navigation.navigate('AIAdd')}
+        accessibilityLabel="进入 AI 智能记账"
+        accessibilityRole="button"
+      >
+        <Text style={styles.aiEntryText}>AI 智能记账</Text>
+      </Pressable>
+
       <Text style={styles.title}>新增记账</Text>
       <View style={styles.segmentRow}>
         <Pressable
@@ -239,6 +254,8 @@ export default function AddTransactionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
+  aiEntry: { backgroundColor: '#f0f5ff', borderWidth: 1, borderColor: '#adc6ff', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
+  aiEntryText: { color: '#2f54eb', fontSize: 14, fontWeight: '700' },
   title: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
   segmentRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   segment: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },

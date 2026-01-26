@@ -19,6 +19,8 @@ const transactionsRouterFactory = require('./routes/transactions');
 const syncRouterFactory = require('./routes/sync');
 const devicesRouterFactory = require('./routes/devices');
 const preferencesRouterFactory = require('./routes/preferences');
+const aiSettingsRouterFactory = require('./routes/aiSettings');
+const aiRouterFactory = require('./routes/ai');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 
@@ -74,6 +76,8 @@ let db;
     app.use('/api', syncRouterFactory(db));
     app.use('/api', devicesRouterFactory(db));
     app.use('/api', preferencesRouterFactory(db));
+    app.use('/api', aiSettingsRouterFactory(db));
+    app.use('/api', aiRouterFactory(db));
 
     const server = app.listen(process.env.PORT || 3001, () => {
       console.log(`🚀 服务器已启动，监听端口 ${process.env.PORT || 3001}`);

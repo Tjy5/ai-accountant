@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { Form, Select, Input, InputNumber, Button, message, Space, Typography, DatePicker, Tag } from 'antd';
+import { Form, Select, Input, InputNumber, Button, message, Space, Typography, DatePicker, Tag, Segmented } from 'antd';
 import { AudioOutlined, PlusOutlined, PauseOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import api from './utils/api';
 import CategorySelector from './components/CategorySelector';
+import AIAnalysisPanel from './components/AIAnalysisPanel';
 
 export type TransactionFormData = {
   type: 'income' | 'expense';
@@ -23,6 +24,7 @@ interface TransactionFormProps {
 }
 
 const TransactionForm: React.FC<TransactionFormProps> = ({ onSubmit, onCategoryChange, onNavigateToCategoryManager }) => {
+  const [mode, setMode] = useState<'manual' | 'ai'>('manual');
   const [form] = Form.useForm<TransactionFormData>();
   const transactionType = Form.useWatch('type', form);
   const [aiSuggestedCategory, setAiSuggestedCategory] = useState<string | null>(null);
@@ -293,15 +295,34 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSubmit, onCategoryC
   };
 
   return (
-    <Form
-      form={form}
-      layout="vertical"
-      initialValues={{ type: 'expense' }}
-      onFinish={handleFinish}
-    >
-      <div style={{ marginBottom: 8 }}>
-        <Typography.Text strong>填写交易信息</Typography.Text>
+    <div>
+      <div style={{ marginBottom: 12 }}>
+        <Segmented
+          block
+          value={mode}
+          options={[
+            { label: '普通录入', value: 'manual' },
+            { label: 'AI 智能分析', value: 'ai' },
+          ]}
+          onChange={v => setMode(v as any)}
+        />
       </div>
+
+      {mode === 'ai' ? (
+        <AIAnalysisPanel onSuccess={() => {
+          setMode('manual');
+          onCategoryChange?.();
+        }} />
+      ) : (
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ type: 'expense' }}
+          onFinish={handleFinish}
+        >
+          <div style={{ marginBottom: 8 }}>
+            <Typography.Text strong>填写交易信息</Typography.Text>
+          </div>
       <Form.Item
         label="类型"
         name="type"
@@ -438,6 +459,8 @@ const TransactionForm: React.FC<TransactionFormProps> = ({ onSubmit, onCategoryC
         提交
       </Button>
     </Form>
+      )}
+    </div>
   );
 };
 

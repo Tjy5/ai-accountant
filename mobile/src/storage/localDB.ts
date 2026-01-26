@@ -223,6 +223,39 @@ export const createLocalTransaction = async (
   return row;
 };
 
+export const createLocalTransactions = async (
+  userId: number,
+  items: Array<{ type: 'income' | 'expense'; category: string; amount: number; description?: string; date?: string }>
+): Promise<TransactionRecord[]> => {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const now = new Date().toISOString();
+  const created: TransactionRecord[] = [];
+
+  await executeSql('BEGIN');
+  try {
+    for (const item of items) {
+      const localId = generateLocalId();
+      const transactionDate = item.date || now;
+      await executeSql(
+        `INSERT INTO transactions (id, user_id, type, category, amount, description, date, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [localId, userId, item.type, item.category, item.amount, item.description ?? null, transactionDate, now, now]
+      );
+      const row = await queryFirst<TransactionRecord>(
+        'SELECT * FROM transactions WHERE id = ?',
+        [localId]
+      );
+      if (row) created.push(row);
+    }
+    await executeSql('COMMIT');
+  } catch (e) {
+    await executeSql('ROLLBACK');
+    throw e;
+  }
+
+  return created;
+};
+
 export const listCategories = async (userId: number): Promise<CategoryRecord[]> => {
   return await queryAll<CategoryRecord>(
     'SELECT * FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY usage_count DESC, name ASC',

@@ -1,4 +1,5 @@
 import API_BASE_URL from '../config';
+import type { AIAnalysisResult, AISettings, AISettingsResponse } from '../../../shared/types';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -6,6 +7,20 @@ export interface ApiError extends Error {
   status?: number;
   details?: any;
 }
+
+const getStoredAuthToken = (): string | null => {
+  try {
+    if (typeof window === 'undefined') return null;
+    const raw =
+      window.localStorage.getItem('token') ||
+      window.localStorage.getItem('authToken') ||
+      window.localStorage.getItem('jwt');
+    const t = raw ? String(raw).trim() : '';
+    return t ? t : null;
+  } catch {
+    return null;
+  }
+};
 
 const buildUrl = (path: string, params?: Record<string, string | number | boolean | Array<string | number>>): string => {
   const url = new URL(path, API_BASE_URL);
@@ -30,6 +45,10 @@ const request = async <T>(method: HttpMethod, path: string, options?: {
   const init: RequestInit = { method };
   const isFormData = typeof FormData !== 'undefined' && options?.body instanceof FormData;
   const headers: Record<string, string> = { ...(options?.headers || {}) };
+  const token = getStoredAuthToken();
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
   if (!isFormData) {
     headers['Content-Type'] = headers['Content-Type'] || 'application/json';
   }
@@ -39,7 +58,15 @@ const request = async <T>(method: HttpMethod, path: string, options?: {
   if (options?.body !== undefined) {
     init.body = isFormData ? options.body : (typeof options.body === 'string' ? options.body : JSON.stringify(options.body));
   }
-  const res = await fetch(url, init);
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch (e: any) {
+    const err: ApiError = new Error(e?.message ? String(e.message) : 'Network request failed');
+    err.status = 0;
+    err.details = { cause: e };
+    throw err;
+  }
   if (!res.ok) {
     let details: any = undefined;
     try { details = await res.json(); } catch {}
@@ -60,7 +87,13 @@ export const api = {
   post: <T>(path: string, body?: any) => request<T>('POST', path, { body }),
   put: <T>(path: string, body?: any) => request<T>('PUT', path, { body }),
   delete: <T>(path: string) => request<T>('DELETE', path),
-  postForm: <T>(path: string, formData: FormData) => request<T>('POST', path, { body: formData })
+  postForm: <T>(path: string, formData: FormData) => request<T>('POST', path, { body: formData }),
+  // AI API methods
+  analyzeText: (text: string) => request<AIAnalysisResult>('POST', '/api/ai/analyze', { body: { text } }),
+  getAISettings: () => request<AISettingsResponse>('GET', '/api/ai/settings'),
+  updateAISettings: (settings: Partial<AISettings>) => request<AISettingsResponse>('PUT', '/api/ai/settings', { body: settings }),
+  deleteAISettings: () => request<void>('DELETE', '/api/ai/settings'),
+  bulkCreateTransactions: (transactions: AIAnalysisResult['transactions']) => request<{ transactions: any[] }>('POST', '/api/transactions/bulk', { body: { transactions } }),
 };
 
 export default api;
