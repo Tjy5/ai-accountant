@@ -6,6 +6,7 @@ import {
   ViewStyle,
   StatusBar,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +17,7 @@ import { theme } from '../theme';
 // 统一封装 渐变头部 + 负边距重叠 + 滚动 + 安全区域
 // ============================================
 
-type HeaderType = 'large' | 'standard' | 'mini' | 'hidden';
+type HeaderType = 'large' | 'standard' | 'mini' | 'hidden' | 'jumbo';
 
 export interface ScreenContainerProps {
   // 头部配置
@@ -45,6 +46,7 @@ const HEADER_HEIGHTS = {
   standard: 180,
   mini: 120,
   hidden: 0,
+  jumbo: Math.round(Dimensions.get('window').height * 0.6),
 };
 
 export const ScreenContainer: React.FC<ScreenContainerProps> = ({
@@ -219,5 +221,6 @@ const styles = StyleSheet.create({
   },
   overlapContent: {
     paddingHorizontal: theme.spacing.sm,
+    flex: 1,
   },
 });

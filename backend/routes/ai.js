@@ -174,7 +174,7 @@ module.exports = function aiRouter(db) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => {
-      return req.user && req.user.id ? String(req.user.id) : req.ip;
+      return req.user && req.user.id ? String(req.user.id) : 'unknown';
     }
   });
 

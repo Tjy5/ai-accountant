@@ -20,10 +20,11 @@ import { createLocalTransactions } from '../storage/localDB';
 import { enqueueMany } from '../sync/offlineQueue';
 import { theme } from '../theme';
 import { AppText } from './AppText';
+import { WealthCard } from './WealthCard';
 import { api, getApiErrorMessage } from '../../../shared/utils/api';
 import type { AIAnalysisResult, AITransactionDraft } from '../../../shared/types';
 
-export type AIInputMode = 'text' | 'voice' | 'voice-text' | 'camera' | null;
+export type AIInputMode = 'text' | 'voice' | 'camera' | null;
 
 interface AIInputModalProps {
     visible: boolean;
@@ -43,7 +44,11 @@ export function AIInputModal({ visible, mode, onClose, onResult }: AIInputModalP
     const [drafts, setDrafts] = useState<AITransactionDraft[]>([]);
     const [ignored, setIgnored] = useState<string[]>([]);
     const [warnings, setWarnings] = useState<string[]>([]);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editSnapshot, setEditSnapshot] = useState<AITransactionDraft | null>(null);
     const pulseAnim = useRef(new Animated.Value(1)).current;
+    const deleteAnims = useRef<Map<string, Animated.Value>>(new Map()).current;
+    const draftIdCounter = useRef(0);
 
     const totalAmount = useMemo(() => {
         return drafts.reduce((sum, d) => sum + (Number.isFinite(Number(d.amount)) ? Number(d.amount) : 0), 0);
@@ -59,14 +64,26 @@ export function AIInputModal({ visible, mode, onClose, onResult }: AIInputModalP
             setDrafts([]);
             setIgnored([]);
             setWarnings([]);
+            setEditingId(null);
+            setEditSnapshot(null);
             setLoading(false);
             setSaving(false);
+            deleteAnims.clear();
+            draftIdCounter.current = 0;
         }
-    }, [visible]);
+    }, [visible, deleteAnims]);
+
+    const generateDraftId = () => {
+        draftIdCounter.current += 1;
+        return `draft_${draftIdCounter.current}_${Date.now()}`;
+    };
 
     const setBatchResult = (res: AIAnalysisResult, emptyFallbackMessage: string) => {
         const txs = Array.isArray(res?.transactions) ? res.transactions : [];
-        const normalized = txs.filter(Boolean);
+        const normalized = txs.filter(Boolean).map(tx => ({
+            ...tx,
+            _draftId: generateDraftId(),
+        }));
 
         if (normalized.length >= 2) {
             setDrafts(normalized);
@@ -87,19 +104,65 @@ export function AIInputModal({ visible, mode, onClose, onResult }: AIInputModalP
         );
     };
 
-    const updateDraft = (idx: number, patch: Partial<AITransactionDraft>) => {
-        setDrafts(prev => prev.map((d, i) => (i === idx ? { ...d, ...patch } : d)));
+    const updateDraftById = (draftId: string, patch: Partial<AITransactionDraft>) => {
+        setDrafts(prev => prev.map(d => (d._draftId === draftId ? { ...d, ...patch } : d)));
     };
 
-    const removeDraft = (idx: number) => {
+    const removeDraftById = (draftId: string) => {
         setDrafts(prev => {
-            const next = prev.filter((_, i) => i !== idx);
+            const next = prev.filter(d => d._draftId !== draftId);
             if (next.length === 0) {
                 setIgnored([]);
                 setWarnings([]);
             }
             return next;
         });
+        if (editingId === draftId) {
+            setEditingId(null);
+            setEditSnapshot(null);
+        }
+    };
+
+    const startEdit = (draftId: string, draft: AITransactionDraft) => {
+        setEditSnapshot({ ...draft });
+        setEditingId(draftId);
+    };
+
+    const cancelEdit = () => {
+        if (editingId !== null && editSnapshot) {
+            updateDraftById(editingId, editSnapshot);
+        }
+        setEditingId(null);
+        setEditSnapshot(null);
+    };
+
+    const confirmEdit = () => {
+        setEditingId(null);
+        setEditSnapshot(null);
+    };
+
+    const animatedRemove = (draftId: string) => {
+        if (!deleteAnims.has(draftId)) {
+            deleteAnims.set(draftId, new Animated.Value(1));
+        }
+        const anim = deleteAnims.get(draftId)!;
+        Animated.timing(anim, {
+            toValue: 0,
+            duration: 200,
+            useNativeDriver: true,
+        }).start(({ finished }) => {
+            if (finished) {
+                removeDraftById(draftId);
+                deleteAnims.delete(draftId);
+            }
+        });
+    };
+
+    const getDeleteAnim = (draftId: string) => {
+        if (!deleteAnims.has(draftId)) {
+            deleteAnims.set(draftId, new Animated.Value(1));
+        }
+        return deleteAnims.get(draftId)!;
     };
 
     const clearBatchResult = () => {
@@ -333,103 +396,168 @@ export function AIInputModal({ visible, mode, onClose, onResult }: AIInputModalP
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
                     >
-                        {drafts.map((d, idx) => (
-                            <View key={idx} style={styles.draftCard}>
-                                <View style={styles.draftHeader}>
-                                    <AppText bold>交易 {idx + 1}</AppText>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                        <Pressable
-                                            style={[styles.smallPrimaryBtn, saving && { opacity: 0.6 }]}
-                                            onPress={() => {
-                                                onResult(d);
-                                                onClose();
-                                            }}
-                                            disabled={saving}
-                                        >
-                                            <AppText color="#fff" variant="caption" bold>填充</AppText>
-                                        </Pressable>
-                                        <Pressable onPress={() => removeDraft(idx)} hitSlop={10} disabled={saving}>
-                                            <MaterialCommunityIcons name="close-circle-outline" size={20} color={theme.colors.error} />
-                                        </Pressable>
-                                    </View>
-                                </View>
+                        {drafts.map((d) => {
+                            const draftId = d._draftId || '';
+                            const isEditing = editingId === draftId;
+                            const amountColor = d.type === 'expense'
+                                ? theme.colors.wealth?.functional?.expense
+                                : theme.colors.wealth?.functional?.income;
 
-                                <View style={styles.typeSelector}>
-                                    <Pressable
-                                        style={[styles.typeBtn, d.type === 'expense' && styles.typeBtnActive]}
-                                        onPress={() => updateDraft(idx, { type: 'expense' })}
-                                        disabled={saving}
+                            return (
+                                <Animated.View
+                                    key={draftId}
+                                    style={{ opacity: getDeleteAnim(draftId), marginBottom: 12 }}
+                                >
+                                    <WealthCard
+                                        variant="receipt"
+                                        cutoutColor={theme.colors.background}
+                                        padding="md"
+                                        contentStyle={isEditing ? { backgroundColor: theme.colors.surfaceVariant } : undefined}
                                     >
-                                        <AppText color={d.type === 'expense' ? '#fff' : theme.colors.textSecondary} variant="caption" bold>
-                                            支出
-                                        </AppText>
-                                    </Pressable>
-                                    <Pressable
-                                        style={[styles.typeBtn, d.type === 'income' && styles.typeBtnActive]}
-                                        onPress={() => updateDraft(idx, { type: 'income' })}
-                                        disabled={saving}
-                                    >
-                                        <AppText color={d.type === 'income' ? '#fff' : theme.colors.textSecondary} variant="caption" bold>
-                                            收入
-                                        </AppText>
-                                    </Pressable>
-                                </View>
+                                        {/* Header with amount */}
+                                        <View style={styles.receiptHeader}>
+                                            <AppText
+                                                variant="title"
+                                                bold
+                                                style={{ fontSize: 28, color: amountColor }}
+                                            >
+                                                {d.type === 'expense' ? '-' : '+'}¥{Number(d.amount || 0).toFixed(2)}
+                                            </AppText>
+                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                {isEditing ? (
+                                                    <>
+                                                        <Pressable onPress={cancelEdit} hitSlop={10}>
+                                                            <MaterialCommunityIcons name="close" size={20} color={theme.colors.textSecondary} />
+                                                        </Pressable>
+                                                        <Pressable onPress={confirmEdit} hitSlop={10}>
+                                                            <MaterialCommunityIcons name="check" size={20} color={theme.colors.wealth?.functional?.income} />
+                                                        </Pressable>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Pressable onPress={() => startEdit(draftId, d)} hitSlop={10} disabled={saving}>
+                                                            <MaterialCommunityIcons name="pencil-outline" size={20} color={theme.colors.textSecondary} />
+                                                        </Pressable>
+                                                        <Pressable onPress={() => animatedRemove(draftId)} hitSlop={10} disabled={saving}>
+                                                            <MaterialCommunityIcons name="delete-outline" size={20} color={theme.colors.error} />
+                                                        </Pressable>
+                                                    </>
+                                                )}
+                                            </View>
+                                        </View>
 
-                                <View style={styles.inputRow}>
-                                    <View style={{ flex: 1 }}>
-                                        <AppText variant="caption" color={theme.colors.textSecondary}>分类</AppText>
-                                        <TextInput
-                                            style={styles.input}
-                                            value={String(d.category ?? '')}
-                                            onChangeText={(v) => updateDraft(idx, { category: v })}
-                                            placeholder="分类"
-                                            placeholderTextColor={theme.colors.textSecondary + '80'}
-                                            editable={!saving}
-                                        />
-                                    </View>
-                                    <View style={{ width: 12 }} />
-                                    <View style={{ flex: 1 }}>
-                                        <AppText variant="caption" color={theme.colors.textSecondary}>金额</AppText>
-                                        <TextInput
-                                            style={styles.input}
-                                            value={Number.isFinite(Number(d.amount)) ? String(d.amount) : ''}
-                                            onChangeText={(v) => updateDraft(idx, { amount: Number(v) })}
-                                            placeholder="0.00"
-                                            placeholderTextColor={theme.colors.textSecondary + '80'}
-                                            keyboardType="decimal-pad"
-                                            editable={!saving}
-                                        />
-                                    </View>
-                                </View>
+                                        {/* Category & Date row */}
+                                        <View style={styles.receiptRow}>
+                                            <View style={styles.receiptField}>
+                                                <MaterialCommunityIcons name="tag-outline" size={16} color={theme.colors.textSecondary} />
+                                                {isEditing ? (
+                                                    <TextInput
+                                                        style={styles.receiptInput}
+                                                        value={String(d.category ?? '')}
+                                                        onChangeText={(v) => updateDraftById(draftId, { category: v })}
+                                                        placeholder="分类"
+                                                        placeholderTextColor={theme.colors.textMuted}
+                                                    />
+                                                ) : (
+                                                    <AppText style={{ marginLeft: 6 }}>{d.category || '未分类'}</AppText>
+                                                )}
+                                            </View>
+                                            <View style={styles.receiptField}>
+                                                <MaterialCommunityIcons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
+                                                {isEditing ? (
+                                                    <TextInput
+                                                        style={styles.receiptInput}
+                                                        value={String(d.date ?? '')}
+                                                        onChangeText={(v) => updateDraftById(draftId, { date: v })}
+                                                        placeholder="日期"
+                                                        placeholderTextColor={theme.colors.textMuted}
+                                                    />
+                                                ) : (
+                                                    <AppText variant="caption" color={theme.colors.textSecondary} style={{ marginLeft: 6 }}>
+                                                        {d.date || '今天'}
+                                                    </AppText>
+                                                )}
+                                            </View>
+                                        </View>
 
-                                <View style={styles.inputRow}>
-                                    <View style={{ flex: 1 }}>
-                                        <AppText variant="caption" color={theme.colors.textSecondary}>日期</AppText>
-                                        <TextInput
-                                            style={styles.input}
-                                            value={String(d.date ?? '')}
-                                            onChangeText={(v) => updateDraft(idx, { date: v })}
-                                            placeholder="YYYY-MM-DD"
-                                            placeholderTextColor={theme.colors.textSecondary + '80'}
-                                            editable={!saving}
-                                        />
-                                    </View>
-                                </View>
+                                        {/* Dashed divider */}
+                                        <View style={styles.dashedDivider} />
 
-                                <View style={{ marginTop: 8 }}>
-                                    <AppText variant="caption" color={theme.colors.textSecondary}>备注</AppText>
-                                    <TextInput
-                                        style={[styles.input, styles.multilineInput]}
-                                        value={String(d.description ?? '')}
-                                        onChangeText={(v) => updateDraft(idx, { description: v })}
-                                        placeholder="备注..."
-                                        placeholderTextColor={theme.colors.textSecondary + '80'}
-                                        multiline
-                                        editable={!saving}
-                                    />
-                                </View>
-                            </View>
-                        ))}
+                                        {/* Description / Note */}
+                                        {isEditing ? (
+                                            <TextInput
+                                                style={[styles.receiptInput, { minHeight: 40 }]}
+                                                value={String(d.description ?? '')}
+                                                onChangeText={(v) => updateDraftById(draftId, { description: v })}
+                                                placeholder="备注..."
+                                                placeholderTextColor={theme.colors.textMuted}
+                                                multiline
+                                            />
+                                        ) : (
+                                            d.description ? (
+                                                <AppText variant="caption" color={theme.colors.textSecondary}>
+                                                    {d.description}
+                                                </AppText>
+                                            ) : null
+                                        )}
+
+                                        {/* Type toggle (only in edit mode) */}
+                                        {isEditing && (
+                                            <View style={[styles.typeSelector, { marginTop: 12 }]}>
+                                                <Pressable
+                                                    style={[styles.typeBtn, d.type === 'expense' && styles.typeBtnActive]}
+                                                    onPress={() => updateDraftById(draftId, { type: 'expense' })}
+                                                >
+                                                    <AppText color={d.type === 'expense' ? '#fff' : theme.colors.textSecondary} variant="caption" bold>
+                                                        支出
+                                                    </AppText>
+                                                </Pressable>
+                                                <Pressable
+                                                    style={[styles.typeBtn, d.type === 'income' && styles.typeBtnActive]}
+                                                    onPress={() => updateDraftById(draftId, { type: 'income' })}
+                                                >
+                                                    <AppText color={d.type === 'income' ? '#fff' : theme.colors.textSecondary} variant="caption" bold>
+                                                        收入
+                                                    </AppText>
+                                                </Pressable>
+                                            </View>
+                                        )}
+
+                                        {/* Amount edit (only in edit mode) */}
+                                        {isEditing && (
+                                            <View style={{ marginTop: 12 }}>
+                                                <AppText variant="caption" color={theme.colors.textSecondary}>金额</AppText>
+                                                <TextInput
+                                                    style={styles.receiptInput}
+                                                    value={Number.isFinite(Number(d.amount)) ? String(d.amount) : ''}
+                                                    onChangeText={(v) => updateDraftById(draftId, { amount: Number(v) })}
+                                                    placeholder="0.00"
+                                                    placeholderTextColor={theme.colors.textMuted}
+                                                    keyboardType="decimal-pad"
+                                                />
+                                            </View>
+                                        )}
+
+                                        {/* Quick actions (non-edit mode) */}
+                                        {!isEditing && (
+                                            <Pressable
+                                                style={[styles.receiptActionBtn, saving && { opacity: 0.6 }]}
+                                                onPress={() => {
+                                                    onResult(d);
+                                                    onClose();
+                                                }}
+                                                disabled={saving}
+                                            >
+                                                <MaterialCommunityIcons name="arrow-right-circle" size={16} color="#fff" />
+                                                <AppText color="#fff" variant="caption" bold style={{ marginLeft: 4 }}>
+                                                    填充到表单
+                                                </AppText>
+                                            </Pressable>
+                                        )}
+                                    </WealthCard>
+                                </Animated.View>
+                            );
+                        })}
                     </ScrollView>
 
                     <View style={[styles.buttonRow, { justifyContent: 'space-between' }]}>
@@ -535,56 +663,6 @@ export function AIInputModal({ visible, mode, onClose, onResult }: AIInputModalP
                     <Pressable style={[styles.cancelButton, { marginTop: 30, alignSelf: 'center' }]} onPress={onClose}>
                         <AppText color={theme.colors.textSecondary}>取消</AppText>
                     </Pressable>
-                </View>
-            );
-        }
-
-        if (mode === 'voice-text') {
-            return (
-                <View style={styles.content}>
-                    <AppText variant="title" bold centered style={{ marginBottom: 16 }}>
-                        ⌨️ 输入法语音记账
-                    </AppText>
-                    <AppText variant="caption" color={theme.colors.textSecondary} centered style={{ marginBottom: 20 }}>
-                        使用输入法的语音功能，AI 自动分析记账
-                    </AppText>
-
-                    <TextInput
-                        style={styles.textArea}
-                        value={text}
-                        onChangeText={setText}
-                        placeholder="点击此处，使用输入法语音输入..."
-                        placeholderTextColor={theme.colors.textSecondary + '80'}
-                        multiline
-                        autoFocus
-                    />
-
-                    <View style={styles.tipContainer}>
-                        <MaterialCommunityIcons name="lightbulb-outline" size={16} color={theme.colors.primary} />
-                        <AppText variant="caption" color={theme.colors.textSecondary} style={{ marginLeft: 6, flex: 1 }}>
-                            提示：点击键盘上的麦克风图标使用语音输入
-                        </AppText>
-                    </View>
-
-                    <View style={styles.buttonRow}>
-                        <Pressable style={styles.cancelButton} onPress={onClose}>
-                            <AppText color={theme.colors.textSecondary}>取消</AppText>
-                        </Pressable>
-                        <Pressable
-                            style={[styles.primaryButton, loading && { opacity: 0.6 }]}
-                            onPress={() => analyzeText(text)}
-                            disabled={loading}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#fff" size="small" />
-                            ) : (
-                                <>
-                                    <MaterialCommunityIcons name="robot" size={18} color="#fff" style={{ marginRight: 6 }} />
-                                    <AppText color="#fff" bold>AI 分析</AppText>
-                                </>
-                            )}
-                        </Pressable>
-                    </View>
                 </View>
             );
         }
@@ -826,5 +904,50 @@ const styles = StyleSheet.create({
     multilineInput: {
         minHeight: 40,
         textAlignVertical: 'top',
+    },
+
+    // Receipt card styles
+    receiptHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 12,
+    },
+    receiptRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    receiptField: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    receiptInput: {
+        flex: 1,
+        backgroundColor: theme.colors.surface,
+        borderRadius: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        color: theme.colors.textPrimary,
+        marginLeft: 6,
+        fontSize: 14,
+    },
+    dashedDivider: {
+        borderBottomWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: theme.colors.outline,
+        marginVertical: theme.spacing.sm,
+    },
+    receiptActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.colors.primary,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        marginTop: 12,
     },
 });

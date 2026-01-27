@@ -4,6 +4,22 @@ import { generateLocalId } from '../utils/uuid';
 const DB_NAME = 'ai_accountant.db';
 let db: any = null;
 
+// ============================================
+// Event Emitter System
+// ============================================
+type DBEvent = 'transactionsChanged' | 'budgetsChanged' | 'syncApplied';
+const listeners = new Map<DBEvent, Set<(payload: any) => void>>();
+
+export function onDBEvent(event: DBEvent, handler: (payload: any) => void): () => void {
+  if (!listeners.has(event)) listeners.set(event, new Set());
+  listeners.get(event)!.add(handler);
+  return () => listeners.get(event)?.delete(handler);
+}
+
+function emitDBEvent(event: DBEvent, payload: any): void {
+  listeners.get(event)?.forEach(h => h(payload));
+}
+
 export type SqlParams = Array<string | number | null | boolean>;
 
 export interface TransactionRecord {
@@ -190,6 +206,7 @@ export const updateLocalTransaction = async (
     [id, userId]
   );
   if (!row) throw new Error('Failed to load updated transaction');
+  emitDBEvent('transactionsChanged', { type: 'update', tx: row });
   return row;
 };
 
@@ -200,6 +217,7 @@ export const softDeleteLocalTransaction = async (userId: number, id: number): Pr
     [now, now, id, userId]
   );
   if (!result.changes) throw new Error('Transaction not found');
+  emitDBEvent('transactionsChanged', { type: 'delete', id });
   return now;
 };
 
@@ -220,6 +238,7 @@ export const createLocalTransaction = async (
     [localId]
   );
   if (!row) throw new Error('Failed to create transaction');
+  emitDBEvent('transactionsChanged', { type: 'create', tx: row });
   return row;
 };
 
@@ -253,6 +272,9 @@ export const createLocalTransactions = async (
     throw e;
   }
 
+  if (created.length > 0) {
+    emitDBEvent('transactionsChanged', { type: 'batchCreate', txs: created });
+  }
   return created;
 };
 
@@ -378,6 +400,7 @@ export const createLocalBudget = async (
   );
   const row = await queryFirst<BudgetRecord>('SELECT * FROM budgets WHERE id = ? AND user_id = ?', [localId, userId]);
   if (!row) throw new Error('Failed to create budget');
+  emitDBEvent('budgetsChanged', { type: 'create', budget: row });
   return row;
 };
 
@@ -430,6 +453,7 @@ export const updateLocalBudget = async (
   if (!result.changes) throw new Error('Budget not found');
   const row = await queryFirst<BudgetRecord>('SELECT * FROM budgets WHERE id = ? AND user_id = ?', [id, userId]);
   if (!row) throw new Error('Failed to load updated budget');
+  emitDBEvent('budgetsChanged', { type: 'update', budget: row });
   return row;
 };
 
@@ -440,6 +464,7 @@ export const softDeleteLocalBudget = async (userId: number, id: number): Promise
     [now, now, id, userId]
   );
   if (!result.changes) throw new Error('Budget not found');
+  emitDBEvent('budgetsChanged', { type: 'delete', id });
   return now;
 };
 
@@ -601,6 +626,7 @@ export const applyServerSync = async (
   await upsertTransactions(userId, txs);
   await upsertCategories(userId, cats);
   await upsertBudgets(userId, buds);
+  emitDBEvent('syncApplied', { transactions: txs.length, categories: cats.length, budgets: buds.length });
 };
 
 export const getDashboardStats = async (userId: number, startDate: string, endDate: string) => {
@@ -653,3 +679,87 @@ export const getMonthlyTrend = async (userId: number, startDate: string) => {
     .filter(r => r.month && (r.type === 'income' || r.type === 'expense'))
     .map(r => ({ month: String(r.month), type: r.type as 'income' | 'expense', total: Number(r.total) || 0 }));
 };
+
+// ============================================
+// HUD Budget Status
+// ============================================
+export interface HudBudgetStatus {
+  hasBudget: boolean;
+  period: string;
+  limit: number;
+  spent: number;
+  percentage: number;
+  budgetId: number | null;
+}
+
+const toYmd = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const getPeriodRange = (period: string): { start: string; end: string } => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+
+  if (period === 'monthly') {
+    const start = toYmd(new Date(year, month, 1));
+    const end = toYmd(new Date(year, month + 1, 0));
+    return { start, end };
+  }
+  if (period === 'quarterly') {
+    const startMonth = Math.floor(month / 3) * 3;
+    const start = toYmd(new Date(year, startMonth, 1));
+    const end = toYmd(new Date(year, startMonth + 3, 0));
+    return { start, end };
+  }
+  const start = toYmd(new Date(year, 0, 1));
+  const end = toYmd(new Date(year, 12, 0));
+  return { start, end };
+};
+
+const getBudgetLimit = (budget: BudgetRecord): number => {
+  const monthly = Number(budget.monthly_limit) || 0;
+  const period = budget.period || 'monthly';
+  if (period === 'quarterly') {
+    return budget.quarterly_limit != null ? Number(budget.quarterly_limit) : monthly * 3;
+  }
+  if (period === 'yearly') {
+    return budget.yearly_limit != null ? Number(budget.yearly_limit) : monthly * 12;
+  }
+  return monthly;
+};
+
+export async function getHudBudgetStatus(userId: number): Promise<HudBudgetStatus> {
+  const totalBudget = await queryFirst<BudgetRecord>(
+    "SELECT * FROM budgets WHERE user_id = ? AND deleted_at IS NULL AND budget_type = 'total' LIMIT 1",
+    [userId]
+  );
+
+  if (!totalBudget) {
+    return { hasBudget: false, period: 'monthly', limit: 0, spent: 0, percentage: 0, budgetId: null };
+  }
+
+  const period = totalBudget.period || 'monthly';
+  const range = getPeriodRange(period);
+  const limit = getBudgetLimit(totalBudget);
+
+  const spentRow = await queryFirst<{ total: number }>(
+    `SELECT COALESCE(SUM(amount), 0) as total FROM transactions
+     WHERE user_id = ? AND deleted_at IS NULL AND type = 'expense'
+     AND DATE(date, 'localtime') >= ? AND DATE(date, 'localtime') <= ?`,
+    [userId, range.start, range.end]
+  );
+
+  const spent = spentRow?.total || 0;
+  return {
+    hasBudget: true,
+    period,
+    limit,
+    spent,
+    percentage: limit > 0 ? (spent / limit) * 100 : 0,
+    budgetId: totalBudget.id,
+  };
+}

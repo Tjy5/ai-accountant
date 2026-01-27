@@ -250,12 +250,7 @@ export default function AddTransactionScreen() {
             </View>
             <AppText style={styles.aiButtonLabel}>语音</AppText>
           </Pressable>
-          <Pressable style={styles.aiButton} onPress={() => setAiMode('voice-text')}>
-            <View style={[styles.aiButtonIcon, { backgroundColor: '#8B5CF6' }]}>
-              <MaterialCommunityIcons name="keyboard-outline" size={22} color="#fff" />
-            </View>
-            <AppText style={styles.aiButtonLabel}>输入法</AppText>
-          </Pressable>
+
           <Pressable style={styles.aiButton} onPress={() => setAiMode('camera')}>
             <View style={[styles.aiButtonIcon, { backgroundColor: '#F59E0B' }]}>
               <MaterialCommunityIcons name="camera" size={22} color="#fff" />

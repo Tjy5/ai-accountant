@@ -1,16 +1,26 @@
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import { ActivityIndicator, Alert, SectionList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../auth/AuthContext';
-import { listTransactions, softDeleteLocalTransaction, type TransactionRecord } from '../../storage/localDB';
+import {
+  listTransactions,
+  softDeleteLocalTransaction,
+  getDashboardStats,
+  getHudBudgetStatus,
+  onDBEvent,
+  type TransactionRecord,
+  type HudBudgetStatus,
+} from '../../storage/localDB';
 import { syncNow, enqueue } from '../../sync/offlineQueue';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { AppText } from '../../components/AppText';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { WealthCard } from '../../components/WealthCard';
+import { BudgetProgressBar } from '../../components/BudgetProgressBar';
+import { TodayExpenseDisplay } from '../../components/TodayExpenseDisplay';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -21,6 +31,8 @@ export default function TransactionListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [budgetStatus, setBudgetStatus] = useState<HudBudgetStatus | null>(null);
+  const [todayExpense, setTodayExpense] = useState(0);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -31,6 +43,21 @@ export default function TransactionListScreen() {
     } catch (err: any) {
       console.error('Failed to load transactions:', err);
     }
+  }, [user]);
+
+  const loadHUD = useCallback(async () => {
+    if (!user) return;
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const d = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
+    const [budget, stats] = await Promise.all([
+      getHudBudgetStatus(user.id),
+      getDashboardStats(user.id, todayStr, todayStr),
+    ]);
+    setBudgetStatus(budget);
+    setTodayExpense(stats.expense);
   }, [user]);
 
   const { sections, totalIncome, totalExpense } = useMemo(() => {
@@ -75,9 +102,26 @@ export default function TransactionListScreen() {
     useCallback(() => {
       setLoading(true);
       setSyncError(null);
-      load().catch(() => undefined).finally(() => setLoading(false));
-    }, [load])
+      Promise.all([load(), loadHUD()])
+        .catch(() => undefined)
+        .finally(() => setLoading(false));
+    }, [load, loadHUD])
   );
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const unsub = onDBEvent('transactionsChanged', () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        load();
+        loadHUD();
+      }, 200);
+    });
+    return () => {
+      unsub();
+      clearTimeout(timeoutId);
+    };
+  }, [load, loadHUD]);
 
   const onRefresh = useCallback(async () => {
     if (!user) return;
@@ -169,8 +213,40 @@ export default function TransactionListScreen() {
 
     return (
       <View style={styles.headerContentWrapper}>
+        {/* HUD: Budget Progress Bar */}
+        {budgetStatus?.hasBudget ? (
+          <View style={styles.hudProgressSection}>
+            <View style={styles.hudProgressHeader}>
+              <AppText style={styles.hudProgressLabel}>本月预算</AppText>
+              <AppText style={styles.hudProgressPercent}>
+                {Math.round(budgetStatus.percentage)}%
+              </AppText>
+            </View>
+            <BudgetProgressBar percentage={budgetStatus.percentage} animated />
+            <View style={styles.hudProgressFooter}>
+              <AppText style={styles.hudProgressSpent}>
+                已用 ¥{budgetStatus.spent.toFixed(0)}
+              </AppText>
+              <AppText style={styles.hudProgressLimit}>
+                / ¥{budgetStatus.limit.toFixed(0)}
+              </AppText>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            style={styles.hudNoBudget}
+            onPress={() => navigation.navigate('Budget' as any)}
+          >
+            <MaterialCommunityIcons name="wallet-plus-outline" size={24} color="rgba(255,255,255,0.7)" />
+            <AppText style={styles.hudNoBudgetText}>设置预算，掌控支出</AppText>
+          </Pressable>
+        )}
+
+        {/* HUD: Today Expense Display */}
+        <TodayExpenseDisplay amount={todayExpense} animated style={styles.hudExpense} />
+
+        {/* Monthly Stats Row */}
         <View style={styles.headerRow}>
-          {/* Left: Date Info */}
           <View>
             <AppText style={styles.headerYear}>{currentYear}年</AppText>
             <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
@@ -180,7 +256,6 @@ export default function TransactionListScreen() {
             </View>
           </View>
 
-          {/* Right: Stats */}
           <View style={styles.headerStats}>
             <View style={styles.statLine}>
               <AppText style={styles.statLabel}>收入</AppText>
@@ -208,7 +283,7 @@ export default function TransactionListScreen() {
 
   return (
     <ScreenContainer
-      headerType="standard"
+      headerType="jumbo"
       headerContent={renderHeaderContent()}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0F172A']} tintColor="#0F172A" />}
       enableScroll={false}
@@ -245,6 +320,56 @@ const styles = StyleSheet.create({
   headerContentWrapper: {
     paddingTop: 10,
     paddingHorizontal: 4,
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  hudProgressSection: {
+    marginBottom: 16,
+  },
+  hudProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  hudProgressLabel: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  hudProgressPercent: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  hudProgressFooter: {
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+  hudProgressSpent: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  hudProgressLimit: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  hudNoBudget: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  hudNoBudgetText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginLeft: 8,
+  },
+  hudExpense: {
+    marginBottom: 24,
   },
   headerRow: {
     flexDirection: 'row',
@@ -308,7 +433,7 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     alignItems: 'center',
-    marginTop: 80,
+    marginTop: 150,
     opacity: 0.5,
   },
   sectionHeader: {

@@ -142,6 +142,7 @@ export interface AITransactionDraft {
   date: string;
   confidence?: number;
   sourceSpan?: { start: number; end: number };
+  _draftId?: string; // Client-side unique ID for edit/delete tracking
 }
 
 export interface AIAnalysisResult {

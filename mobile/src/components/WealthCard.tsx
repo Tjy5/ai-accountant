@@ -13,7 +13,7 @@ import { theme } from '../theme';
 // 支持多种变体：elevated, flat, glass
 // ============================================
 
-export type WealthCardVariant = 'elevated' | 'flat' | 'glass';
+export type WealthCardVariant = 'elevated' | 'flat' | 'glass' | 'receipt';
 export type WealthCardPadding = 'none' | 'sm' | 'md' | 'lg';
 
 export interface WealthCardProps {
@@ -23,6 +23,8 @@ export interface WealthCardProps {
   onPress?: () => void;
   style?: ViewStyle;
   contentStyle?: ViewStyle;
+  cutoutColor?: string;
+  cutoutRadius?: number;
 }
 
 export const WealthCard: React.FC<WealthCardProps> = ({
@@ -32,6 +34,8 @@ export const WealthCard: React.FC<WealthCardProps> = ({
   onPress,
   style,
   contentStyle,
+  cutoutColor = theme.colors.background,
+  cutoutRadius = theme.radii.sm,
 }) => {
   const getPadding = () => {
     switch (padding) {
@@ -50,7 +54,7 @@ export const WealthCard: React.FC<WealthCardProps> = ({
     padding: getPadding(),
     borderWidth: variant === 'flat' ? 1 : 0,
     borderColor: variant === 'flat' ? theme.colors.outline : undefined,
-    ...(variant === 'elevated' ? theme.shadows.small : {}),
+    ...((variant === 'elevated' || variant === 'receipt') ? theme.shadows.small : {}),
     ...(variant === 'glass' ? {
       backgroundColor: 'rgba(255, 255, 255, 0.7)',
       borderWidth: 1,
@@ -59,6 +63,51 @@ export const WealthCard: React.FC<WealthCardProps> = ({
   };
 
   const Wrapper = onPress ? Pressable : View;
+
+  // Receipt variant: special rendering with cutouts
+  if (variant === 'receipt') {
+    const outerStyle: ViewStyle = {
+      ...theme.shadows.small,
+      borderRadius: theme.radii.lg,
+    };
+
+    const innerStyle: ViewStyle = {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radii.lg,
+      padding: getPadding(),
+      overflow: 'hidden',
+    };
+
+    const cutoutStyle: ViewStyle = {
+      position: 'absolute',
+      width: cutoutRadius * 2,
+      height: cutoutRadius * 2,
+      borderRadius: cutoutRadius,
+      backgroundColor: cutoutColor,
+      top: 40,
+    };
+
+    const content = (
+      <View style={[outerStyle, style]}>
+        <View style={[innerStyle, contentStyle]}>
+          {children}
+        </View>
+        <View style={[cutoutStyle, { left: -cutoutRadius }]} />
+        <View style={[cutoutStyle, { right: -cutoutRadius }]} />
+      </View>
+    );
+
+    if (onPress) {
+      return (
+        <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+          {content}
+        </Pressable>
+      );
+    }
+    return content;
+  }
+
+  // Default variants: elevated, flat, glass
   const wrapperProps = onPress ? {
     onPress,
     style: ({ pressed }: { pressed: boolean }) => [
