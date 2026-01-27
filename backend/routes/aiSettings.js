@@ -83,6 +83,16 @@ module.exports = function aiSettingsRouter(db) {
         [userId]
       );
 
+      // If user is enabling AI, ensure we have a usable api key (either already stored or provided now)
+      const wantsEnable = incomingEnabled !== undefined ? toBool(incomingEnabled) : false;
+      const storedEncrypted = existing && typeof existing.api_key_encrypted === 'string' ? existing.api_key_encrypted : '';
+      const hasStoredKey = Boolean(storedEncrypted && String(storedEncrypted).trim().length > 0);
+      const providedKeyRaw = incomingApiKey !== undefined ? String(incomingApiKey || '').trim() : '';
+      const hasProvidedNewKey = Boolean(providedKeyRaw && !providedKeyRaw.includes('*'));
+      if (wantsEnable && !hasStoredKey && !hasProvidedNewKey) {
+        return res.status(400).json({ error: '启用 AI 需要提供 apiKey' });
+      }
+
       const setClauses = [];
       const params = [];
 
@@ -202,9 +212,17 @@ module.exports = function aiSettingsRouter(db) {
       const userId = req.user.id;
       await db.run(
         `UPDATE user_ai_settings
-         SET enabled = 0, deleted_at = datetime('now'), updated_at = datetime('now')
-         WHERE user_id = ? AND deleted_at IS NULL`,
-        [userId]
+         SET
+           enabled = 0,
+           api_base_url = ?,
+           api_key_encrypted = '',
+           model = ?,
+           temperature = ?,
+           max_tokens = ?,
+           deleted_at = datetime('now'),
+           updated_at = datetime('now')
+         WHERE user_id = ?`,
+        [DEFAULTS.apiBaseUrl, DEFAULTS.model, DEFAULTS.temperature, DEFAULTS.maxTokens, userId]
       );
       res.status(204).send();
     } catch (err) { return next(err); }

@@ -1,24 +1,22 @@
 import React, { useCallback, useState, useMemo } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, View, StatusBar } from 'react-native';
+import { ActivityIndicator, Alert, SectionList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../auth/AuthContext';
 import { listTransactions, softDeleteLocalTransaction, type TransactionRecord } from '../../storage/localDB';
 import { syncNow, enqueue } from '../../sync/offlineQueue';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { AppText } from '../../components/AppText';
-import { AppCard } from '../../components/AppCard';
+import { ScreenContainer } from '../../components/ScreenContainer';
+import { WealthCard } from '../../components/WealthCard';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function TransactionListScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
-  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<TransactionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -120,24 +118,24 @@ export default function TransactionListScreen() {
     );
   };
 
-  // Header logic moved to main render
-
-
-  const renderTransactionItem = (item: TransactionRecord, isLast: boolean) => {
+  const renderTransactionItem = ({ item, index, section }: { item: TransactionRecord, index: number, section: any }) => {
+    const isFirst = index === 0;
+    const isLast = index === section.data.length - 1;
     const isIncome = item.type === 'income';
-    const amountColor = isIncome ? '#059669' : '#1E293B'; // Emerald 600 or Slate 800
-    const iconColor = isIncome ? '#059669' : '#475569'; // Emerald 600 or Slate 600
-    const iconBg = isIncome ? '#ECFDF5' : '#F1F5F9'; // Emerald 50 or Slate 100
+    const amountColor = isIncome ? '#059669' : '#1E293B';
+    const iconColor = isIncome ? '#059669' : '#475569';
+    const iconBg = isIncome ? '#ECFDF5' : '#F1F5F9';
 
     return (
       <Pressable
-        key={item.id}
         style={({ pressed }) => [
           styles.itemContainer,
+          isFirst && styles.itemFirst,
+          isLast && styles.itemLast,
           pressed && styles.itemPressed,
           !isLast && styles.itemBorder
         ]}
-        onPress={() => navigation.navigate('TransactionEdit', { id: item.id })}
+        onPress={() => navigation.navigate('TransactionEdit', { id: item.id } as any)}
         onLongPress={() => handleDelete(item)}
       >
         <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
@@ -165,6 +163,39 @@ export default function TransactionListScreen() {
     );
   };
 
+  const renderHeaderContent = () => {
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+
+    return (
+      <View style={styles.headerContentWrapper}>
+        <View style={styles.headerRow}>
+          {/* Left: Date Info */}
+          <View>
+            <AppText style={styles.headerYear}>{currentYear}年</AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+              <AppText style={styles.headerMonth}>{currentMonth}</AppText>
+              <AppText style={styles.headerMonthLabel}>月</AppText>
+              <MaterialCommunityIcons name="chevron-down" size={20} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+            </View>
+          </View>
+
+          {/* Right: Stats */}
+          <View style={styles.headerStats}>
+            <View style={styles.statLine}>
+              <AppText style={styles.statLabel}>收入</AppText>
+              <AppText style={styles.statValueIncome}>+{totalIncome.toFixed(2)}</AppText>
+            </View>
+            <View style={[styles.statLine, { marginTop: 4 }]}>
+              <AppText style={styles.statLabel}>支出</AppText>
+              <AppText style={styles.statValueExpense}>{totalExpense.toFixed(2)}</AppText>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   if (!user) return null;
 
   if (loading) {
@@ -176,53 +207,26 @@ export default function TransactionListScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
-      {/* Clean Professional Header */}
-      <View style={styles.headerWrapper}>
-        <LinearGradient
-          colors={['#1E293B', '#0F172A']} // Premium Midnight Slate
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.gradientHeader, { paddingTop: insets.top + 20 }]}
-        >
-          <View style={styles.headerContent}>
-            <AppText style={styles.headerLabel}>本月支出</AppText>
-            <View style={styles.headerBalanceRow}>
-              <AppText style={styles.headerSymbol}>¥</AppText>
-              <AppText style={styles.headerAmount}>{totalExpense.toFixed(2)}</AppText>
-            </View>
-
-            <View style={styles.statRow}>
-              <View style={styles.incomeBadge}>
-                <Ionicons name="arrow-down-circle" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                <AppText style={styles.incomeLabel}>本月收入</AppText>
-                <AppText style={styles.incomeValue}>+¥{totalIncome.toFixed(2)}</AppText>
-              </View>
-            </View>
-          </View>
-        </LinearGradient>
-      </View>
-
-      <FlatList
-        data={sections}
-        keyExtractor={(item) => item.title}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0F172A']} tintColor="#0F172A" />}
+    <ScreenContainer
+      headerType="standard"
+      headerContent={renderHeaderContent()}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0F172A']} tintColor="#0F172A" />}
+      enableScroll={false}
+      useSafeBottom={false}
+    >
+      <SectionList
+        style={{ marginTop: 20 }}
+        sections={sections}
+        keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
-        renderItem={({ item: section }) => (
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeader}>
-              <AppText variant="caption" bold style={styles.dateText}>{section.title}</AppText>
-            </View>
-
-            <AppCard padding="none" style={styles.card}>
-              {section.data.map((transaction, index) =>
-                renderTransactionItem(transaction, index === section.data.length - 1)
-              )}
-            </AppCard>
+        renderItem={renderTransactionItem}
+        renderSectionHeader={({ section: { title } }) => (
+          <View style={styles.sectionHeader}>
+            <AppText variant="caption" bold style={styles.dateText}>{title}</AppText>
           </View>
         )}
+        renderSectionFooter={() => <View style={{ height: 16 }} />}
+        stickySectionHeadersEnabled={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={64} color={theme.colors.textMuted} />
@@ -231,86 +235,71 @@ export default function TransactionListScreen() {
             </AppText>
           </View>
         }
+        showsVerticalScrollIndicator={false}
       />
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
-  gradientHeader: {
-    paddingHorizontal: 24,
-    paddingTop: 0, // Padding handled by insets in render
-    paddingBottom: 32,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
+  headerContentWrapper: {
+    paddingTop: 10,
+    paddingHorizontal: 4,
   },
-  headerWrapper: {
-    zIndex: 1,
-  },
-  headerContent: {
-    position: 'relative',
-    zIndex: 10,
-  },
-  headerLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 15,
-    marginBottom: 8,
-    letterSpacing: 0.5,
-  },
-  headerBalanceRow: {
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 24,
-  },
-  headerSymbol: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: '#FFF',
-    marginRight: 6,
-    opacity: 0.9,
-  },
-  headerAmount: {
-    fontSize: 48,
-    fontWeight: '800',
-    color: '#FFF',
-    letterSpacing: -1.5,
-    lineHeight: 56,
-  },
-  statRow: {
-    flexDirection: 'row',
-  },
-  incomeBadge: {
-    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  headerYear: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  headerMonth: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFF',
+    lineHeight: 38,
+  },
+  headerMonthLabel: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.9)',
+    marginLeft: 2,
+    fontWeight: '500',
+  },
+  headerStats: {
+    alignItems: 'flex-end',
     backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 24,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  incomeLabel: {
-    color: 'rgba(255,255,255,0.7)',
+  statLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statLabel: {
+    color: 'rgba(255,255,255,0.6)',
     fontSize: 13,
     marginRight: 8,
   },
-  incomeValue: {
+  statValueIncome: {
+    color: '#6EE7B7', // Emerald 300
+    fontSize: 15,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  statValueExpense: {
     color: '#FFF',
     fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.5,
+    fontVariant: ['tabular-nums'],
   },
   listContent: {
-    padding: 20,
-    paddingTop: 10,
-    paddingBottom: 100
+    paddingBottom: 100,
   },
   center: {
     flex: 1,
@@ -322,46 +311,44 @@ const styles = StyleSheet.create({
     marginTop: 80,
     opacity: 0.5,
   },
-  sectionContainer: {
-    marginBottom: 20,
-  },
   sectionHeader: {
-    marginBottom: 10,
-    paddingHorizontal: 8,
+    marginBottom: 8,
+    marginLeft: 8,
   },
   dateText: {
-    color: '#94A3B8', // Slate 400
+    color: '#94A3B8',
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.5,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06, // Softer shadow
-    shadowRadius: 12,
-    elevation: 2,
-    borderWidth: 0, // Removed border for cleaner look
   },
   itemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
+  },
+  itemFirst: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  itemLast: {
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   itemPressed: {
-    backgroundColor: '#F8FAFC'
+    backgroundColor: theme.colors.surfaceVariant,
   },
   itemBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#F1F5F9',
   },
   iconBox: {
-    width: 48, height: 48, borderRadius: 24, // Slightly larger, fully round
-    alignItems: 'center', justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 16
   },
   itemContent: { flex: 1 },

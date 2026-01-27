@@ -91,7 +91,7 @@ npx expo start --dev-client
     1. `Ctrl + C` 停止 `npx expo start ...`。
     2. 重新运行 `npx expo start --dev-client`。
 
-**场景 C：我安装了原生插件 (`npm install expo-camera`)**
+**场景 C：我安装了原生插件 (推荐使用 `npx expo install expo-camera`)**
 *   **需要**: 重新编译。
 *   **操作**: 运行 `npm run android`。
 
@@ -104,3 +104,25 @@ npx expo start --dev-client
 *   **首次运行/修好了原生Bug**: `npm run android`
 *   **日常开发**: `npx expo start --dev-client`
 *   **改代码**: 保存即生效。
+
+## 5. 常见问题与故障排除 (Troubleshooting)
+
+**Q: 运行 `npm run android` 失败，报错 Gradle Error 或 "Plugin not found"？**
+*   这通常是因为依赖包版本不匹配（例如 Expo 50 的项目安装了 Expo 51 的插件）。
+*   **解决方法 1 (推荐)**：使用自动修复命令。
+    ```powershell
+    npx expo install --fix
+    ```
+*   **解决方法 2 (清理重建)**：
+    ```powershell
+    npx expo prebuild --clean
+    npm run android
+    ```
+
+**Q: 安装新包时有什么注意事项？**
+*   **强烈建议**使用 `npx expo install 包名` 而不是 `npm install 包名`。
+*   `npx expo install` 会自动查找与当前 Exop SDK 版本兼容的包版本，避免版本冲突。
+
+**Q: App 启动一直卡在 Splash Screen 或红屏？**
+*   检查终端是否有报错日志。
+*   尝试停止终端，运行 `npx expo start --dev-client -c` (加上 `-c` 清除缓存)。

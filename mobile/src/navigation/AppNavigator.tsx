@@ -12,7 +12,6 @@ import RegisterScreen from '../screens/auth/RegisterScreen';
 import TransactionListScreen from '../screens/transactions/TransactionListScreen';
 import AddTransactionScreen from '../screens/transactions/AddTransactionScreen';
 import EditTransactionScreen from '../screens/transactions/EditTransactionScreen';
-import AIAddScreen from '../screens/transactions/AIAddScreen';
 import CategoryListScreen from '../screens/categories/CategoryListScreen';
 import EditCategoryScreen from '../screens/categories/EditCategoryScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
@@ -39,7 +38,6 @@ export type RootStackParamList = {
   MainTabs: undefined;
   TransactionDetail: { id: number };
   TransactionEdit: { id: number };
-  AIAdd: undefined;
   CategoryList: undefined;
   CategoryEdit: { id?: number };
   BudgetEdit: { id?: number; budgetType?: 'total' | 'category'; parentId?: number };
@@ -126,7 +124,6 @@ export default function AppNavigator() {
           <>
             <RootStack.Screen name="MainTabs" component={MainTabs} />
             <RootStack.Screen name="TransactionEdit" component={EditTransactionScreen} options={{ headerShown: true, title: '编辑交易' }} />
-            <RootStack.Screen name="AIAdd" component={AIAddScreen} options={{ headerShown: true, title: 'AI 智能记账' }} />
             <RootStack.Screen name="CategoryList" component={CategoryListScreen} options={{ headerShown: true, title: '分类管理' }} />
             <RootStack.Screen name="CategoryEdit" component={EditCategoryScreen} options={{ headerShown: true, title: '编辑分类' }} />
             <RootStack.Screen name="BudgetEdit" component={EditBudgetScreen} options={{ headerShown: true, title: '编辑预算' }} />

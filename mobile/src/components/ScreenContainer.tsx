@@ -142,7 +142,7 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
 
       {/* 内容层 - 使用负边距实现悬浮效果 */}
       <ContentWrapper {...contentWrapperProps}>
-        <View style={[styles.overlapContent, { marginTop: overlapMargin }]}>
+        <View style={[styles.overlapContent, { marginTop: overlapMargin, zIndex: 10 }]}>
           {children}
         </View>
         {useSafeBottom && <View style={{ height: insets.bottom + 20 }} />}
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1,
+    zIndex: 0,
     ...theme.shadows.medium,
   },
   headerContent: {

@@ -28,26 +28,41 @@ module.exports = function preferencesRouter(db) {
   router.post('/preferences', async (req, res, next) => {
     try {
       const userId = req.user.id;
-      const { keyword, category } = req.body;
+      const { keyword, category } = req.body || {};
 
-      if (!keyword || !category) {
+      const k = typeof keyword === 'string' ? keyword.trim() : '';
+      const c = typeof category === 'string' ? category.trim() : '';
+
+      if (!k || !c) {
         return res.status(400).json({ error: '请提供关键词和分类' });
       }
 
-      // 检查是否已存在相同的关键词
+      // Upsert: if keyword exists, update category; otherwise insert new row
       const existing = await db.get(
-        'SELECT id FROM user_preferences WHERE user_id = ? AND keyword = ? AND deleted_at IS NULL',
-        [userId, keyword]
+        'SELECT id FROM user_preferences WHERE user_id = ? AND keyword = ?',
+        [userId, k]
       );
 
-      if (existing) {
-        return res.status(409).json({ error: '该关键词已存在' });
+      if (existing && existing.id) {
+        await db.run(
+          `UPDATE user_preferences
+           SET category = ?, deleted_at = NULL, updated_at = datetime('now')
+           WHERE id = ?`,
+          [c, existing.id]
+        );
+
+        const preference = await db.get(
+          'SELECT id, keyword, category, created_at, updated_at FROM user_preferences WHERE id = ?',
+          [existing.id]
+        );
+
+        return res.status(200).json({ preference });
       }
 
       const result = await db.run(
-        `INSERT INTO user_preferences (user_id, keyword, category, created_at, updated_at)
-         VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
-        [userId, keyword, category]
+        `INSERT INTO user_preferences (user_id, keyword, category, created_at, updated_at, deleted_at)
+         VALUES (?, ?, ?, datetime('now'), datetime('now'), NULL)`,
+        [userId, k, c]
       );
 
       const preference = await db.get(
@@ -55,7 +70,7 @@ module.exports = function preferencesRouter(db) {
         [result.lastID]
       );
 
-      res.status(201).json({ preference });
+      return res.status(201).json({ preference });
     } catch (err) {
       return next(err);
     }

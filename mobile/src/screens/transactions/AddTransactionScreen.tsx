@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -24,6 +24,8 @@ import { theme } from '../../theme';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { AppText } from '../../components/AppText';
 import { AppCard } from '../../components/AppCard';
+import { AIInputModal, AIInputMode } from '../../components/AIInputModal';
+import type { AITransactionDraft } from '../../../../shared/types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -107,6 +109,7 @@ export default function AddTransactionScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [aiMode, setAiMode] = useState<AIInputMode>(null);
 
   const parsedAmount = useMemo(() => Number(amount), [amount]);
 
@@ -114,7 +117,7 @@ export default function AddTransactionScreen() {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    return `${y} -${m} -${day} `;
   };
 
   const onSave = async () => {
@@ -154,119 +157,205 @@ export default function AddTransactionScreen() {
     }
   };
 
+  // Handle AI result - fill form with recognized transaction
+  const handleAIResult = (draft: AITransactionDraft) => {
+    if (draft.type) setType(draft.type);
+    if (draft.category) setCategory(draft.category);
+    if (draft.amount) setAmount(String(draft.amount));
+    if (draft.description) setDescription(draft.description);
+    if (draft.date) {
+      const parsed = new Date(draft.date);
+      if (!isNaN(parsed.getTime())) setDate(parsed);
+    }
+    setSuccess('AI 已识别，请确认后保存');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
   if (!user) return null;
+
+  const isExpense = type === 'expense';
+  const activeColor = isExpense ? theme.colors.error : '#10B981';
+  const activeBg = isExpense ? '#FEF2F2' : '#ECFDF5';
+
+  const inputRef = useRef<TextInput>(null);
+
+  // Focus input on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Dark Hero Header */}
+      {/* Top Section: Dark Gradient with Amount */}
       <LinearGradient
-        colors={['#1E293B', '#0F172A']}
+        colors={theme.colors.wealth?.gradients?.header || ['#1E293B', '#0F172A']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.header, { paddingTop: insets.top + 16 }]}
+        style={[styles.headerSection, { paddingTop: insets.top + 10 }]}
       >
-        {/* Type Selector Tabs */}
-        <View style={styles.typeSelectorContainer}>
+        {/* Type Switcher */}
+        <View style={styles.typeSegment}>
           <Pressable
-            style={[styles.typeTab, type === 'expense' && styles.typeTabActive]}
+            style={[styles.segmentTab, type === 'expense' && styles.segmentTabActive]}
             onPress={() => setType('expense')}
           >
-            <AppText style={[styles.typeText, type === 'expense' && styles.typeTextActive]}>支出</AppText>
+            <AppText style={[styles.segmentText, type === 'expense' && styles.segmentTextActive]}>支出</AppText>
           </Pressable>
           <Pressable
-            style={[styles.typeTab, type === 'income' && styles.typeTabActive]}
+            style={[styles.segmentTab, type === 'income' && styles.segmentTabActive]}
             onPress={() => setType('income')}
           >
-            <AppText style={[styles.typeText, type === 'income' && styles.typeTextActive]}>收入</AppText>
+            <AppText style={[styles.segmentText, type === 'income' && styles.segmentTextActive]}>收入</AppText>
           </Pressable>
         </View>
 
-        {/* Big Amount Input */}
-        <View style={styles.amountInputContainer}>
+        {/* Amount Input (Custom Text Display + Hidden Input) */}
+        <Pressable
+          style={styles.amountContainer}
+          onPress={() => inputRef.current?.focus()}
+        >
           <AppText style={styles.currencySymbol}>¥</AppText>
+          <AppText style={[styles.amountText, !amount && styles.amountPlaceholder]}>
+            {amount || '0.00'}
+          </AppText>
+          {/* Blinking Cursor Indicator */}
+          <View style={styles.cursor} />
+
           <TextInput
-            style={styles.amountInput}
+            ref={inputRef}
+            style={styles.hiddenInput}
             value={amount}
             onChangeText={setAmount}
-            placeholder="0.00"
-            placeholderTextColor="rgba(255,255,255,0.3)"
             keyboardType="decimal-pad"
-            autoFocus
+            caretHidden
           />
+        </Pressable>
+
+        {/* AI Action Buttons */}
+        <View style={styles.aiButtonsRow}>
+          <Pressable style={styles.aiButton} onPress={() => setAiMode('text')}>
+            <View style={styles.aiButtonIcon}>
+              <MaterialCommunityIcons name="text-recognition" size={22} color="#fff" />
+            </View>
+            <AppText style={styles.aiButtonLabel}>文字</AppText>
+          </Pressable>
+          <Pressable style={styles.aiButton} onPress={() => setAiMode('voice')}>
+            <View style={[styles.aiButtonIcon, { backgroundColor: '#10B981' }]}>
+              <MaterialCommunityIcons name="microphone" size={22} color="#fff" />
+            </View>
+            <AppText style={styles.aiButtonLabel}>语音</AppText>
+          </Pressable>
+          <Pressable style={styles.aiButton} onPress={() => setAiMode('voice-text')}>
+            <View style={[styles.aiButtonIcon, { backgroundColor: '#8B5CF6' }]}>
+              <MaterialCommunityIcons name="keyboard-outline" size={22} color="#fff" />
+            </View>
+            <AppText style={styles.aiButtonLabel}>输入法</AppText>
+          </Pressable>
+          <Pressable style={styles.aiButton} onPress={() => setAiMode('camera')}>
+            <View style={[styles.aiButtonIcon, { backgroundColor: '#F59E0B' }]}>
+              <MaterialCommunityIcons name="camera" size={22} color="#fff" />
+            </View>
+            <AppText style={styles.aiButtonLabel}>拍照</AppText>
+          </Pressable>
         </View>
       </LinearGradient>
 
-      {/* Form Card */}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.select({ ios: 'padding', android: undefined })}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.formCard}>
-            <Pressable style={styles.formRow} onPress={() => setShowDatePicker(true)}>
-              <View style={[styles.iconBox, { backgroundColor: '#F1F5F9' }]}>
-                <MaterialCommunityIcons name="calendar-month" size={20} color="#64748B" />
-              </View>
-              <View style={styles.formInputWrapper}>
-                <AppText variant="caption" color={theme.colors.textSecondary}>日期</AppText>
-                <AppText style={styles.formValueText}>{formatDate(date)}</AppText>
-              </View>
-            </Pressable>
+      {/* Bottom Section: Light Sheet with Form */}
+      <View style={styles.sheetContainer}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.select({ ios: 'padding', android: undefined })}>
+          <ScrollView
+            contentContainerStyle={styles.formContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Form Fields - Clean List Style */}
+            <View style={styles.formList}>
+              {/* Date Row */}
+              <Pressable style={styles.fieldRow} onPress={() => setShowDatePicker(true)}>
+                <View style={[styles.iconCircle, { backgroundColor: '#F1F5F9' }]}>
+                  <MaterialCommunityIcons name="calendar-month" size={22} color="#64748B" />
+                </View>
+                <View style={styles.fieldContent}>
+                  <AppText style={styles.fieldLabel}>日期</AppText>
+                  <AppText style={styles.fieldValue}>{formatDate(date)}</AppText>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#CBD5E1" />
+              </Pressable>
 
-            <View style={styles.divider} />
+              <View style={styles.separator} />
 
-            <View style={styles.formRow}>
-              <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}>
-                <MaterialCommunityIcons name="tag-multiple" size={20} color="#3B82F6" />
+              {/* Category Row */}
+              <View style={styles.fieldRow}>
+                <View style={[styles.iconCircle, { backgroundColor: activeBg }]}>
+                  <MaterialCommunityIcons name="tag-outline" size={22} color={activeColor} />
+                </View>
+                <View style={styles.fieldContent}>
+                  <AppText style={styles.fieldLabel}>分类</AppText>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={category}
+                    onChangeText={setCategory}
+                    placeholder="餐饮, 交通..."
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
               </View>
-              <View style={styles.formInputWrapper}>
-                <AppText variant="caption" color={theme.colors.textSecondary}>分类</AppText>
-                <TextInput
-                  style={styles.formInput}
-                  value={category}
-                  onChangeText={setCategory}
-                  placeholder="餐饮, 交通..."
-                  placeholderTextColor={theme.colors.textMuted}
-                />
+
+              <View style={styles.separator} />
+
+              {/* Note Row */}
+              <View style={[styles.fieldRow, { alignItems: 'flex-start', paddingTop: 16 }]}>
+                <View style={[styles.iconCircle, { backgroundColor: '#F8FAFC' }]}>
+                  <MaterialCommunityIcons name="file-document-outline" size={22} color="#94A3B8" />
+                </View>
+                <View style={styles.fieldContent}>
+                  <AppText style={styles.fieldLabel}>备注</AppText>
+                  <TextInput
+                    style={[styles.fieldInput, styles.multilineInput]}
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder="添加备注..."
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                  />
+                </View>
               </View>
             </View>
 
-            <View style={styles.divider} />
+            {/* Messages */}
+            {error && <AppText color={theme.colors.error} centered style={{ marginTop: 20 }}>{error}</AppText>}
+            {success && <AppText color="#10B981" centered style={{ marginTop: 20 }}>{success}</AppText>}
+          </ScrollView>
+        </KeyboardAvoidingView>
 
-            <View style={[styles.formRow, { alignItems: 'flex-start' }]}>
-              <View style={[styles.iconBox, { backgroundColor: '#F0FDF4', marginTop: 4 }]}>
-                <MaterialCommunityIcons name="text" size={20} color="#10B981" />
-              </View>
-              <View style={styles.formInputWrapper}>
-                <AppText variant="caption" color={theme.colors.textSecondary}>备注</AppText>
-                <TextInput
-                  style={[styles.formInput, styles.multilineInput]}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="添加备注..."
-                  placeholderTextColor={theme.colors.textMuted}
-                  multiline
-                />
-              </View>
-            </View>
-          </View>
-
-          {error && <AppText color={theme.colors.error} centered style={{ marginTop: 16 }}>{error}</AppText>}
-          {success && <AppText color="#10B981" centered style={{ marginTop: 16 }}>{success}</AppText>}
-
+        {/* Floating Bottom Button */}
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
           <Pressable
-            style={[styles.saveBtn, saving && { opacity: 0.8 }]}
+            style={[styles.saveButton, { backgroundColor: activeColor }, saving && { opacity: 0.7 }]}
             onPress={onSave}
             disabled={saving}
           >
-            {saving ? <ActivityIndicator color="#fff" /> : <AppText color="#fff" variant="title" bold>保存</AppText>}
+            {saving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <AppText style={styles.saveButtonText}>保 存</AppText>
+            )}
           </Pressable>
+        </View>
+      </View>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
+      {/* AI Input Modal */}
+      <AIInputModal
+        visible={aiMode !== null}
+        mode={aiMode}
+        onClose={() => setAiMode(null)}
+        onResult={handleAIResult}
+      />
 
       {showDatePicker && (
         <SimpleDatePicker
@@ -280,124 +369,195 @@ export default function AddTransactionScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F9FB' },
-  header: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    borderBottomLeftRadius: 32, // Consistent curve
-    borderBottomRightRadius: 32,
+  container: {
+    flex: 1,
+    backgroundColor: '#1E293B', // Background matches header color
   },
-  typeSelectorContainer: {
+  headerSection: {
+    // Height determined by content + padding
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    justifyContent: 'flex-start',
+    paddingBottom: 50, // Space for the sheet overlap
+  },
+  typeSegment: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 24,
     padding: 4,
-    alignSelf: 'center',
-    marginBottom: 32,
-  },
-  typeTab: {
-    paddingVertical: 8,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-  },
-  typeTabActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  typeText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  typeTextActive: {
-    color: '#FFF',
-  },
-  amountInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
     marginBottom: 20,
   },
-  currencySymbol: {
-    fontSize: 32,
-    color: '#FFF',
+  segmentTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  segmentTabActive: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  segmentText: {
+    fontSize: 14,
     fontWeight: '600',
-    marginRight: 8,
-    opacity: 0.8,
+    color: 'rgba(255,255,255,0.5)',
   },
-  amountInput: {
-    fontSize: 56,
+  segmentTextActive: {
     color: '#FFF',
+  },
+
+  amountContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline', // Proper typographic alignment
+    justifyContent: 'center',
+    marginTop: 20,
+    paddingVertical: 20,
+  },
+  currencySymbol: {
+    fontSize: 28,
+    fontWeight: '600',
+    marginRight: 6,
+    color: '#FFF',
+    opacity: 0.9,
+    lineHeight: 52, // Match amountText lineHeight for baseline alignment
+  },
+  amountText: {
+    fontSize: 42,
     fontWeight: '700',
-    minWidth: 100,
-    textAlign: 'center',
-    padding: 0,
+    color: '#FFF',
+    lineHeight: 52,
   },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 10, // Slight overlap visual if we used negative margin, but here we just flow
-    paddingBottom: 40,
+  amountPlaceholder: {
+    color: 'rgba(255,255,255,0.3)',
   },
-  formCard: {
+  cursor: {
+    width: 3,
+    height: 40,
+    backgroundColor: '#3B82F6',
+    marginLeft: 2,
+    borderRadius: 2,
+  },
+  hiddenInput: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
+
+  sheetContainer: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24, // Generous padding
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
-    marginTop: -30, // Pull up to overlap header
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 10,
+    marginTop: -20, // Small overlap for seamless look
   },
-  formRow: {
+  formContent: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 120,
+  },
+  formList: {
+    // No background, just form fields
+  },
+  fieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 16,
   },
-  iconBox: {
+  separator: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginLeft: 56,
+  },
+  iconCircle: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
   },
-  formInputWrapper: {
+  fieldContent: {
     flex: 1,
   },
-  formValueText: {
-    fontSize: 17,
-    color: theme.colors.textPrimary,
-    fontWeight: '500',
-    marginTop: 2,
+  fieldLabel: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginBottom: 4,
   },
-  formInput: {
-    fontSize: 17,
-    color: theme.colors.textPrimary,
+  fieldValue: {
+    fontSize: 16,
+    color: '#1E293B',
     fontWeight: '500',
-    padding: 0, // Remove default Android padding
-    marginTop: 2,
+  },
+  fieldInput: {
+    fontSize: 16,
+    color: '#1E293B',
+    fontWeight: '500',
+    padding: 0,
+    height: 24,
+    textAlignVertical: 'center',
   },
   multilineInput: {
-    height: 60,
+    minHeight: 24,
     textAlignVertical: 'top',
+    maxHeight: 100,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#F1F5F9',
-    marginVertical: 16,
-    marginLeft: 56, // Align with text start
+
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F8FAFC',
   },
-  saveBtn: {
-    backgroundColor: theme.colors.primary,
+  saveButton: {
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  saveButtonText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: 2,
+  },
+
+  // AI Buttons
+  aiButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  aiButton: {
+    alignItems: 'center',
+  },
+  aiButtonIcon: {
+    width: 48,
+    height: 48,
     borderRadius: 24,
-    marginTop: 32,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  aiButtonLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
   },
 });
