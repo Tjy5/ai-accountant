@@ -56,9 +56,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   amount: {
-    fontSize: 48,
+    fontSize: 36,
     fontWeight: '700',
     color: '#FFFFFF',
     fontVariant: ['tabular-nums'],
+    lineHeight: 42,
   },
 });

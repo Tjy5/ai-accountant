@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   hudProgressSection: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   hudProgressHeader: {
     flexDirection: 'row',
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   hudExpense: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   headerRow: {
     flexDirection: 'row',

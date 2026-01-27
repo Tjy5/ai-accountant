@@ -46,7 +46,7 @@ const HEADER_HEIGHTS = {
   standard: 180,
   mini: 120,
   hidden: 0,
-  jumbo: Math.round(Dimensions.get('window').height * 0.6),
+  jumbo: Math.round(Dimensions.get('window').height * 0.45),
 };
 
 export const ScreenContainer: React.FC<ScreenContainerProps> = ({
@@ -72,24 +72,28 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   // 计算内容区域的负边距，实现悬浮卡片效果
   const overlapMargin = headerType === 'hidden' ? 0 : -50;
 
+  // 计算内容区域的paddingTop，jumbo类型需要更大的空间
+  const paddingTopMultiplier = headerType === 'jumbo' ? 0.9 : 0.7;
+  const calculatedPaddingTop = Math.max(headerHeight * paddingTopMultiplier + insets.top, insets.top + 20);
+
   const ContentWrapper = enableScroll ? ScrollView : View;
   const contentWrapperProps = enableScroll
     ? {
-        contentContainerStyle: [
-          styles.contentContainer,
-          { paddingTop: Math.max(headerHeight * 0.7 + insets.top, insets.top + 20) },
-          contentStyle,
-        ],
-        refreshControl,
-        showsVerticalScrollIndicator: false,
-      }
+      contentContainerStyle: [
+        styles.contentContainer,
+        { paddingTop: calculatedPaddingTop },
+        contentStyle,
+      ],
+      refreshControl,
+      showsVerticalScrollIndicator: false,
+    }
     : {
-        style: [
-          styles.contentContainer,
-          { paddingTop: Math.max(headerHeight * 0.7 + insets.top, insets.top + 20) },
-          contentStyle,
-        ],
-      };
+      style: [
+        styles.contentContainer,
+        { paddingTop: calculatedPaddingTop },
+        contentStyle,
+      ],
+    };
 
   return (
     <View style={[styles.container, style]}>
