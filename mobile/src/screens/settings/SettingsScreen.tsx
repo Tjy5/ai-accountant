@@ -1,11 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../auth/AuthContext';
 import { getPendingCount, syncNow } from '../../sync/offlineQueue';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { theme } from '../../theme';
+import { ScreenWrapper } from '../../components/ScreenWrapper';
+import { AppText } from '../../components/AppText';
+import { AppCard } from '../../components/AppCard';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -54,72 +58,140 @@ export default function SettingsScreen() {
   if (!user) return null;
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>账号</Text>
-      <Text style={styles.item}>Email: {user.email}</Text>
-      <Text style={styles.item}>待同步操作: {pending}</Text>
+    <ScreenWrapper>
+      <View style={styles.container}>
+        <AppText variant="title" bold style={styles.header}>设置</AppText>
 
-      <Pressable
-        style={styles.menuItem}
-        onPress={() => navigation.navigate('AISettings')}
-        accessibilityLabel="AI 设置"
-      >
-        <Text style={styles.menuText}>AI 设置</Text>
-        <MaterialCommunityIcons name="chevron-right" size={24} color="#ccc" />
-      </Pressable>
+        <AppCard style={styles.profileCard} padding="lg">
+          <View style={styles.avatar}>
+            <AppText variant="header" color="#fff" bold>{user.email?.[0]?.toUpperCase()}</AppText>
+          </View>
+          <AppText variant="title" bold>{user.email}</AppText>
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: theme.colors.success }]} />
+            <AppText variant="caption">已登录</AppText>
+          </View>
+        </AppCard>
 
-      <Pressable
-        style={styles.menuItem}
-        onPress={() => navigation.navigate('CategoryList')}
-        accessibilityLabel="分类管理"
-      >
-        <Text style={styles.menuText}>分类管理</Text>
-        <MaterialCommunityIcons name="chevron-right" size={24} color="#ccc" />
-      </Pressable>
+        <AppText variant="caption" bold style={styles.sectionTitle}>同步</AppText>
+        <AppCard style={styles.menuCard} padding="none">
+          <View style={styles.menuItem}>
+            <View style={styles.menuLeft}>
+              <MaterialCommunityIcons name="cloud-sync-outline" size={24} color={theme.colors.primary} />
+              <AppText style={{ marginLeft: 12 }}>待同步操作</AppText>
+            </View>
+            <View style={styles.menuRight}>
+              {pending > 0 && (
+                <View style={styles.badge}>
+                  <AppText variant="caption" color="#fff" bold>{String(pending)}</AppText>
+                </View>
+              )}
+            </View>
+          </View>
 
-      {syncError ? (
-        <Pressable style={styles.errorBanner} onPress={() => setSyncError(null)}>
-          <Text style={styles.errorText}>{syncError}</Text>
-          <Text style={styles.errorClose}>×</Text>
+          <View style={styles.divider} />
+
+          <Pressable
+            style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
+            onPress={onSync}
+            disabled={syncing}
+          >
+            <View style={styles.menuLeft}>
+              {syncing ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <MaterialCommunityIcons name="refresh" size={24} color={theme.colors.primary} />}
+              <AppText style={{ marginLeft: 12 }} color={syncing ? theme.colors.textSecondary : theme.colors.textPrimary}>
+                {syncing ? '正在同步...' : '立即同步'}
+              </AppText>
+            </View>
+          </Pressable>
+        </AppCard>
+
+        {syncError && <AppText color={theme.colors.error} style={styles.message}>{syncError}</AppText>}
+        {syncSuccess && <AppText color={theme.colors.success} style={styles.message}>{syncSuccess}</AppText>}
+
+        <AppText variant="caption" bold style={styles.sectionTitle}>功能</AppText>
+        <AppCard style={styles.menuCard} padding="none">
+          <Pressable
+            style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
+            onPress={() => navigation.navigate('AISettings')}
+          >
+            <View style={styles.menuLeft}>
+              <MaterialCommunityIcons name="robot-outline" size={24} color={theme.colors.secondary} />
+              <AppText style={{ marginLeft: 12 }}>AI 设置</AppText>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.outline} />
+          </Pressable>
+
+          <View style={styles.divider} />
+
+          <Pressable
+            style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
+            onPress={() => navigation.navigate('CategoryList')}
+          >
+            <View style={styles.menuLeft}>
+              <MaterialCommunityIcons name="tag-outline" size={24} color={theme.colors.secondary} />
+              <AppText style={{ marginLeft: 12 }}>分类管理</AppText>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.outline} />
+          </Pressable>
+        </AppCard>
+
+        <Pressable style={styles.logoutBtn} onPress={signOut}>
+          <AppText color={theme.colors.error} bold>退出登录</AppText>
         </Pressable>
-      ) : null}
-      {syncSuccess ? (
-        <View style={styles.successBanner}>
-          <Text style={styles.successText}>{syncSuccess}</Text>
-        </View>
-      ) : null}
-      <Pressable style={styles.primaryButton} onPress={onSync} disabled={syncing} accessibilityLabel="立即同步">
-        {syncing ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>立即同步</Text>}
-      </Pressable>
-      <Pressable style={styles.dangerButton} onPress={signOut} accessibilityLabel="退出登录">
-        <Text style={styles.dangerText}>退出登录</Text>
-      </Pressable>
-    </View>
+
+      </View>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  item: { marginBottom: 8, color: '#333' },
+  container: { flex: 1, padding: 20 },
+  header: { marginBottom: 20 },
+  profileCard: { alignItems: 'center', marginBottom: 24 },
+  avatar: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 12,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4
+  },
+  statusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+
+  sectionTitle: { marginBottom: 8, marginLeft: 4, color: theme.colors.textSecondary },
+  menuCard: { marginBottom: 20, overflow: 'hidden' },
   menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
-    marginTop: 8
+    padding: 16,
   },
-  menuText: { fontSize: 16, color: '#333' },
-  errorBanner: { backgroundColor: '#fff2f0', borderWidth: 1, borderColor: '#ffccc7', borderRadius: 8, padding: 12, marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  errorText: { color: '#f5222d', fontSize: 14, flex: 1 },
-  errorClose: { color: '#f5222d', fontSize: 20, fontWeight: '600', marginLeft: 8 },
-  successBanner: { backgroundColor: '#f6ffed', borderWidth: 1, borderColor: '#b7eb8f', borderRadius: 8, padding: 12, marginTop: 8 },
-  successText: { color: '#52c41a', fontSize: 14 },
-  primaryButton: { backgroundColor: '#667eea', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 12 },
-  primaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  dangerButton: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#ffccc7', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 12 },
-  dangerText: { color: '#f5222d', fontSize: 16, fontWeight: '600' },
-});
+  pressed: { backgroundColor: theme.colors.surfaceVariant },
+  menuLeft: { flexDirection: 'row', alignItems: 'center' },
+  menuRight: { flexDirection: 'row', alignItems: 'center' },
+  divider: { height: 1, backgroundColor: theme.colors.surfaceVariant, marginLeft: 52 },
 
+  badge: {
+    backgroundColor: theme.colors.error,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 8
+  },
+
+  message: { textAlign: 'center', marginBottom: 12 },
+
+  logoutBtn: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.roundness,
+    borderWidth: 1,
+    borderColor: theme.colors.error + '40',
+    marginTop: 20
+  }
+});

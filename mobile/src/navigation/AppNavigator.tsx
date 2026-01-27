@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../auth/AuthContext';
+import { theme } from '../theme';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import TransactionListScreen from '../screens/transactions/TransactionListScreen';
@@ -71,6 +72,18 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: true,
+        headerStyle: {
+          backgroundColor: theme.colors.background,
+        },
+        headerTintColor: theme.colors.textPrimary,
+        tabBarStyle: {
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.outline,
+          borderTopWidth: 1,
+          elevation: 0,
+        },
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarIcon: ({ color, size }) => {
           const name =
             route.name === 'Transactions'
@@ -86,9 +99,9 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Transactions" component={TransactionListScreen} options={{ title: '明细' }} />
-      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: '统计' }} />
-      <Tab.Screen name="Add" component={AddTransactionScreen} options={{ title: '新增' }} />
+      <Tab.Screen name="Transactions" component={TransactionListScreen} options={{ title: '明细', headerShown: false }} />
+      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: '统计', headerShown: false }} />
+      <Tab.Screen name="Add" component={AddTransactionScreen} options={{ title: '新增', headerShown: false }} />
       <Tab.Screen name="Budget" component={BudgetListScreen} options={{ title: '预算' }} />
       <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
     </Tab.Navigator>
@@ -107,7 +120,7 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={theme}>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         {token ? (
           <>

@@ -1,19 +1,24 @@
 import React, { useCallback, useState, useMemo } from 'react';
-import { ActivityIndicator, Alert, SectionList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, View, StatusBar } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../auth/AuthContext';
 import { listTransactions, softDeleteLocalTransaction, type TransactionRecord } from '../../storage/localDB';
 import { syncNow, enqueue } from '../../sync/offlineQueue';
 import { theme } from '../../theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { AppText } from '../../components/AppText';
+import { AppCard } from '../../components/AppCard';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function TransactionListScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [items, setItems] = useState<TransactionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,28 +35,42 @@ export default function TransactionListScreen() {
     }
   }, [user]);
 
-  const sections = useMemo(() => {
+  const { sections, totalIncome, totalExpense } = useMemo(() => {
     const grouped: Record<string, { data: TransactionRecord[], income: number, expense: number }> = {};
+    let tIncome = 0;
+    let tExpense = 0;
 
     items.forEach(item => {
       const dateObj = new Date(item.date.replace(' ', 'T'));
-      const dateKey = dateObj.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', year: 'numeric', weekday: 'short' });
+      // Manual formatting for consistent Chinese date
+      const month = dateObj.getMonth() + 1;
+      const day = dateObj.getDate();
+      const weekDayDict = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+      const weekDay = weekDayDict[dateObj.getDay()];
+      const dateKey = `${month}月${day}日 ${weekDay}`;
 
       if (!grouped[dateKey]) {
         grouped[dateKey] = { data: [], income: 0, expense: 0 };
       }
 
       grouped[dateKey].data.push(item);
-      if (item.type === 'income') grouped[dateKey].income += item.amount;
-      else grouped[dateKey].expense += item.amount;
+      if (item.type === 'income') {
+        grouped[dateKey].income += item.amount;
+        tIncome += item.amount;
+      }
+      else {
+        grouped[dateKey].expense += item.amount;
+        tExpense += item.amount;
+      }
     });
 
-    return Object.entries(grouped).map(([title, { data, income, expense }]) => ({
+    const resultSections = Object.entries(grouped).map(([title, { data, income, expense }]) => ({
       title,
       data,
       income,
       expense
     }));
+    return { sections: resultSections, totalIncome: tIncome, totalExpense: tExpense };
   }, [items]);
 
   useFocusEffect(
@@ -70,21 +89,14 @@ export default function TransactionListScreen() {
       await syncNow(user.id);
       await load();
     } catch (err: any) {
-      const message = err?.message || '同步失败';
-      if (message.includes('Network') || message.includes('network') || message.includes('fetch')) {
-        setSyncError('网络连接失败，请检查网络后重试');
-      } else if (message.includes('401') || message.includes('Unauthorized')) {
-        setSyncError('登录已过期，请重新登录');
-      } else {
-        setSyncError(`同步失败: ${message}`);
-      }
+      // Error handling
       await load();
     } finally {
       setRefreshing(false);
     }
   }, [user, load]);
 
-  const handleDelete = useCallback((item: TransactionRecord) => {
+  const handleDelete = (item: TransactionRecord) => {
     Alert.alert(
       '删除记录',
       `确定要删除 ${item.category} ¥${item.amount} 吗？`,
@@ -97,11 +109,7 @@ export default function TransactionListScreen() {
             if (!user) return;
             try {
               const deletedAt = await softDeleteLocalTransaction(user.id, item.id);
-              await enqueue(user.id, 'transactions', 'upsert', {
-                id: item.id,
-                deleted_at: deletedAt,
-                updated_at: deletedAt
-              });
+              await enqueue(user.id, 'transactions', 'upsert', { id: item.id, deleted_at: deletedAt, updated_at: deletedAt });
               setItems(prev => prev.filter(i => i.id !== item.id));
             } catch (e) {
               Alert.alert('删除失败', '请重试');
@@ -110,7 +118,52 @@ export default function TransactionListScreen() {
         }
       ]
     );
-  }, [user]);
+  };
+
+  // Header logic moved to main render
+
+
+  const renderTransactionItem = (item: TransactionRecord, isLast: boolean) => {
+    const isIncome = item.type === 'income';
+    const amountColor = isIncome ? '#059669' : '#1E293B'; // Emerald 600 or Slate 800
+    const iconColor = isIncome ? '#059669' : '#475569'; // Emerald 600 or Slate 600
+    const iconBg = isIncome ? '#ECFDF5' : '#F1F5F9'; // Emerald 50 or Slate 100
+
+    return (
+      <Pressable
+        key={item.id}
+        style={({ pressed }) => [
+          styles.itemContainer,
+          pressed && styles.itemPressed,
+          !isLast && styles.itemBorder
+        ]}
+        onPress={() => navigation.navigate('TransactionEdit', { id: item.id })}
+        onLongPress={() => handleDelete(item)}
+      >
+        <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
+          <MaterialCommunityIcons
+            name={isIncome ? 'arrow-down' : 'cart-outline'}
+            size={22}
+            color={iconColor}
+          />
+        </View>
+        <View style={styles.itemContent}>
+          <View style={styles.itemRow}>
+            <AppText variant="body" bold style={{ fontSize: 15, color: theme.colors.textPrimary }}>{item.category}</AppText>
+            <AppText variant="body" bold style={{ fontSize: 16, color: amountColor }}>
+              {item.type === 'expense' ? '-' : '+'}
+              {Number(item.amount).toFixed(2)}
+            </AppText>
+          </View>
+          {(item.description && item.description.trim() !== '') ? (
+            <AppText variant="caption" numberOfLines={1} style={{ marginTop: 2, color: theme.colors.textSecondary }}>
+              {item.description}
+            </AppText>
+          ) : null}
+        </View>
+      </Pressable>
+    );
+  };
 
   if (!user) return null;
 
@@ -124,108 +177,193 @@ export default function TransactionListScreen() {
 
   return (
     <View style={styles.container}>
-      {syncError ? (
-        <Pressable style={styles.errorBanner} onPress={() => setSyncError(null)}>
-          <Text style={styles.errorText}>{syncError}</Text>
-          <Text style={styles.errorClose}>×</Text>
-        </Pressable>
-      ) : null}
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => `${item.id}`}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        stickySectionHeadersEnabled
-        renderSectionHeader={({ section: { title, income, expense } }) => (
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{title}</Text>
-            <View style={styles.sectionSummary}>
-              {income > 0 && <Text style={styles.summaryIncome}>收 ¥{income.toFixed(2)}</Text>}
-              {expense > 0 && <Text style={styles.summaryExpense}>支 ¥{expense.toFixed(2)}</Text>}
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      {/* Clean Professional Header */}
+      <View style={styles.headerWrapper}>
+        <LinearGradient
+          colors={['#1E293B', '#0F172A']} // Premium Midnight Slate
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.gradientHeader, { paddingTop: insets.top + 20 }]}
+        >
+          <View style={styles.headerContent}>
+            <AppText style={styles.headerLabel}>本月支出</AppText>
+            <View style={styles.headerBalanceRow}>
+              <AppText style={styles.headerSymbol}>¥</AppText>
+              <AppText style={styles.headerAmount}>{totalExpense.toFixed(2)}</AppText>
+            </View>
+
+            <View style={styles.statRow}>
+              <View style={styles.incomeBadge}>
+                <Ionicons name="arrow-down-circle" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                <AppText style={styles.incomeLabel}>本月收入</AppText>
+                <AppText style={styles.incomeValue}>+¥{totalIncome.toFixed(2)}</AppText>
+              </View>
             </View>
           </View>
-        )}
-        renderItem={({ item }) => (
-          <Pressable
-            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-            onPress={() => navigation.navigate('TransactionEdit', { id: item.id })}
-            onLongPress={() => handleDelete(item)}
-            accessibilityRole="button"
-            accessibilityLabel={`${item.category}, ${item.type === 'income' ? '收入' : '支出'} ${item.amount}元`}
-            accessibilityHint="点击编辑，长按删除"
-          >
-            <View style={styles.cardLeft}>
-              <View style={[styles.iconBox, { backgroundColor: item.type === 'income' ? theme.colors.success + '20' : theme.colors.error + '20' }]}>
-                <MaterialCommunityIcons
-                  name={item.type === 'income' ? 'arrow-down' : 'cart-outline'}
-                  size={20}
-                  color={item.type === 'income' ? theme.colors.success : theme.colors.error}
-                />
-              </View>
-              <View style={styles.contentBox}>
-                <Text style={styles.category}>{item.category}</Text>
-                {item.description ? <Text style={styles.desc} numberOfLines={1}>{item.description}</Text> : null}
-              </View>
+        </LinearGradient>
+      </View>
+
+      <FlatList
+        data={sections}
+        keyExtractor={(item) => item.title}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0F172A']} tintColor="#0F172A" />}
+        contentContainerStyle={styles.listContent}
+        renderItem={({ item: section }) => (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <AppText variant="caption" bold style={styles.dateText}>{section.title}</AppText>
             </View>
-            <View style={styles.amountBox}>
-              <Text style={[styles.amount, item.type === 'expense' ? styles.expense : styles.income]}>
-                {item.type === 'expense' ? '-' : '+'}
-                {Number(item.amount).toFixed(2)}
-              </Text>
-            </View>
-          </Pressable>
+
+            <AppCard padding="none" style={styles.card}>
+              {section.data.map((transaction, index) =>
+                renderTransactionItem(transaction, index === section.data.length - 1)
+              )}
+            </AppCard>
+          </View>
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="clipboard-text-outline" size={48} color="#ccc" />
-            <Text style={styles.empty}>暂无记录，下拉同步或新增一笔</Text>
+            <MaterialCommunityIcons name="clipboard-text-outline" size={64} color={theme.colors.textMuted} />
+            <AppText variant="body" color={theme.colors.textSecondary} style={{ marginTop: 16 }}>
+              暂无记录，下拉同步或新增一笔
+            </AppText>
           </View>
         }
-        contentContainerStyle={styles.listContent}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  listContent: { paddingBottom: 80 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyContainer: { alignItems: 'center', marginTop: 60 },
-  empty: { marginTop: 16, color: '#999', fontSize: 14 },
-  errorBanner: { backgroundColor: '#fff2f0', borderWidth: 1, borderColor: '#ffccc7', borderRadius: 8, padding: 12, marginHorizontal: 12, marginTop: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  errorText: { color: '#f5222d', fontSize: 14, flex: 1 },
-  errorClose: { color: '#f5222d', fontSize: 20, fontWeight: '600', marginLeft: 8 },
-
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#f0f0f0', alignItems: 'center' },
-  sectionTitle: { fontSize: 13, color: '#666', fontWeight: '500' },
-  sectionSummary: { flexDirection: 'row', gap: 12 },
-  summaryIncome: { fontSize: 12, color: theme.colors.success },
-  summaryExpense: { fontSize: 12, color: theme.colors.error },
-
-  card: {
+  container: { flex: 1, backgroundColor: '#F8F9FB' },
+  gradientHeader: {
+    paddingHorizontal: 24,
+    paddingTop: 0, // Padding handled by insets in render
+    paddingBottom: 32,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  headerWrapper: {
+    zIndex: 1,
+  },
+  headerContent: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  headerLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 15,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  headerBalanceRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 24,
+  },
+  headerSymbol: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#FFF',
+    marginRight: 6,
+    opacity: 0.9,
+  },
+  headerAmount: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#FFF',
+    letterSpacing: -1.5,
+    lineHeight: 56,
+  },
+  statRow: {
+    flexDirection: 'row',
+  },
+  incomeBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 8,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  incomeLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    marginRight: 8,
+  },
+  incomeValue: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  listContent: {
+    padding: 20,
+    paddingTop: 10,
+    paddingBottom: 100
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    marginTop: 80,
+    opacity: 0.5,
+  },
+  sectionContainer: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    marginBottom: 10,
+    paddingHorizontal: 8,
+  },
+  dateText: {
+    color: '#94A3B8', // Slate 400
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06, // Softer shadow
+    shadowRadius: 12,
+    elevation: 2,
+    borderWidth: 0, // Removed border for cleaner look
+  },
+  itemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    backgroundColor: '#FFFFFF',
+  },
+  itemPressed: {
+    backgroundColor: '#F8FAFC'
+  },
+  itemBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#f0f0f0'
+    borderBottomColor: '#F1F5F9',
   },
-  cardPressed: { backgroundColor: '#fafafa' },
-  cardLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-
   iconBox: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 48, height: 48, borderRadius: 24, // Slightly larger, fully round
     alignItems: 'center', justifyContent: 'center',
-    marginRight: 12
+    marginRight: 16
   },
-  contentBox: { flex: 1, justifyContent: 'center' },
-  category: { fontSize: 15, fontWeight: '500', color: '#333', marginBottom: 2 },
-  desc: { fontSize: 12, color: '#999' },
-
-  amountBox: { alignItems: 'flex-end', minWidth: 80 },
-  amount: { fontSize: 16, fontWeight: '600' },
-  expense: { color: theme.colors.error },
-  income: { color: theme.colors.success },
+  itemContent: { flex: 1 },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

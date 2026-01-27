@@ -1,5 +1,5 @@
 {
-  "lastRun": "011-rebuild-multi-user-tables.js",
+  "lastRun": "012-add-ai-settings-table.js",
   "migrations": [
     {
       "title": "001-initial-schema.js",
@@ -44,6 +44,10 @@
     {
       "title": "011-rebuild-multi-user-tables.js",
       "timestamp": 1769189660504
+    },
+    {
+      "title": "012-add-ai-settings-table.js",
+      "timestamp": 1769430876467
     }
   ]
 }

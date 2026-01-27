@@ -1,13 +1,21 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View, Dimensions, RefreshControl } from 'react-native';
-import { Card, Text } from 'react-native-paper';
+import { ActivityIndicator, ScrollView, StyleSheet, View, Dimensions, RefreshControl, StatusBar } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { VictoryPie, VictoryChart, VictoryTheme, VictoryAxis, VictoryBar, VictoryLine } from 'victory-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../auth/AuthContext';
 import { getDashboardStats, getCategoryStats, getMonthlyTrend } from '../../storage/localDB';
+import { theme } from '../../theme';
+import { AppCard } from '../../components/AppCard';
+import { AppText } from '../../components/AppText';
+import { ScreenWrapper } from '../../components/ScreenWrapper';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const COLORS = ['#ff7875', '#ff9c6e', '#ffc069', '#ffd591', '#fff566', '#d3f261', '#95de64', '#5cdbd3'];
+// Custom premium palette for charts - slightly muted for elegance
+const CHART_COLORS = [
+  '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#f97316', '#ef4444', '#a855f7', '#6366f1'
+];
 
 const toYmd = (d: Date) => {
   const y = d.getFullYear();
@@ -18,6 +26,7 @@ const toYmd = (d: Date) => {
 
 export default function DashboardScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,146 +95,368 @@ export default function DashboardScreen() {
   if (loading && !refreshing) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />}
-    >
-      {error ? (
-        <Card style={styles.errorCard}>
-          <Card.Content>
-            <Text style={styles.errorText}>{error}</Text>
-          </Card.Content>
-        </Card>
-      ) : null}
-
-      <View style={styles.summaryRow}>
-        <Card style={[styles.summaryCard, styles.incomeCard]}>
-          <Card.Content>
-            <Text variant="labelMedium" style={styles.cardLabel}>本月收入</Text>
-            <Text variant="headlineSmall" style={styles.incomeText}>¥{summary.income.toFixed(0)}</Text>
-          </Card.Content>
-        </Card>
-        <Card style={[styles.summaryCard, styles.expenseCard]}>
-          <Card.Content>
-            <Text variant="labelMedium" style={styles.cardLabel}>本月支出</Text>
-            <Text variant="headlineSmall" style={styles.expenseText}>¥{summary.expense.toFixed(0)}</Text>
-          </Card.Content>
-        </Card>
-      </View>
-
-      <Card style={styles.netCard}>
-        <Card.Content style={styles.netContent}>
-          <View>
-            <Text variant="labelMedium" style={styles.cardLabel}>结余</Text>
-            <Text variant="headlineMedium" style={[styles.netText, { color: netIncome >= 0 ? '#52c41a' : '#ff4d4f' }]}>
-              ¥{netIncome.toFixed(2)}
-            </Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <ScrollView
+        style={styles.scrollContainer}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} colors={['#0F172A']} tintColor="#0F172A" />}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        {/* Header Backdrop */}
+        <LinearGradient
+          colors={['#1E293B', '#0F172A']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.headerGradient, { paddingTop: insets.top + 16 }]}
+        >
+          <View style={styles.headerTopRow}>
+            <AppText variant="title" color="rgba(255,255,255,0.95)" style={{ fontSize: 20 }}>本月概览</AppText>
+            <AppText variant="caption" color="rgba(255,255,255,0.6)">{new Date().getMonth() + 1}月</AppText>
           </View>
-          <Text variant="bodySmall" style={styles.countText}>共 {summary.count} 笔</Text>
-        </Card.Content>
-      </Card>
+        </LinearGradient>
 
-      <Card style={styles.chartCard} accessible accessibilityLabel={`支出分布图表: ${categoryData.map(c => `${c.category} ${c.total.toFixed(0)}元`).join(', ')}`}>
-        <Card.Content>
-          <Text variant="titleMedium" style={styles.chartTitle}>支出分布</Text>
-          {pieData.length > 0 ? (
-            <VictoryPie
-              data={pieData}
-              colorScale={COLORS}
-              innerRadius={60}
-              height={280}
-              width={SCREEN_WIDTH - 64}
-              style={{ labels: { fill: '#666', fontSize: 11 } }}
-            />
-          ) : (
-            <Text style={styles.emptyText}>本月暂无支出</Text>
-          )}
-        </Card.Content>
-      </Card>
+        {/* Floating Summary Card */}
+        <View style={styles.summaryCardWrapper}>
+          <AppCard style={styles.summaryCard} padding="lg">
+            <View style={styles.balanceSection}>
+              <AppText variant="caption" color={theme.colors.textSecondary} style={{ marginBottom: 4 }}>本月结余</AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', paddingVertical: 8 }}>
+                <AppText style={[styles.balanceAmount, { color: netIncome >= 0 ? theme.colors.primary : theme.colors.error }]}>
+                  {netIncome >= 0 ? '+' : ''}{netIncome.toFixed(2)}
+                </AppText>
+                <AppText style={{ fontSize: 16, color: theme.colors.textSecondary, marginLeft: 4, fontWeight: 'normal' }}>CN¥</AppText>
+              </View>
+            </View>
 
-      <Card style={styles.chartCard} accessible accessibilityLabel="收支趋势图表">
-        <Card.Content>
-          <Text variant="titleMedium" style={styles.chartTitle}>收支趋势（近6个月）</Text>
-          {trendChartData.income.length > 0 || trendChartData.expense.length > 0 ? (
-            <>
-              <VictoryChart width={SCREEN_WIDTH - 64} height={250} theme={VictoryTheme.material}>
-                <VictoryLine
-                  data={trendChartData.income}
-                  style={{ data: { stroke: '#52c41a', strokeWidth: 2 } }}
-                />
-                <VictoryLine
-                  data={trendChartData.expense}
-                  style={{ data: { stroke: '#ff4d4f', strokeWidth: 2 } }}
-                />
-                <VictoryAxis style={{ grid: { stroke: '#f0f0f0' } }} />
-                <VictoryAxis dependentAxis tickFormat={(t: any) => `${(t / 1000).toFixed(0)}k`} style={{ grid: { stroke: '#f0f0f0' } }} />
-              </VictoryChart>
-              <View style={styles.legend}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.dot, { backgroundColor: '#52c41a' }]} />
-                  <Text variant="bodySmall">收入</Text>
+            <View style={styles.dividerHorizontal} />
+
+            <View style={styles.statsRow}>
+              <View style={styles.statItem}>
+                <View style={[styles.iconCircle, { backgroundColor: '#ECFDF5' }]}>
+                  {/* Using text char as simple icon placeholder if needed, or just color */}
+                  <AppText style={{ color: '#059669', fontSize: 16 }}>↓</AppText>
                 </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.dot, { backgroundColor: '#ff4d4f' }]} />
-                  <Text variant="bodySmall">支出</Text>
+                <View>
+                  <AppText variant="caption" color={theme.colors.textSecondary}>收入</AppText>
+                  <AppText variant="body" bold style={{ color: '#059669', fontSize: 16 }}>{summary.income.toFixed(0)}</AppText>
                 </View>
               </View>
-            </>
-          ) : (
-            <Text style={styles.emptyText}>暂无数据</Text>
-          )}
-        </Card.Content>
-      </Card>
 
-      <Card style={styles.chartCard} accessible accessibilityLabel={`支出排行图表: ${categoryData.slice(0, 5).map((c, i) => `第${i + 1}名 ${c.category}`).join(', ')}`}>
-        <Card.Content>
-          <Text variant="titleMedium" style={styles.chartTitle}>支出排行 TOP 10</Text>
-          {pieData.length > 0 ? (
-            <VictoryChart width={SCREEN_WIDTH - 64} height={Math.max(200, pieData.length * 30)} domainPadding={{ x: 20 }}>
-              <VictoryBar
-                data={pieData}
-                horizontal
-                style={{ data: { fill: '#1890ff' } }}
-                labels={({ datum }: { datum: any }) => `¥${datum.y.toFixed(0)}`}
-              />
-              <VictoryAxis style={{ grid: { stroke: 'none' } }} />
-              <VictoryAxis dependentAxis style={{ grid: { stroke: '#f0f0f0' } }} />
-            </VictoryChart>
-          ) : (
-            <Text style={styles.emptyText}>暂无数据</Text>
+              <View style={styles.verticalRule} />
+
+              <View style={styles.statItem}>
+                <View style={[styles.iconCircle, { backgroundColor: '#FEF2F2' }]}>
+                  <AppText style={{ color: '#DC2626', fontSize: 16 }}>↑</AppText>
+                </View>
+                <View>
+                  <AppText variant="caption" color={theme.colors.textSecondary}>支出</AppText>
+                  <AppText variant="body" bold style={{ color: '#DC2626', fontSize: 16 }}>{summary.expense.toFixed(0)}</AppText>
+                </View>
+              </View>
+            </View>
+          </AppCard>
+        </View>
+
+        <View style={styles.contentContainer}>
+          {error && (
+            <AppCard style={styles.errorCard}>
+              <AppText color={theme.colors.error}>{error}</AppText>
+            </AppCard>
           )}
-        </Card.Content>
-      </Card>
-    </ScrollView>
+
+          <View style={styles.sectionHeader}>
+            <AppText variant="title" bold style={styles.sectionTitle}>支出分布</AppText>
+          </View>
+
+          <AppCard style={styles.card} padding="lg">
+            {pieData.length > 0 ? (
+              <View style={{ alignItems: 'center' }}>
+                <VictoryPie
+                  data={pieData}
+                  colorScale={CHART_COLORS}
+                  innerRadius={80}
+                  radius={({ datum }) => 100 + (datum.y / summary.expense) * 15}
+                  padAngle={2}
+                  height={280}
+                  width={SCREEN_WIDTH - 64}
+                  style={{ labels: { fill: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' } }}
+                />
+              </View>
+            ) : (
+              <AppText centered style={styles.emptyText}>本月暂无支出</AppText>
+            )}
+          </AppCard>
+
+          <View style={styles.sectionHeader}>
+            <AppText variant="title" bold style={styles.sectionTitle}>收支趋势</AppText>
+            <AppText variant="caption" color={theme.colors.textSecondary}>近6个月</AppText>
+          </View>
+
+          <AppCard style={styles.card}>
+            {trendChartData.income.length > 0 || trendChartData.expense.length > 0 ? (
+              <>
+                <VictoryChart width={SCREEN_WIDTH - 48} height={250} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }}>
+                  <VictoryAxis style={{
+                    grid: { stroke: 'none' },
+                    axis: { stroke: theme.colors.outline },
+                    tickLabels: { fill: theme.colors.textSecondary, fontSize: 10 }
+                  }} />
+                  <VictoryAxis dependentAxis tickFormat={(t: any) => `${(t / 1000).toFixed(0)}k`}
+                    style={{
+                      grid: { stroke: theme.colors.surfaceVariant, strokeDasharray: '4, 4' },
+                      axis: { stroke: 'none' },
+                      tickLabels: { fill: theme.colors.textSecondary, fontSize: 10 }
+                    }}
+                  />
+                  <VictoryLine
+                    data={trendChartData.income}
+                    style={{ data: { stroke: '#10B981', strokeWidth: 3 }, parent: { border: "none" } }}
+                    animate={{ duration: 1000, onLoad: { duration: 500 } }}
+                    interpolation="catmullRom"
+                  />
+                  <VictoryLine
+                    data={trendChartData.expense}
+                    style={{ data: { stroke: theme.colors.error, strokeWidth: 3 } }}
+                    animate={{ duration: 1000, onLoad: { duration: 500 } }}
+                    interpolation="catmullRom"
+                  />
+                </VictoryChart>
+                <View style={styles.legend}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
+                    <AppText variant="caption">收入</AppText>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.dot, { backgroundColor: theme.colors.error }]} />
+                    <AppText variant="caption">支出</AppText>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <AppText centered style={styles.emptyText}>暂无数据</AppText>
+            )}
+          </AppCard>
+
+          <View style={styles.sectionHeader}>
+            <AppText variant="title" bold style={styles.sectionTitle}>排行榜</AppText>
+          </View>
+
+          <AppCard style={styles.card} padding="none">
+            {pieData.length > 0 ? (
+              <View style={{ paddingVertical: 12 }}>
+                {categoryData.slice(0, 5).map((item, index) => (
+                  <View key={item.category} style={styles.rankItem}>
+                    <View style={styles.rankIndex}>
+                      <AppText bold color={index < 3 ? '#1E293B' : theme.colors.textSecondary} style={{ fontSize: 16 }}>{index + 1}</AppText>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <AppText bold style={{ color: theme.colors.textPrimary }}>{item.category}</AppText>
+                        <AppText bold style={{ color: theme.colors.textPrimary }}>¥{item.total.toFixed(0)}</AppText>
+                      </View>
+                      <View style={styles.progressBarBg}>
+                        <View style={[styles.progressBarFill, { width: `${(item.total / summary.expense) * 100}%`, backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }]} />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <AppText centered style={styles.emptyText}>暂无数据</AppText>
+            )}
+          </AppCard>
+
+          <View style={{ height: 40 }} />
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorCard: { marginHorizontal: 16, marginTop: 16, marginBottom: 0, backgroundColor: '#fff2f0' },
-  errorText: { color: '#f5222d' },
-  summaryRow: { flexDirection: 'row', padding: 16, gap: 12 },
-  summaryCard: { flex: 1 },
-  incomeCard: { backgroundColor: '#f6ffed', borderLeftWidth: 3, borderLeftColor: '#52c41a' },
-  expenseCard: { backgroundColor: '#fff1f0', borderLeftWidth: 3, borderLeftColor: '#ff4d4f' },
-  netCard: { marginHorizontal: 16, marginBottom: 16 },
-  netContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardLabel: { color: '#666', marginBottom: 4 },
-  incomeText: { color: '#52c41a', fontWeight: '700' },
-  expenseText: { color: '#ff4d4f', fontWeight: '700' },
-  netText: { fontWeight: '700' },
-  countText: { color: '#999' },
-  chartCard: { marginHorizontal: 16, marginBottom: 16 },
-  chartTitle: { marginBottom: 12, fontWeight: '600' },
-  emptyText: { textAlign: 'center', color: '#999', paddingVertical: 40 },
-  legend: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 8 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F9FB' },
+  container: { flex: 1, backgroundColor: '#F8F9FB' },
+  scrollContainer: { flex: 1 },
+  headerGradient: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
+    marginBottom: 10,
+  },
+  headerBalance: {
+    marginTop: 10,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  summaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  divider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 16,
+    marginBottom: 4,
+  },
+  contentContainer: {
+    paddingHorizontal: 20,
+    marginTop: 0, // Reset overlapped margin
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 40, // Space for curve
+  },
+  summaryCardWrapper: {
+    paddingHorizontal: 20,
+    marginTop: -50, // Pull up into gradient
+    marginBottom: 20, // Space before next content
+    zIndex: 10,
+  },
+  summaryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 8,
+    borderWidth: 0,
+  },
+  balanceSection: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  balanceAmount: {
+    fontSize: 42,
+    fontWeight: '700',
+    letterSpacing: -1,
+    lineHeight: 65, // Generous line height
+    includeFontPadding: false, // Fix check for Android clipping
+    paddingVertical: 5,
+  },
+  dividerHorizontal: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    width: '100%',
+    marginBottom: 20,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  verticalRule: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#F1F5F9',
+  },
+  errorCard: {
+    backgroundColor: '#FFF',
+    marginBottom: 16,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+    marginBottom: 24,
+    borderWidth: 0, // Removed border for cleaner look
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+    marginTop: 0,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    color: '#1E293B',
+  },
+  emptyText: {
+    color: theme.colors.textSecondary,
+    paddingVertical: 40,
+  },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  rankItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F1F5F9', // Subtle divider
+  },
+  rankIndex: {
+    width: 30,
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
 });

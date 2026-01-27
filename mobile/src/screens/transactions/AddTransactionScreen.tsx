@@ -5,21 +5,28 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Text,
   TextInput,
   View,
   Modal,
+  ScrollView,
+  StatusBar
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../auth/AuthContext';
 import { createLocalTransaction } from '../../storage/localDB';
 import { enqueue } from '../../sync/offlineQueue';
 import { RootStackParamList } from '../../navigation/AppNavigator';
+import { theme } from '../../theme';
+import { ScreenWrapper } from '../../components/ScreenWrapper';
+import { AppText } from '../../components/AppText';
+import { AppCard } from '../../components/AppCard';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Simple date picker component since @react-native-community/datetimepicker may not be installed
 function SimpleDatePicker({
   value,
   onChange,
@@ -44,69 +51,52 @@ function SimpleDatePicker({
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <View style={pickerStyles.overlay}>
-        <View style={pickerStyles.container}>
-          <Text style={pickerStyles.title}>选择日期</Text>
+        <AppCard style={pickerStyles.container}>
+          <AppText variant="title" centered style={{ marginBottom: 20 }}>选择日期</AppText>
           <View style={pickerStyles.row}>
-            <TextInput
-              style={pickerStyles.input}
-              value={year}
-              onChangeText={setYear}
-              keyboardType="number-pad"
-              maxLength={4}
-              placeholder="年"
-              accessibilityLabel="年份输入"
-            />
-            <Text style={pickerStyles.separator}>-</Text>
-            <TextInput
-              style={pickerStyles.input}
-              value={month}
-              onChangeText={setMonth}
-              keyboardType="number-pad"
-              maxLength={2}
-              placeholder="月"
-              accessibilityLabel="月份输入"
-            />
-            <Text style={pickerStyles.separator}>-</Text>
-            <TextInput
-              style={pickerStyles.input}
-              value={day}
-              onChangeText={setDay}
-              keyboardType="number-pad"
-              maxLength={2}
-              placeholder="日"
-              accessibilityLabel="日期输入"
-            />
+            <TextInput style={pickerStyles.input} value={year} onChangeText={setYear} keyboardType="number-pad" maxLength={4} />
+            <AppText style={pickerStyles.separator}>-</AppText>
+            <TextInput style={pickerStyles.input} value={month} onChangeText={setMonth} keyboardType="number-pad" maxLength={2} />
+            <AppText style={pickerStyles.separator}>-</AppText>
+            <TextInput style={pickerStyles.input} value={day} onChangeText={setDay} keyboardType="number-pad" maxLength={2} />
           </View>
           <View style={pickerStyles.buttons}>
-            <Pressable style={pickerStyles.cancelBtn} onPress={onClose} accessibilityLabel="取消选择日期">
-              <Text style={pickerStyles.cancelText}>取消</Text>
+            <Pressable style={[pickerStyles.btn, pickerStyles.btnCancel]} onPress={onClose}>
+              <AppText color={theme.colors.textSecondary}>取消</AppText>
             </Pressable>
-            <Pressable style={pickerStyles.confirmBtn} onPress={onConfirm} accessibilityLabel="确认选择日期">
-              <Text style={pickerStyles.confirmText}>确定</Text>
+            <Pressable style={[pickerStyles.btn, pickerStyles.btnConfirm]} onPress={onConfirm}>
+              <AppText color="#fff" bold>确定</AppText>
             </Pressable>
           </View>
-        </View>
+        </AppCard>
       </View>
     </Modal>
   );
 }
 
 const pickerStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  container: { backgroundColor: '#fff', borderRadius: 12, padding: 20, width: 280 },
-  title: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginBottom: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, width: 60, textAlign: 'center', fontSize: 16 },
-  separator: { marginHorizontal: 4, fontSize: 18, color: '#666' },
-  buttons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
-  cancelBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', marginRight: 8, borderWidth: 1, borderColor: '#ddd', borderRadius: 8 },
-  confirmBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', marginLeft: 8, backgroundColor: '#667eea', borderRadius: 8 },
-  cancelText: { color: '#666', fontWeight: '600' },
-  confirmText: { color: '#fff', fontWeight: '600' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  container: { width: 300 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  input: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.primary,
+    textAlign: 'center',
+    fontSize: 18,
+    paddingVertical: 4,
+    width: 60,
+    color: theme.colors.textPrimary
+  },
+  separator: { marginHorizontal: 8, fontSize: 18, color: theme.colors.textSecondary },
+  buttons: { flexDirection: 'row', gap: 12 },
+  btn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: theme.roundness },
+  btnCancel: { backgroundColor: theme.colors.surfaceVariant },
+  btnConfirm: { backgroundColor: theme.colors.primary },
 });
 
 export default function AddTransactionScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [type, setType] = useState<'expense' | 'income'>('expense');
   const [category, setCategory] = useState('');
@@ -155,7 +145,8 @@ export default function AddTransactionScreen() {
       setAmount('');
       setDescription('');
       setDate(new Date());
-      setSuccess('已保存到本地（待同步）');
+      setSuccess('已保存');
+      setTimeout(() => setSuccess(null), 2000);
     } catch (e: any) {
       setError(e?.message ? String(e.message) : '保存失败');
     } finally {
@@ -166,46 +157,117 @@ export default function AddTransactionScreen() {
   if (!user) return null;
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.select({ ios: 'padding', android: undefined })}>
-      <Pressable
-        style={styles.aiEntry}
-        onPress={() => navigation.navigate('AIAdd')}
-        accessibilityLabel="进入 AI 智能记账"
-        accessibilityRole="button"
-      >
-        <Text style={styles.aiEntryText}>AI 智能记账</Text>
-      </Pressable>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      <Text style={styles.title}>新增记账</Text>
-      <View style={styles.segmentRow}>
-        <Pressable
-          style={[styles.segment, type === 'expense' ? styles.segmentActive : null]}
-          onPress={() => setType('expense')}
-          accessibilityLabel="选择支出类型"
-          accessibilityRole="button"
-        >
-          <Text style={[styles.segmentText, type === 'expense' ? styles.segmentTextActive : null]}>支出</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.segment, type === 'income' ? styles.segmentActive : null]}
-          onPress={() => setType('income')}
-          accessibilityLabel="选择收入类型"
-          accessibilityRole="button"
-        >
-          <Text style={[styles.segmentText, type === 'income' ? styles.segmentTextActive : null]}>收入</Text>
-        </Pressable>
-      </View>
-
-      {/* Date Picker */}
-      <Pressable
-        style={styles.dateButton}
-        onPress={() => setShowDatePicker(true)}
-        accessibilityLabel={`选择日期，当前日期 ${formatDate(date)}`}
-        accessibilityRole="button"
+      {/* Dark Hero Header */}
+      <LinearGradient
+        colors={['#1E293B', '#0F172A']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
-        <Text style={styles.dateLabel}>日期</Text>
-        <Text style={styles.dateValue}>{formatDate(date)}</Text>
-      </Pressable>
+        {/* Type Selector Tabs */}
+        <View style={styles.typeSelectorContainer}>
+          <Pressable
+            style={[styles.typeTab, type === 'expense' && styles.typeTabActive]}
+            onPress={() => setType('expense')}
+          >
+            <AppText style={[styles.typeText, type === 'expense' && styles.typeTextActive]}>支出</AppText>
+          </Pressable>
+          <Pressable
+            style={[styles.typeTab, type === 'income' && styles.typeTabActive]}
+            onPress={() => setType('income')}
+          >
+            <AppText style={[styles.typeText, type === 'income' && styles.typeTextActive]}>收入</AppText>
+          </Pressable>
+        </View>
+
+        {/* Big Amount Input */}
+        <View style={styles.amountInputContainer}>
+          <AppText style={styles.currencySymbol}>¥</AppText>
+          <TextInput
+            style={styles.amountInput}
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="0.00"
+            placeholderTextColor="rgba(255,255,255,0.3)"
+            keyboardType="decimal-pad"
+            autoFocus
+          />
+        </View>
+      </LinearGradient>
+
+      {/* Form Card */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.select({ ios: 'padding', android: undefined })}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.formCard}>
+            <Pressable style={styles.formRow} onPress={() => setShowDatePicker(true)}>
+              <View style={[styles.iconBox, { backgroundColor: '#F1F5F9' }]}>
+                <MaterialCommunityIcons name="calendar-month" size={20} color="#64748B" />
+              </View>
+              <View style={styles.formInputWrapper}>
+                <AppText variant="caption" color={theme.colors.textSecondary}>日期</AppText>
+                <AppText style={styles.formValueText}>{formatDate(date)}</AppText>
+              </View>
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <View style={styles.formRow}>
+              <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}>
+                <MaterialCommunityIcons name="tag-multiple" size={20} color="#3B82F6" />
+              </View>
+              <View style={styles.formInputWrapper}>
+                <AppText variant="caption" color={theme.colors.textSecondary}>分类</AppText>
+                <TextInput
+                  style={styles.formInput}
+                  value={category}
+                  onChangeText={setCategory}
+                  placeholder="餐饮, 交通..."
+                  placeholderTextColor={theme.colors.textMuted}
+                />
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={[styles.formRow, { alignItems: 'flex-start' }]}>
+              <View style={[styles.iconBox, { backgroundColor: '#F0FDF4', marginTop: 4 }]}>
+                <MaterialCommunityIcons name="text" size={20} color="#10B981" />
+              </View>
+              <View style={styles.formInputWrapper}>
+                <AppText variant="caption" color={theme.colors.textSecondary}>备注</AppText>
+                <TextInput
+                  style={[styles.formInput, styles.multilineInput]}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="添加备注..."
+                  placeholderTextColor={theme.colors.textMuted}
+                  multiline
+                />
+              </View>
+            </View>
+          </View>
+
+          {error && <AppText color={theme.colors.error} centered style={{ marginTop: 16 }}>{error}</AppText>}
+          {success && <AppText color="#10B981" centered style={{ marginTop: 16 }}>{success}</AppText>}
+
+          <Pressable
+            style={[styles.saveBtn, saving && { opacity: 0.8 }]}
+            onPress={onSave}
+            disabled={saving}
+          >
+            {saving ? <ActivityIndicator color="#fff" /> : <AppText color="#fff" variant="title" bold>保存</AppText>}
+          </Pressable>
+
+        </ScrollView>
+      </KeyboardAvoidingView>
+
       {showDatePicker && (
         <SimpleDatePicker
           value={date}
@@ -213,62 +275,129 @@ export default function AddTransactionScreen() {
           onClose={() => setShowDatePicker(false)}
         />
       )}
-
-      <TextInput
-        style={styles.input}
-        value={category}
-        onChangeText={setCategory}
-        placeholder="分类"
-        accessibilityLabel="分类输入框"
-      />
-      <TextInput
-        style={styles.input}
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="金额"
-        keyboardType="decimal-pad"
-        accessibilityLabel="金额输入框"
-      />
-      <TextInput
-        style={[styles.input, styles.multiline]}
-        value={description}
-        onChangeText={setDescription}
-        placeholder="备注（可选）"
-        multiline
-        accessibilityLabel="备注输入框"
-      />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {success ? <Text style={styles.success}>{success}</Text> : null}
-      <Pressable
-        style={styles.primaryButton}
-        onPress={onSave}
-        disabled={saving}
-        accessibilityLabel="保存记账"
-        accessibilityRole="button"
-      >
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>保存</Text>}
-      </Pressable>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-  aiEntry: { backgroundColor: '#f0f5ff', borderWidth: 1, borderColor: '#adc6ff', paddingVertical: 10, borderRadius: 10, alignItems: 'center', marginBottom: 10 },
-  aiEntryText: { color: '#2f54eb', fontSize: 14, fontWeight: '700' },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
-  segmentRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  segment: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  segmentActive: { backgroundColor: '#667eea', borderColor: '#667eea' },
-  segmentText: { fontWeight: '600', color: '#333' },
-  segmentTextActive: { color: '#fff' },
-  dateButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#ddd', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 12, backgroundColor: '#fafafa' },
-  dateLabel: { color: '#666', fontSize: 14 },
-  dateValue: { fontSize: 16, fontWeight: '500', color: '#333' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
-  multiline: { minHeight: 80, textAlignVertical: 'top' },
-  primaryButton: { backgroundColor: '#667eea', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 4 },
-  primaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  error: { color: '#f5222d', marginBottom: 8 },
-  success: { color: '#52c41a', marginBottom: 8 },
+  container: { flex: 1, backgroundColor: '#F8F9FB' },
+  header: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    borderBottomLeftRadius: 32, // Consistent curve
+    borderBottomRightRadius: 32,
+  },
+  typeSelectorContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    padding: 4,
+    alignSelf: 'center',
+    marginBottom: 32,
+  },
+  typeTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+  },
+  typeTabActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  typeText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  typeTextActive: {
+    color: '#FFF',
+  },
+  amountInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  currencySymbol: {
+    fontSize: 32,
+    color: '#FFF',
+    fontWeight: '600',
+    marginRight: 8,
+    opacity: 0.8,
+  },
+  amountInput: {
+    fontSize: 56,
+    color: '#FFF',
+    fontWeight: '700',
+    minWidth: 100,
+    textAlign: 'center',
+    padding: 0,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 10, // Slight overlap visual if we used negative margin, but here we just flow
+    paddingBottom: 40,
+  },
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24, // Generous padding
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    marginTop: -30, // Pull up to overlap header
+  },
+  formRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  formInputWrapper: {
+    flex: 1,
+  },
+  formValueText: {
+    fontSize: 17,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  formInput: {
+    fontSize: 17,
+    color: theme.colors.textPrimary,
+    fontWeight: '500',
+    padding: 0, // Remove default Android padding
+    marginTop: 2,
+  },
+  multilineInput: {
+    height: 60,
+    textAlignVertical: 'top',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 16,
+    marginLeft: 56, // Align with text start
+  },
+  saveBtn: {
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    borderRadius: 24,
+    marginTop: 32,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
 });
