@@ -58,7 +58,7 @@ function isBlockedIPv4(ip) {
     ['172.16.0.0', 12],
     ['192.0.0.0', 24],
     ['192.168.0.0', 16],
-    ['198.18.0.0', 15],
+    // 注意: 198.18.0.0/15 已移除，因为某些合法的 AI 代理服务使用该范围
     ['224.0.0.0', 4],
     ['240.0.0.0', 4],
   ];
@@ -157,6 +157,10 @@ function normalizeAiBaseUrl(urlOrString) {
 async function isValidAiBaseUrl(input, options = {}) {
   const raw = input ? String(input).trim() : '';
   if (!raw) return { ok: false, reason: '缺少 API Base URL' };
+
+  // Hard reject control chars / whitespace-in-url to prevent header/log injection and other weirdness.
+  if (/[\u0000-\u001F\u007F]/.test(raw)) return { ok: false, reason: 'URL 包含非法字符' };
+  if (/\s/.test(raw)) return { ok: false, reason: 'URL 不允许包含空白字符' };
 
   let u;
   try {

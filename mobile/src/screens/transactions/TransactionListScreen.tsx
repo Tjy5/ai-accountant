@@ -19,6 +19,7 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { AppText } from '../../components/AppText';
 import { ScreenContainer } from '../../components/ScreenContainer';
 import { WealthCard } from '../../components/WealthCard';
+import { Card } from '../../components/Card/Card';
 import { BudgetProgressBar } from '../../components/BudgetProgressBar';
 import { TodayExpenseDisplay } from '../../components/TodayExpenseDisplay';
 
@@ -162,48 +163,51 @@ export default function TransactionListScreen() {
     );
   };
 
-  const renderTransactionItem = ({ item, index, section }: { item: TransactionRecord, index: number, section: any }) => {
-    const isFirst = index === 0;
-    const isLast = index === section.data.length - 1;
+  const renderTransactionItem = ({ item }: { item: TransactionRecord }) => {
     const isIncome = item.type === 'income';
     const amountColor = isIncome ? '#059669' : '#1E293B';
     const iconColor = isIncome ? '#059669' : '#475569';
     const iconBg = isIncome ? '#ECFDF5' : '#F1F5F9';
 
     return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.itemContainer,
-          isFirst && styles.itemFirst,
-          isLast && styles.itemLast,
-          pressed && styles.itemPressed,
-          !isLast && styles.itemBorder
-        ]}
+      <Card
         onPress={() => navigation.navigate('TransactionEdit', { id: item.id } as any)}
-        onLongPress={() => handleDelete(item)}
+        // Long press handling would need to be passed via props or handled inside Card if supported.
+        // For now, Card's onPress covers tap. We can add onLongPress to Card props if needed,
+        // or wrap the inner content. Since Card uses Pressable internally if onPress is provided,
+        // let's assume we might need to extend Card props or just use onPress for edit.
+        // Prompt asked for "Sliding interaction", but for now card style is priority.
+        style={{ marginBottom: 12, marginHorizontal: 4 }}
+        noPadding
       >
-        <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
-          <MaterialCommunityIcons
-            name={isIncome ? 'arrow-down' : 'cart-outline'}
-            size={22}
-            color={iconColor}
-          />
-        </View>
-        <View style={styles.itemContent}>
-          <View style={styles.itemRow}>
-            <AppText variant="body" bold style={{ fontSize: 15, color: theme.colors.textPrimary }}>{item.category}</AppText>
-            <AppText variant="body" bold style={{ fontSize: 16, color: amountColor }}>
-              {item.type === 'expense' ? '-' : '+'}
-              {Number(item.amount).toFixed(2)}
-            </AppText>
+        <Pressable
+          onLongPress={() => handleDelete(item)}
+          onPress={() => navigation.navigate('TransactionEdit', { id: item.id } as any)}
+          style={{ padding: 16, flexDirection: 'row', alignItems: 'center' }}
+        >
+          <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
+            <MaterialCommunityIcons
+              name={isIncome ? 'arrow-down' : 'cart-outline'}
+              size={22}
+              color={iconColor}
+            />
           </View>
-          {(item.description && item.description.trim() !== '') ? (
-            <AppText variant="caption" numberOfLines={1} style={{ marginTop: 2, color: theme.colors.textSecondary }}>
-              {item.description}
-            </AppText>
-          ) : null}
-        </View>
-      </Pressable>
+          <View style={styles.itemContent}>
+            <View style={styles.itemRow}>
+              <AppText variant="body" bold style={{ fontSize: 15, color: theme.colors.textPrimary }}>{item.category}</AppText>
+              <AppText variant="body" bold style={{ fontSize: 16, color: amountColor }}>
+                {item.type === 'expense' ? '-' : '+'}
+                {Number(item.amount).toFixed(2)}
+              </AppText>
+            </View>
+            {(item.description && item.description.trim() !== '') ? (
+              <AppText variant="caption" numberOfLines={1} style={{ marginTop: 2, color: theme.colors.textSecondary }}>
+                {item.description}
+              </AppText>
+            ) : null}
+          </View>
+        </Pressable>
+      </Card>
     );
   };
 
@@ -290,7 +294,7 @@ export default function TransactionListScreen() {
       useSafeBottom={false}
     >
       <SectionList
-        style={{ marginTop: 20 }}
+        style={{ marginTop: 25 }}
         sections={sections}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}

@@ -3,6 +3,7 @@ import {
   View,
   StyleSheet,
   ViewStyle,
+  StyleProp,
   Pressable,
 } from 'react-native';
 import { theme } from '../theme';
@@ -21,8 +22,8 @@ export interface WealthCardProps {
   variant?: WealthCardVariant;
   padding?: WealthCardPadding;
   onPress?: () => void;
-  style?: ViewStyle;
-  contentStyle?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
+  contentStyle?: StyleProp<ViewStyle>;
   cutoutColor?: string;
   cutoutRadius?: number;
 }

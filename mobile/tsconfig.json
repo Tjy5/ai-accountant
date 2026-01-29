@@ -5,6 +5,13 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "moduleSuffixes": [
+      ".native",
+      ".ios",
+      ".android",
+      "",
+      ".web"
+    ],
     "paths": {
       "@/*": [
         "./src/*"

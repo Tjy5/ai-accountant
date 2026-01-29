@@ -9,7 +9,7 @@ import { RootStackParamList } from '../../navigation/AppNavigator';
 import { theme } from '../../theme';
 import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { AppText } from '../../components/AppText';
-import { AppCard } from '../../components/AppCard';
+import { Card } from '../../components/Card/Card';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -62,23 +62,27 @@ export default function SettingsScreen() {
       <View style={styles.container}>
         <AppText variant="title" bold style={styles.header}>设置</AppText>
 
-        <AppCard style={styles.profileCard} padding="lg">
-          <View style={styles.avatar}>
-            <AppText variant="header" color="#fff" bold>{user.email?.[0]?.toUpperCase()}</AppText>
+        <Card style={styles.profileCard}>
+          <View style={styles.profileContent}>
+            <View style={styles.avatar}>
+              <AppText variant="header" color="#fff" bold>{user.email?.[0]?.toUpperCase()}</AppText>
+            </View>
+            <View>
+              <AppText variant="title" bold>{user.email}</AppText>
+              <View style={styles.statusRow}>
+                <View style={[styles.statusDot, { backgroundColor: theme.colors.wealth.success }]} />
+                <AppText variant="caption">已登录</AppText>
+              </View>
+            </View>
           </View>
-          <AppText variant="title" bold>{user.email}</AppText>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: theme.colors.success }]} />
-            <AppText variant="caption">已登录</AppText>
-          </View>
-        </AppCard>
+        </Card>
 
         <AppText variant="caption" bold style={styles.sectionTitle}>同步</AppText>
-        <AppCard style={styles.menuCard} padding="none">
+        <Card style={styles.menuCard} noPadding>
           <View style={styles.menuItem}>
             <View style={styles.menuLeft}>
               <MaterialCommunityIcons name="cloud-sync-outline" size={24} color={theme.colors.primary} />
-              <AppText style={{ marginLeft: 12 }}>待同步操作</AppText>
+              <AppText style={{ marginLeft: 16, fontSize: 16 }}>待同步操作</AppText>
             </View>
             <View style={styles.menuRight}>
               {pending > 0 && (
@@ -98,25 +102,38 @@ export default function SettingsScreen() {
           >
             <View style={styles.menuLeft}>
               {syncing ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <MaterialCommunityIcons name="refresh" size={24} color={theme.colors.primary} />}
-              <AppText style={{ marginLeft: 12 }} color={syncing ? theme.colors.textSecondary : theme.colors.textPrimary}>
+              <AppText style={{ marginLeft: 16, fontSize: 16 }} color={syncing ? theme.colors.textSecondary : theme.colors.textPrimary}>
                 {syncing ? '正在同步...' : '立即同步'}
               </AppText>
             </View>
           </Pressable>
-        </AppCard>
+        </Card>
 
         {syncError && <AppText color={theme.colors.error} style={styles.message}>{syncError}</AppText>}
-        {syncSuccess && <AppText color={theme.colors.success} style={styles.message}>{syncSuccess}</AppText>}
+        {syncSuccess && <AppText color={theme.colors.wealth.success} style={styles.message}>{syncSuccess}</AppText>}
 
         <AppText variant="caption" bold style={styles.sectionTitle}>功能</AppText>
-        <AppCard style={styles.menuCard} padding="none">
+        <Card style={styles.menuCard} noPadding>
           <Pressable
             style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
             onPress={() => navigation.navigate('AISettings')}
           >
             <View style={styles.menuLeft}>
               <MaterialCommunityIcons name="robot-outline" size={24} color={theme.colors.secondary} />
-              <AppText style={{ marginLeft: 12 }}>AI 设置</AppText>
+              <AppText style={{ marginLeft: 16, fontSize: 16 }}>AI 设置</AppText>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.outline} />
+          </Pressable>
+
+          <View style={styles.divider} />
+
+          <Pressable
+            style={({ pressed }) => [styles.menuItem, pressed && styles.pressed]}
+            onPress={() => navigation.navigate('AIChat')}
+          >
+            <View style={styles.menuLeft}>
+              <MaterialCommunityIcons name="chat-processing-outline" size={24} color={theme.colors.primary} />
+              <AppText style={{ marginLeft: 16, fontSize: 16 }}>AI 聊天记账</AppText>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.outline} />
           </Pressable>
@@ -129,11 +146,11 @@ export default function SettingsScreen() {
           >
             <View style={styles.menuLeft}>
               <MaterialCommunityIcons name="tag-outline" size={24} color={theme.colors.secondary} />
-              <AppText style={{ marginLeft: 12 }}>分类管理</AppText>
+              <AppText style={{ marginLeft: 16, fontSize: 16 }}>分类管理</AppText>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.outline} />
           </Pressable>
-        </AppCard>
+        </Card>
 
         <Pressable style={styles.logoutBtn} onPress={signOut}>
           <AppText color={theme.colors.error} bold>退出登录</AppText>
@@ -147,33 +164,34 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
   header: { marginBottom: 20 },
-  profileCard: { alignItems: 'center', marginBottom: 24 },
+  profileCard: { marginBottom: 16 },
+  profileContent: { flexDirection: 'row', alignItems: 'center', padding: 16 },
   avatar: {
-    width: 64, height: 64, borderRadius: 32,
+    width: 48, height: 48, borderRadius: 24,
     backgroundColor: theme.colors.primary,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginRight: 14,
     shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2
   },
   statusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
 
-  sectionTitle: { marginBottom: 8, marginLeft: 4, color: theme.colors.textSecondary },
-  menuCard: { marginBottom: 20, overflow: 'hidden' },
+  sectionTitle: { marginBottom: 12, marginLeft: 8, color: theme.colors.textSecondary, fontSize: 13 },
+  menuCard: { marginBottom: 24, overflow: 'hidden' },
   menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
   },
   pressed: { backgroundColor: theme.colors.surfaceVariant },
   menuLeft: { flexDirection: 'row', alignItems: 'center' },
   menuRight: { flexDirection: 'row', alignItems: 'center' },
-  divider: { height: 1, backgroundColor: theme.colors.surfaceVariant, marginLeft: 52 },
+  divider: { height: 1, backgroundColor: theme.colors.surfaceVariant, marginLeft: 60 },
 
   badge: {
     backgroundColor: theme.colors.error,
@@ -186,12 +204,12 @@ const styles = StyleSheet.create({
   message: { textAlign: 'center', marginBottom: 12 },
 
   logoutBtn: {
-    paddingVertical: 16,
+    paddingVertical: 18,
     alignItems: 'center',
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.roundness,
+    borderRadius: 20, // Match Card radius
     borderWidth: 1,
     borderColor: theme.colors.error + '40',
-    marginTop: 20
+    marginTop: 10
   }
 });

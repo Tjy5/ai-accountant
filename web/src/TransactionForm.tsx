@@ -5,13 +5,14 @@ import dayjs from 'dayjs';
 import api from './utils/api';
 import CategorySelector from './components/CategorySelector';
 import AIAnalysisPanel from './components/AIAnalysisPanel';
+import type { DateLike } from '../../shared/types';
 
 export type TransactionFormData = {
   type: 'income' | 'expense';
   category: string;
   amount: number;
   description?: string;
-  date?: dayjs.Dayjs;
+  date?: DateLike;
   is_voice_input?: boolean; // 标识是否通过语音输入创建
   voice_input_text?: string; // 存储语音转文字的原始内容
   tags?: string[];

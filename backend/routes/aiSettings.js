@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { encryptApiKey } = require('../utils/encryption');
 const { assertValidAiBaseUrl } = require('../utils/urlValidator');
 
@@ -32,6 +33,15 @@ function toNumberOrNull(v) {
 
 module.exports = function aiSettingsRouter(db) {
   const router = express.Router();
+
+  // Extra protection: URL validation triggers DNS lookups (potentially expensive). Keep this tighter than global limiter.
+  const settingsLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => (req.user && req.user.id ? String(req.user.id) : 'unknown'),
+  });
 
   router.get('/ai/settings', async (req, res, next) => {
     try {
@@ -66,7 +76,7 @@ module.exports = function aiSettingsRouter(db) {
     } catch (err) { return next(err); }
   });
 
-  router.put('/ai/settings', async (req, res, next) => {
+  router.put('/ai/settings', settingsLimiter, async (req, res, next) => {
     try {
       const userId = req.user.id;
       const body = req.body || {};

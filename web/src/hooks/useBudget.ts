@@ -7,14 +7,12 @@ import type {
   BudgetStatus,
   BudgetHistory,
   BudgetOverview,
-  BudgetAPIResponse,
-  BudgetStatusAPIResponse,
   BudgetHistoryAPIResponse,
   BudgetStatusResponse
 } from '../types/budget';
 import { 
+  calculateBudgetStatus,
   calculateBudgetOverview, 
-  generateMockBudgetStatus,
   getBudgetHealthScore 
 } from '../utils/budgetUtils';
 
@@ -168,6 +166,40 @@ export const useBudget = (options: UseBudgetOptions = {}): UseBudgetReturn => {
       console.log('加载预算状态成功:', data);
 
       setBudgetStatusData(data);
+      // 同步维护旧的 budgetStatus 列表，供 BudgetAlerts 等组件使用
+      if (!totalBudget) {
+        setBudgetStatus([]);
+      } else {
+        const statuses: BudgetStatus[] = [];
+
+        if (data?.totalBudget) {
+          const total = calculateBudgetStatus(totalBudget, data.totalBudget.spent);
+          statuses.push({
+            ...total,
+            category: '总预算',
+            categoryId: 'total',
+            categoryColor: '#1890ff',
+          });
+        }
+
+        for (const cb of data?.categoryBudgets || []) {
+          const matched =
+            categoryBudgets.find(b => b.id === cb.id) ||
+            categoryBudgets.find(b => b.categoryId === cb.categoryId);
+
+          if (matched) {
+            const s = calculateBudgetStatus(matched, cb.spent);
+            statuses.push({
+              ...s,
+              category: cb.category,
+              categoryId: cb.categoryId,
+              categoryColor: '',
+            });
+          }
+        }
+
+        setBudgetStatus(statuses);
+      }
       setError(null);
     } catch (err: any) {
       console.error('获取预算状态失败:', err);
@@ -205,6 +237,33 @@ export const useBudget = (options: UseBudgetOptions = {}): UseBudgetReturn => {
         });
 
         setBudgetStatusData(mockStatusData);
+
+        const statuses: BudgetStatus[] = [];
+        const total = calculateBudgetStatus(totalBudget, mockStatusData.totalBudget?.spent || 0);
+        statuses.push({
+          ...total,
+          category: '总预算',
+          categoryId: 'total',
+          categoryColor: '#1890ff',
+        });
+
+        for (const cb of mockStatusData.categoryBudgets) {
+          const matched =
+            categoryBudgets.find(b => b.id === cb.id) ||
+            categoryBudgets.find(b => b.categoryId === cb.categoryId);
+
+          if (matched) {
+            const s = calculateBudgetStatus(matched, cb.spent);
+            statuses.push({
+              ...s,
+              category: cb.category,
+              categoryId: cb.categoryId,
+              categoryColor: '',
+            });
+          }
+        }
+
+        setBudgetStatus(statuses);
       }
 
       setError(err?.message || '获取预算状态失败');

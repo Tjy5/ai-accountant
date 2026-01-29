@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from 'react';
+import { useState, Suspense, lazy, type CSSProperties } from 'react';
 import { Layout, Row, Col, Card, message, ConfigProvider, Spin, App as AntdApp } from 'antd';
 import { useResponsive } from './hooks/useResponsive';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -204,24 +204,59 @@ const App = () => {
     }
   };
 
+  // Ant Design WarmTech Theme Configuration
+  const antdTheme = {
+    token: {
+      colorPrimary: '#6366F1',
+      colorSuccess: '#10B981',
+      colorWarning: '#FF9A3C',
+      colorError: '#FF6B6B',
+      colorInfo: '#3B82F6',
+      borderRadius: 12,
+      colorBgLayout: '#FFF9F5',
+      colorBgContainer: '#FFFFFF',
+      colorTextBase: '#2D3436',
+      fontFamily: "'Plus Jakarta Sans', 'HarmonyOS Sans', 'Inter', sans-serif",
+    },
+    components: {
+      Button: {
+        borderRadius: 9999, // 胶囊按钮
+        controlHeight: 40,
+        paddingContentHorizontal: 24,
+      },
+      Card: {
+        borderRadiusLG: 20,
+        boxShadowTertiary: '0 4px 12px rgba(0, 0, 0, 0.08)',
+      },
+      Input: {
+        borderRadius: 12,
+        controlHeight: 44,
+      },
+    },
+  };
+
+  const headerStyle: CSSProperties = {
+    color: '#fff',
+    fontSize: isMobile ? 16 : 18,
+    padding: isMobile ? '0 16px' : '0 24px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  const contentStyle: CSSProperties = {
+    padding: isMobile ? 8 : 24,
+    backgroundColor: isMobile ? '#FFF9F5' : 'transparent',
+  };
+
   return (
-    <ConfigProvider locale={zhCN}>
+    <ConfigProvider locale={zhCN} theme={antdTheme}>
       <AntdApp>
       <Layout style={{ minHeight: '100vh' }}>
-        <Header style={{ 
-          color: '#fff', 
-          fontSize: isMobile ? 16 : 18,
-          padding: isMobile ? '0 16px' : '0 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
+        <Header style={headerStyle}>
           记账本
         </Header>
-        <Content style={{ 
-          padding: isMobile ? 8 : 24,
-          backgroundColor: isMobile ? '#f5f5f5' : 'transparent'
-        }}>
+        <Content style={contentStyle}>
           {isMobile ? (
             // 移动端布局
             <div style={{ maxWidth: '100%', margin: '0 auto' }}>

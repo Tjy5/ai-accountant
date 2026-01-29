@@ -1,5 +1,5 @@
 import API_BASE_URL from '../config';
-import type { AIAnalysisResult, AISettings, AISettingsResponse } from '../../../shared/types';
+import type { AIAnalysisResult, AISettings, AISettingsResponse, ChatRequest, ChatResponse } from '../../../shared/types';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -94,6 +94,9 @@ export const api = {
   updateAISettings: (settings: Partial<AISettings>) => request<AISettingsResponse>('PUT', '/api/ai/settings', { body: settings }),
   deleteAISettings: () => request<void>('DELETE', '/api/ai/settings'),
   bulkCreateTransactions: (transactions: AIAnalysisResult['transactions']) => request<{ transactions: any[] }>('POST', '/api/transactions/bulk', { body: { transactions } }),
+  // AI Chat API methods
+  chat: (chatRequest: ChatRequest) => request<ChatResponse>('POST', '/api/ai/chat', { body: chatRequest }),
+  clearChatContext: () => request<void>('POST', '/api/ai/chat', { body: { messages: [], clearContext: true } }),
 };
 
 export default api;

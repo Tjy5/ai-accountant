@@ -16,7 +16,6 @@ import {
   Col,
   Statistic,
   Tabs,
-  Badge,
   Switch,
   Empty,
   Spin,
@@ -30,17 +29,12 @@ import {
   EditOutlined,
   DeleteOutlined, 
   SettingOutlined,
-  BarChartOutlined,
-  ExclamationCircleOutlined,
-  CheckCircleOutlined,
-  WarningOutlined
+  BarChartOutlined
 } from '@ant-design/icons';
 
 import { useBudget } from './hooks/useBudget';
 import { useBudgetForm } from './hooks/useBudgetForm';
 import { 
-  ALERT_COLORS,
-  ALERT_LEVEL_LABELS,
   PERIOD_LABELS
 } from './constants/budget';
 import api from './utils/api';
@@ -81,9 +75,6 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ onBudgetUpdate, onCategor
   
   // 调用 useBudget 获取新的父子预算数据
   const {
-    budgets,
-    budgetStatus,
-    budgetOverview,
     healthScore,
     loading,
     totalBudget,
@@ -381,25 +372,6 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ onBudgetUpdate, onCategor
     }
   };
   
-
-
-
-  // 预警级别颜色
-  const getAlertColor = (level: string) => {
-    return ALERT_COLORS[level as keyof typeof ALERT_COLORS] || '#d9d9d9';
-  };
-
-  // 预警级别图标
-  const getAlertIcon = (level: string) => {
-    switch (level) {
-      case 'safe': return <CheckCircleOutlined />;
-      case 'warning': return <WarningOutlined />;
-      case 'danger': return <ExclamationCircleOutlined />;
-      case 'over': return <ExclamationCircleOutlined />;
-      default: return null;
-    }
-  };
-
   const tabs = [
     {
       key: 'overview',

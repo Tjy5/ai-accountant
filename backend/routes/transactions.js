@@ -1,9 +1,72 @@
 'use strict'
 
 const express = require('express');
+const { buildCategoryMetaIndex, enrichTransactionRow } = require('../utils/uiFormat');
+const { TtlCache } = require('../utils/ttlCache');
 
 module.exports = function transactionsRouter(db) {
   const router = express.Router();
+
+  const categoryIndexCache = new TtlCache({ maxItems: 2000, defaultTtlMs: 30_000 });
+
+  async function getCategoryIndex(userId) {
+    const key = `categoryIndex:${userId}`;
+    const cached = categoryIndexCache.get(key);
+    if (cached) return cached;
+
+    const rows = await db.all(
+      'SELECT name, icon, color FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
+      [userId]
+    );
+    const index = buildCategoryMetaIndex(rows);
+    categoryIndexCache.set(key, index);
+    return index;
+  }
+
+  function toPositiveIntOrNull(v) {
+    if (v === undefined || v === null || v === '') return null;
+    const n = Number(v);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) return null;
+    return n;
+  }
+
+  function toFiniteNumberOrNull(v) {
+    if (v === undefined || v === null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseCursor(cursor) {
+    const raw = typeof cursor === 'string' ? cursor.trim() : '';
+    if (!raw) return null;
+
+    // Format: base64url(JSON.stringify({ createdAt, id }))
+    try {
+      const json = Buffer.from(raw, 'base64url').toString('utf8');
+      const parsed = JSON.parse(json);
+      const createdAt = typeof parsed.createdAt === 'string' ? parsed.createdAt : '';
+      const id = Number(parsed.id);
+      if (createdAt && Number.isInteger(id) && id > 0) return { createdAt, id };
+    } catch {}
+
+    // Fallback format: `${createdAt}|${id}`
+    const parts = raw.split('|');
+    if (parts.length === 2) {
+      const createdAt = parts[0];
+      const id = Number(parts[1]);
+      if (createdAt && Number.isInteger(id) && id > 0) return { createdAt, id };
+    }
+
+    return null;
+  }
+
+  function makeCursor(row) {
+    if (!row || typeof row !== 'object') return null;
+    const createdAt = typeof row.created_at === 'string' ? row.created_at : '';
+    const id = Number(row.id);
+    if (!createdAt || !Number.isInteger(id) || id <= 0) return null;
+    return Buffer.from(JSON.stringify({ createdAt, id }), 'utf8').toString('base64url');
+  }
 
   router.get('/transactions', async (req, res, next) => {
     try {
@@ -11,23 +74,65 @@ module.exports = function transactionsRouter(db) {
       const { keyword, type, startDate, endDate, minAmount, maxAmount, description } = req.query;
       const categories = (() => { const c = req.query.category; if (!c) return []; if (Array.isArray(c)) return c.filter(Boolean); return [c].filter(Boolean); })();
       const tags = (() => { const t = req.query.tag; if (!t) return []; if (Array.isArray(t)) return t.filter(Boolean); return [t].filter(Boolean); })();
+
+      const page = toPositiveIntOrNull(req.query.page);
+      const pageSize = toPositiveIntOrNull(req.query.pageSize ?? req.query.limit) || null;
+      const cursor = parseCursor(req.query.cursor);
+      const wantsPaging = Boolean(page || pageSize || cursor);
+      const limit = Math.min(pageSize || 50, 200);
+      const offset = page ? (page - 1) * limit : 0;
+
       let baseQuery = 'SELECT * FROM transactions';
       const whereClauses = ['user_id = ?', 'deleted_at IS NULL'];
       const params = [userId];
       if (type && type !== 'all') { whereClauses.push('type = ?'); params.push(type); }
-      if (keyword) { whereClauses.push('(description LIKE ? OR category LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`); }
-      if (description) { whereClauses.push('description LIKE ?'); params.push(`%${description}%`); }
+      if (keyword) {
+        const k = String(keyword).trim().slice(0, 200);
+        if (k) { whereClauses.push('(description LIKE ? OR category LIKE ?)'); params.push(`%${k}%`, `%${k}%`); }
+      }
+      if (description) {
+        const d = String(description).trim().slice(0, 200);
+        if (d) { whereClauses.push('description LIKE ?'); params.push(`%${d}%`); }
+      }
       if (categories.length > 0) { const ph = categories.map(() => '?').join(','); whereClauses.push(`category IN (${ph})`); params.push(...categories); }
-      if (minAmount !== undefined) { whereClauses.push('amount >= ?'); params.push(Number(minAmount)); }
-      if (maxAmount !== undefined) { whereClauses.push('amount <= ?'); params.push(Number(maxAmount)); }
-      if (startDate) { whereClauses.push('date >= ?'); params.push(startDate); }
-      if (endDate) { whereClauses.push('date <= ?'); params.push(endDate); }
+      const minA = toFiniteNumberOrNull(minAmount);
+      if (minA !== null) { whereClauses.push('amount >= ?'); params.push(minA); }
+      const maxA = toFiniteNumberOrNull(maxAmount);
+      if (maxA !== null) { whereClauses.push('amount <= ?'); params.push(maxA); }
+      if (startDate) { whereClauses.push('DATE(date) >= DATE(?)'); params.push(String(startDate).slice(0, 10)); }
+      if (endDate) { whereClauses.push('DATE(date) <= DATE(?)'); params.push(String(endDate).slice(0, 10)); }
       if (tags.length > 0) { const tagClauses = tags.map(() => `tags LIKE ?`).join(' OR '); whereClauses.push(`(${tagClauses})`); params.push(...tags.map(t => `%${t}%`)); }
+
+      if (cursor) {
+        whereClauses.push('(created_at < ? OR (created_at = ? AND id < ?))');
+        params.push(cursor.createdAt, cursor.createdAt, cursor.id);
+      }
       let finalQuery = baseQuery;
       if (whereClauses.length > 0) { finalQuery += ' WHERE ' + whereClauses.join(' AND '); }
-      finalQuery += ' ORDER BY created_at DESC';
+      finalQuery += ' ORDER BY created_at DESC, id DESC';
+      if (wantsPaging) {
+        finalQuery += ' LIMIT ? OFFSET ?';
+        params.push(limit, offset);
+      }
+
       const rows = await db.all(finalQuery, params);
-      res.json(rows);
+      const categoryIndex = await getCategoryIndex(userId);
+      const enriched = (Array.isArray(rows) ? rows : []).map(r => enrichTransactionRow(r, categoryIndex));
+
+      if (!wantsPaging) {
+        return res.json(enriched);
+      }
+
+      const nextCursor = enriched.length === limit ? makeCursor(rows[rows.length - 1]) : null;
+      return res.json({
+        transactions: enriched,
+        pageInfo: {
+          limit,
+          page: page || null,
+          nextCursor,
+          hasMore: Boolean(nextCursor),
+        }
+      });
     } catch (err) { return next(err); }
   });
 
@@ -57,7 +162,8 @@ module.exports = function transactionsRouter(db) {
         );
       }
       const newRow = await db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [insertResult.lastID, userId]);
-      res.status(201).json(newRow);
+      const categoryIndex = await getCategoryIndex(userId);
+      res.status(201).json(enrichTransactionRow(newRow, categoryIndex));
     } catch (err) { return next(err); }
   });
 
@@ -142,7 +248,8 @@ module.exports = function transactionsRouter(db) {
         throw e;
       }
 
-      res.status(201).json({ transactions: created });
+      const categoryIndex = await getCategoryIndex(userId);
+      res.status(201).json({ transactions: created.map(r => enrichTransactionRow(r, categoryIndex)) });
     } catch (err) { return next(err); }
   });
 
@@ -167,7 +274,8 @@ module.exports = function transactionsRouter(db) {
         [type, category, amount, description || null, updateDate, is_voice_input ? 1 : 0, voice_input_text || null, Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : null), id, userId]
       );
       const updated = await db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [id, userId]);
-      res.json(updated);
+      const categoryIndex = await getCategoryIndex(userId);
+      res.json(enrichTransactionRow(updated, categoryIndex));
     } catch (err) { return next(err); }
   });
 

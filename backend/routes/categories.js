@@ -1,6 +1,7 @@
 'use strict'
 
 const express = require('express');
+const { enrichCategoryRow } = require('../utils/uiFormat');
 
 module.exports = function categoriesRouter(db) {
   const router = express.Router();
@@ -12,7 +13,7 @@ module.exports = function categoriesRouter(db) {
         'SELECT * FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
         [userId]
       );
-      res.json({ categories: rows });
+      res.json({ categories: (Array.isArray(rows) ? rows : []).map(enrichCategoryRow) });
     } catch (err) { return next(err); }
   });
 
@@ -39,7 +40,7 @@ module.exports = function categoriesRouter(db) {
         [userId, normalizedName, type, icon || null, color || null, description || null, isDefault ? 1 : 0]
       );
       const row = await db.get('SELECT * FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [result.lastID, userId]);
-      res.status(201).json(row);
+      res.status(201).json(enrichCategoryRow(row));
     } catch (err) { return next(err); }
   });
 
@@ -65,7 +66,7 @@ module.exports = function categoriesRouter(db) {
         [name ? name.trim() : null, type || null, icon || null, color || null, description || null, id, userId]
       );
       const updated = await db.get('SELECT * FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [id, userId]);
-      res.json(updated);
+      res.json(enrichCategoryRow(updated));
     } catch (err) { return next(err); }
   });
 

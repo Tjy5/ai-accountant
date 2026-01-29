@@ -1,4 +1,4 @@
-import dayjs, { type Dayjs, type OpUnitType } from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import type { Budget, BudgetStatus, BudgetOverview } from '../types/budget';
 import { ALERT_LEVELS, DEFAULT_ALERT_THRESHOLDS, BUDGET_PERIODS } from '../constants/budget';
 

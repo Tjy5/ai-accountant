@@ -7,7 +7,8 @@ import { getDashboardStats, getCategoryStats, getMonthlyTrend } from '../../stor
 import { theme } from '../../theme';
 import { AppText } from '../../components/AppText';
 import { ScreenContainer } from '../../components/ScreenContainer';
-import { WealthCard } from '../../components/WealthCard';
+import { Card } from '../../components/Card/Card';
+import { CountUp } from '../../components/CountUp';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 // Custom premium palette for charts - slightly muted for elegance
@@ -100,8 +101,13 @@ export default function DashboardScreen() {
         <AppText variant="caption" color="rgba(255,255,255,0.7)">本月结余</AppText>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' }}>
           <AppText style={[styles.balanceAmount, { color: '#FFFFFF' }]}>
-            {netIncome >= 0 ? '+' : ''}{netIncome.toFixed(2)}
+            {netIncome >= 0 ? '+' : ''}
           </AppText>
+          <CountUp
+            end={Math.abs(netIncome)}
+            decimals={2}
+            style={[styles.balanceAmount, { color: '#FFFFFF' }]}
+          />
           <AppText style={{ fontSize: 20, color: 'rgba(255,255,255,0.8)', marginLeft: 4 }}>CN¥</AppText>
         </View>
       </View>
@@ -124,46 +130,60 @@ export default function DashboardScreen() {
       enableScroll={true}
       contentStyle={{ paddingBottom: 40 }}
     >
-      {/* Floating Summary Cards - Now using WealthCard */}
+      {/* Floating Summary Cards - Now using new Card */}
       <View style={styles.summaryRowWrapper}>
-        <WealthCard style={[styles.summaryCard, { flex: 1, marginRight: 8 }]} padding="md" variant="elevated">
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Card onPress={() => { }} style={styles.summaryCard}>
             <View style={styles.statItem}>
               <View style={[styles.iconCircle, { backgroundColor: '#ECFDF5' }]}>
                 <AppText style={{ color: '#059669', fontSize: 16 }}>↓</AppText>
               </View>
               <View>
                 <AppText variant="caption" color={theme.colors.textSecondary}>收入</AppText>
-                <AppText variant="body" bold style={{ color: '#059669', fontSize: 16 }}>{summary.income.toFixed(0)}</AppText>
+                <CountUp
+                  end={summary.income}
+                  decimals={0}
+                  style={{ color: '#059669', fontSize: 16, fontWeight: 'bold' }}
+                />
               </View>
             </View>
-        </WealthCard>
-        <WealthCard style={[styles.summaryCard, { flex: 1, marginLeft: 8 }]} padding="md" variant="elevated">
+          </Card>
+        </View>
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Card onPress={() => { }} style={styles.summaryCard}>
             <View style={styles.statItem}>
               <View style={[styles.iconCircle, { backgroundColor: '#FEF2F2' }]}>
                 <AppText style={{ color: '#DC2626', fontSize: 16 }}>↑</AppText>
               </View>
               <View>
                 <AppText variant="caption" color={theme.colors.textSecondary}>支出</AppText>
-                <AppText variant="body" bold style={{ color: '#DC2626', fontSize: 16 }}>{summary.expense.toFixed(0)}</AppText>
+                <CountUp
+                  end={summary.expense}
+                  decimals={0}
+                  style={{ color: '#DC2626', fontSize: 16, fontWeight: 'bold' }}
+                />
               </View>
             </View>
-        </WealthCard>
+          </Card>
+        </View>
       </View>
 
       <View style={styles.contentContainer}>
         {error && (
-          <WealthCard style={styles.errorCard} variant="flat">
-            <AppText color={theme.colors.error}>{error}</AppText>
-          </WealthCard>
+          <Card style={styles.errorCard}>
+            <View style={{ padding: 16 }}>
+              <AppText color={theme.colors.error}>{error}</AppText>
+            </View>
+          </Card>
         )}
 
         <View style={styles.sectionHeader}>
           <AppText variant="title" bold style={styles.sectionTitle}>支出分布</AppText>
         </View>
 
-        <WealthCard style={styles.card} padding="lg">
-          {pieData.length > 0 ? (
-            <View style={{ alignItems: 'center' }}>
+        <Card style={styles.card}>
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            {pieData.length > 0 ? (
               <VictoryPie
                 data={pieData}
                 colorScale={CHART_COLORS}
@@ -174,18 +194,18 @@ export default function DashboardScreen() {
                 width={SCREEN_WIDTH - 64}
                 style={{ labels: { fill: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' } }}
               />
-            </View>
-          ) : (
-            <AppText centered style={styles.emptyText}>本月暂无支出</AppText>
-          )}
-        </WealthCard>
+            ) : (
+              <AppText centered style={styles.emptyText}>本月暂无支出</AppText>
+            )}
+          </View>
+        </Card>
 
         <View style={styles.sectionHeader}>
           <AppText variant="title" bold style={styles.sectionTitle}>收支趋势</AppText>
           <AppText variant="caption" color={theme.colors.textSecondary}>近6个月</AppText>
         </View>
 
-        <WealthCard style={styles.card}>
+        <Card style={styles.card}>
           {trendChartData.income.length > 0 || trendChartData.expense.length > 0 ? (
             <>
               <VictoryChart width={SCREEN_WIDTH - 48} height={250} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }}>
@@ -228,13 +248,13 @@ export default function DashboardScreen() {
           ) : (
             <AppText centered style={styles.emptyText}>暂无数据</AppText>
           )}
-        </WealthCard>
+        </Card>
 
         <View style={styles.sectionHeader}>
           <AppText variant="title" bold style={styles.sectionTitle}>排行榜</AppText>
         </View>
 
-        <WealthCard style={styles.card} padding="none">
+        <Card style={styles.card} noPadding>
           {pieData.length > 0 ? (
             <View style={{ paddingVertical: 12 }}>
               {categoryData.slice(0, 5).map((item, index) => (
@@ -257,7 +277,7 @@ export default function DashboardScreen() {
           ) : (
             <AppText centered style={styles.emptyText}>暂无数据</AppText>
           )}
-        </WealthCard>
+        </Card>
 
         <View style={{ height: 40 }} />
       </View>
@@ -293,20 +313,20 @@ const styles = StyleSheet.create({
   },
 
   contentContainer: {
-    marginTop: 10,
+    marginTop: 30,
   },
 
   // Summary Cards
   summaryRowWrapper: {
     flexDirection: 'row',
     marginBottom: 20,
+    alignItems: 'flex-start',
   },
   summaryCard: {
     // handled by WealthCard
   },
 
   statItem: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },

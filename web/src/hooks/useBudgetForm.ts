@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Form, message } from 'antd';
 import type { Budget, BudgetFormData } from '../types/budget';
 import { validateBudgetForm } from '../utils/budgetUtils';
-import dayjs, { type Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 
 export interface UseBudgetFormOptions {
   onSuccess?: () => void; // 修改为无参数，因为它只触发刷新

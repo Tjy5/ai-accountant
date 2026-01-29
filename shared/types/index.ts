@@ -163,3 +163,45 @@ export interface AISettings {
 export interface AISettingsResponse {
   settings: AISettings;
 }
+
+// AI Chat Types
+export type ChatIntent = 'bookkeeping' | 'update_draft' | 'clarification' | 'query' | 'chit_chat';
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  drafts?: ChatTransactionDraft[];
+  status?: 'sending' | 'sent' | 'error';
+}
+
+export interface ChatTransactionDraft extends AITransactionDraft {
+  _draftId: string;
+  saved?: boolean;
+  superseded?: boolean;
+  tags?: string[];
+}
+
+export interface ChatClientContext {
+  timezone: string;
+  locale: string;
+  now: string;
+}
+
+export interface ChatRequest {
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  clientContext: ChatClientContext;
+  pendingDrafts?: ChatTransactionDraft[];
+  clearContext?: boolean;
+}
+
+export interface ChatResponse {
+  reply: string;
+  intent: ChatIntent;
+  drafts: ChatTransactionDraft[];
+  needsClarification: boolean;
+  clarificationQuestion?: string;
+  warnings: string[];
+  ignored: string[];
+}

@@ -16,19 +16,40 @@ const authRouterFactory = require('./routes/auth');
 const budgetsRouterFactory = require('./routes/budgets');
 const categoriesRouterFactory = require('./routes/categories');
 const transactionsRouterFactory = require('./routes/transactions');
+const dashboardRouterFactory = require('./routes/dashboard');
 const syncRouterFactory = require('./routes/sync');
 const devicesRouterFactory = require('./routes/devices');
 const preferencesRouterFactory = require('./routes/preferences');
+const notificationsRouterFactory = require('./routes/notifications');
 const aiSettingsRouterFactory = require('./routes/aiSettings');
 const aiRouterFactory = require('./routes/ai');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 
 // 设置编码和字符集
 app.use(cors());
 app.use(morgan('combined'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Compress responses (skip SSE)
+app.use(compression({
+  filter: (req, res) => {
+    const accept = typeof req.headers.accept === 'string' ? req.headers.accept : '';
+    if (accept.includes('text/event-stream')) return false;
+    if (req.path === '/api/ai/chat' && (String(req.query?.stream || '') === '1' || String(req.query?.stream || '') === 'true')) return false;
+    return compression.filter(req, res);
+  }
+}));
+
+// Request body size limits (backward compatible defaults).
+// - Most endpoints are small JSON, but keep 10mb default to avoid breaking existing clients.
+// - AI endpoints need larger payloads for base64 image/audio.
+const jsonLimit = process.env.JSON_LIMIT || '10mb';
+const aiJsonLimit = process.env.AI_JSON_LIMIT || jsonLimit;
+app.use('/api/ai', express.json({ limit: aiJsonLimit }));
+app.use('/api/ai', express.urlencoded({ extended: true, limit: aiJsonLimit }));
+app.use(express.json({ limit: jsonLimit }));
+app.use(express.urlencoded({ extended: true, limit: jsonLimit }));
 
 // 简单限流：每个 IP 每 15 分钟 1000 次调用
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 });
@@ -73,9 +94,11 @@ let db;
     app.use('/api', budgetsRouterFactory(db));
     app.use('/api', categoriesRouterFactory(db));
     app.use('/api', transactionsRouterFactory(db));
+    app.use('/api', dashboardRouterFactory(db));
     app.use('/api', syncRouterFactory(db));
     app.use('/api', devicesRouterFactory(db));
     app.use('/api', preferencesRouterFactory(db));
+    app.use('/api', notificationsRouterFactory(db));
     app.use('/api', aiSettingsRouterFactory(db));
     app.use('/api', aiRouterFactory(db));
 

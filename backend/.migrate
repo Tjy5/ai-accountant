@@ -1,5 +1,5 @@
 {
-  "lastRun": "012-add-ai-settings-table.js",
+  "lastRun": "013-add-ui-preferences-notifications-and-indexes.js",
   "migrations": [
     {
       "title": "001-initial-schema.js",
@@ -48,6 +48,10 @@
     {
       "title": "012-add-ai-settings-table.js",
       "timestamp": 1769430876467
+    },
+    {
+      "title": "013-add-ui-preferences-notifications-and-indexes.js",
+      "timestamp": 1769681366838
     }
   ]
 }

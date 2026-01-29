@@ -70,7 +70,8 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   const gradient = headerGradient || theme.colors.wealth?.gradients?.header || ['#1E293B', '#0F172A'];
 
   // 计算内容区域的负边距，实现悬浮卡片效果
-  const overlapMargin = headerType === 'hidden' ? 0 : -50;
+  // jumbo 类型需要更小的负边距以避免与 header 内容重叠
+  const overlapMargin = headerType === 'hidden' ? 0 : headerType === 'jumbo' ? -20 : -50;
 
   // 计算内容区域的paddingTop，jumbo类型需要更大的空间
   const paddingTopMultiplier = headerType === 'jumbo' ? 0.9 : 0.7;

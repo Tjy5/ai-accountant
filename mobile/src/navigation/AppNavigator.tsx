@@ -20,6 +20,7 @@ import AISettingsScreen from '../screens/settings/AISettingsScreen';
 import BudgetListScreen from '../screens/budgets/BudgetListScreen';
 import EditBudgetScreen from '../screens/budgets/EditBudgetScreen';
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
+import AIChatScreen from '../screens/chat/AIChatScreen';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -43,6 +44,7 @@ export type RootStackParamList = {
   CategoryEdit: { id?: number };
   BudgetEdit: { id?: number; budgetType?: 'total' | 'category'; parentId?: number };
   AISettings: undefined;
+  AIChat: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -164,6 +166,7 @@ export default function AppNavigator() {
             <RootStack.Screen name="CategoryEdit" component={EditCategoryScreen} options={{ headerShown: true, title: '编辑分类' }} />
             <RootStack.Screen name="BudgetEdit" component={EditBudgetScreen} options={{ headerShown: true, title: '编辑预算' }} />
             <RootStack.Screen name="AISettings" component={AISettingsScreen} options={{ headerShown: true, title: 'AI 设置' }} />
+            <RootStack.Screen name="AIChat" component={AIChatScreen} options={{ headerShown: false, title: 'AI 聊天' }} />
           </>
         ) : (
           <RootStack.Screen name="AuthStack" component={AuthNavigator} />

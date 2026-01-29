@@ -1,5 +1,3 @@
-import type { QuickBudgetTemplate } from '../types/budget';
-
 export const BUDGET_PERIODS = {
   MONTHLY: 'monthly',
   QUARTERLY: 'quarterly', 

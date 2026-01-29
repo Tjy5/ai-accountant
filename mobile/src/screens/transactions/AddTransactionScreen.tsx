@@ -25,6 +25,9 @@ import { ScreenWrapper } from '../../components/ScreenWrapper';
 import { AppText } from '../../components/AppText';
 import { AppCard } from '../../components/AppCard';
 import { AIInputModal, AIInputMode } from '../../components/AIInputModal';
+import { Input } from '../../components/Input/Input';
+import { PrimaryButton } from '../../components/Button/PrimaryButton';
+import { triggerConfetti } from '../../utils/confetti';
 import type { AITransactionDraft } from '../../../../shared/types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -149,6 +152,7 @@ export default function AddTransactionScreen() {
       setDescription('');
       setDate(new Date());
       setSuccess('已保存');
+      triggerConfetti();
       setTimeout(() => setSuccess(null), 2000);
     } catch (e: any) {
       setError(e?.message ? String(e.message) : '保存失败');
@@ -257,6 +261,13 @@ export default function AddTransactionScreen() {
             </View>
             <AppText style={styles.aiButtonLabel}>拍照</AppText>
           </Pressable>
+
+          <Pressable style={styles.aiButton} onPress={() => navigation.navigate('AIChat')}>
+            <View style={[styles.aiButtonIcon, { backgroundColor: '#8B5CF6' }]}>
+              <MaterialCommunityIcons name="chat-processing" size={22} color="#fff" />
+            </View>
+            <AppText style={styles.aiButtonLabel}>聊天</AppText>
+          </Pressable>
         </View>
       </LinearGradient>
 
@@ -268,9 +279,8 @@ export default function AddTransactionScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Form Fields - Clean List Style */}
             <View style={styles.formList}>
-              {/* Date Row */}
+              {/* Date Row - Keep as simple row for now as Input is for text */}
               <Pressable style={styles.fieldRow} onPress={() => setShowDatePicker(true)}>
                 <View style={[styles.iconCircle, { backgroundColor: '#F1F5F9' }]}>
                   <MaterialCommunityIcons name="calendar-month" size={22} color="#64748B" />
@@ -284,41 +294,23 @@ export default function AddTransactionScreen() {
 
               <View style={styles.separator} />
 
-              {/* Category Row */}
-              <View style={styles.fieldRow}>
-                <View style={[styles.iconCircle, { backgroundColor: activeBg }]}>
-                  <MaterialCommunityIcons name="tag-outline" size={22} color={activeColor} />
-                </View>
-                <View style={styles.fieldContent}>
-                  <AppText style={styles.fieldLabel}>分类</AppText>
-                  <TextInput
-                    style={styles.fieldInput}
-                    value={category}
-                    onChangeText={setCategory}
-                    placeholder="餐饮, 交通..."
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
+              <View style={{ marginTop: 24 }}>
+                <Input
+                  placeholder="餐饮, 交通..."
+                  value={category}
+                  onChangeText={setCategory}
+                  style={{ fontSize: 16 }}
+                />
               </View>
 
-              <View style={styles.separator} />
-
-              {/* Note Row */}
-              <View style={[styles.fieldRow, { alignItems: 'flex-start', paddingTop: 16 }]}>
-                <View style={[styles.iconCircle, { backgroundColor: '#F8FAFC' }]}>
-                  <MaterialCommunityIcons name="file-document-outline" size={22} color="#94A3B8" />
-                </View>
-                <View style={styles.fieldContent}>
-                  <AppText style={styles.fieldLabel}>备注</AppText>
-                  <TextInput
-                    style={[styles.fieldInput, styles.multilineInput]}
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder="添加备注..."
-                    placeholderTextColor="#94A3B8"
-                    multiline
-                  />
-                </View>
+              <View style={{ marginTop: 16 }}>
+                <Input
+                  placeholder="添加备注..."
+                  value={description}
+                  onChangeText={setDescription}
+                  style={{ fontSize: 16, height: 80 }}
+                  multiline
+                />
               </View>
             </View>
 
@@ -330,17 +322,12 @@ export default function AddTransactionScreen() {
 
         {/* Floating Bottom Button */}
         <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-          <Pressable
-            style={[styles.saveButton, { backgroundColor: activeColor }, saving && { opacity: 0.7 }]}
+          <PrimaryButton
+            title={saving ? '保存中...' : '保 存'}
             onPress={onSave}
             disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <AppText style={styles.saveButtonText}>保 存</AppText>
-            )}
-          </Pressable>
+            size="large"
+          />
         </View>
       </View>
 

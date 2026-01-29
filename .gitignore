@@ -163,3 +163,10 @@ backend/tmpclaude*
 
 # OpenSpec collaboration workspace
 .openspec/
+
+# Expo
+.expo/
+
+# System Files
+.DS_Store
+Thumbs.db
