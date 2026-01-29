@@ -95,7 +95,85 @@ function parseAiJson(content) {
   throw err;
 }
 
-function normalizeTransaction(raw, allowedCategories, fallbackCategory, fallbackDate, warnings) {
+function findBestMatchingCategory(aiCategory, categoryMap) {
+  if (!aiCategory || typeof aiCategory !== 'string') return null;
+
+  const normalized = aiCategory.trim().toLowerCase();
+  if (!normalized) return null;
+
+  // 1. 精确匹配（不区分大小写）
+  for (const [name, info] of categoryMap.entries()) {
+    if (name.toLowerCase() === normalized) {
+      return name;
+    }
+  }
+
+  // 2. 包含匹配：AI返回的分类包含在用户分类中
+  for (const [name, info] of categoryMap.entries()) {
+    if (name.toLowerCase().includes(normalized)) {
+      return name;
+    }
+  }
+
+  // 3. 被包含匹配：用户分类包含在AI返回的分类中
+  for (const [name, info] of categoryMap.entries()) {
+    if (normalized.includes(name.toLowerCase())) {
+      return name;
+    }
+  }
+
+  // 4. 描述匹配：AI返回的分类在用户分类的描述中
+  for (const [name, info] of categoryMap.entries()) {
+    if (info.description) {
+      const desc = info.description.toLowerCase();
+      if (desc.includes(normalized) || normalized.includes(desc)) {
+        return name;
+      }
+    }
+  }
+
+  // 5. 编辑距离匹配（简单版本）
+  let bestMatch = null;
+  let minDistance = Infinity;
+
+  for (const [name, info] of categoryMap.entries()) {
+    const distance = levenshteinDistance(normalized, name.toLowerCase());
+    // 如果编辑距离小于等于2，且相似度大于60%，认为是匹配的
+    if (distance <= 2 && distance < minDistance) {
+      const similarity = 1 - distance / Math.max(normalized.length, name.length);
+      if (similarity > 0.6) {
+        minDistance = distance;
+        bestMatch = name;
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
+function levenshteinDistance(str1, str2) {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  const matrix = Array(len1 + 1).fill(null).map(() => Array(len2 + 1).fill(0));
+
+  for (let i = 0; i <= len1; i++) matrix[i][0] = i;
+  for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return matrix[len1][len2];
+}
+
+function normalizeTransaction(raw, allowedCategories, fallbackCategory, fallbackDate, warnings, categoryMap) {
   const tx = raw && typeof raw === 'object' ? raw : {};
 
   const typeRaw = String(tx.type || '').trim().toLowerCase();
@@ -103,9 +181,17 @@ function normalizeTransaction(raw, allowedCategories, fallbackCategory, fallback
 
   let category = String(tx.category || '').trim();
   if (!category) category = fallbackCategory;
+
+  // 使用模糊匹配查找最佳分类
   if (!allowedCategories.has(category)) {
-    warnings.push(`分类 "${category}" 不在用户分类列表中，已回退为 "${fallbackCategory}"`);
-    category = fallbackCategory;
+    const bestMatch = categoryMap ? findBestMatchingCategory(category, categoryMap) : null;
+    if (bestMatch) {
+      warnings.push(`分类 "${category}" 已智能匹配为 "${bestMatch}"`);
+      category = bestMatch;
+    } else {
+      warnings.push(`分类 "${category}" 不在用户分类列表中，已回退为 "${fallbackCategory}"`);
+      category = fallbackCategory;
+    }
   }
 
   let amount = tx.amount;
@@ -202,12 +288,21 @@ module.exports = function aiRouter(db) {
     const cached = categoriesCache.get(key);
     if (cached) return cached;
     const rows = await db.all(
-      'SELECT name FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
+      'SELECT name, description, type FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
       [userId]
     );
-    const names = (Array.isArray(rows) ? rows : []).map(r => String(r.name || '').trim()).filter(Boolean);
-    categoriesCache.set(key, names);
-    return names;
+    const categoryMap = new Map();
+    for (const r of (Array.isArray(rows) ? rows : [])) {
+      const name = String(r.name || '').trim();
+      if (name) {
+        categoryMap.set(name, {
+          description: r.description ? String(r.description).trim() : '',
+          type: r.type || 'expense'
+        });
+      }
+    }
+    categoriesCache.set(key, categoryMap);
+    return categoryMap;
   }
 
   async function getUserKeywordPreferences(userId) {
@@ -437,7 +532,7 @@ module.exports = function aiRouter(db) {
     const ts = Date.now();
     for (let i = 0; i < (Array.isArray(draftsRaw) ? draftsRaw.length : 0); i++) {
       const raw = draftsRaw[i];
-      const n = normalizeTransaction(raw, allowedCategories, fallbackCategory, today, warnings);
+      const n = normalizeTransaction(raw, allowedCategories, fallbackCategory, today, warnings, options.categoryMap);
       if (!n) continue;
 
       let draftId = '';
@@ -519,13 +614,25 @@ module.exports = function aiRouter(db) {
       }
 
       const categoriesRows = await db.all(
-        'SELECT name FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
+        'SELECT name, description, type FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
         [userId]
       );
-      const categoryNames = (Array.isArray(categoriesRows) ? categoriesRows : [])
-        .map(r => String(r.name || '').trim())
-        .filter(Boolean);
-      if (!categoryNames.includes('其他')) categoryNames.push('其他');
+      const categoryMap = new Map();
+      const categoryNames = [];
+      for (const r of (Array.isArray(categoriesRows) ? categoriesRows : [])) {
+        const name = String(r.name || '').trim();
+        if (name) {
+          categoryNames.push(name);
+          categoryMap.set(name, {
+            description: r.description ? String(r.description).trim() : '',
+            type: r.type || 'expense'
+          });
+        }
+      }
+      if (!categoryNames.includes('其他')) {
+        categoryNames.push('其他');
+        categoryMap.set('其他', { description: '其他未分类项目', type: 'both' });
+      }
       const allowedCategories = new Set(categoryNames);
 
       const prefsRows = await db.all(
@@ -548,13 +655,19 @@ module.exports = function aiRouter(db) {
         '',
         '规则：',
         '1. 支出默认 type=expense，收入 type=income',
-        `2. category 必须从以下列表选择（如不确定则选择"${fallbackCategory}"）：${categoryNames.join(', ')}`,
+        `2. category 必须从以下分类中选择最合适的（如不确定则选择"${fallbackCategory}"）：`,
+        ...categoryNames.map(name => {
+          const info = categoryMap.get(name);
+          return info && info.description
+            ? `   - ${name}（${info.description}）`
+            : `   - ${name}`;
+        }),
         '3. amount 必须是正数（数字）',
         `4. 日期默认 ${today}（YYYY-MM-DD），如用户明确指定则使用指定日期`,
         '5. 只返回 JSON（不要解释、不要 markdown）',
         '',
         '用户偏好（关键词 -> 分类）：',
-        ...(prefs.length > 0 ? prefs.map(p => `${p.keyword} -> ${p.category}`) : ['(无)']),
+        ...(prefs.length > 0 ? prefs.map(p => `- "${p.keyword}" -> ${p.category}`) : ['(无)']),
         '',
         '请返回 JSON 对象，包含字段：',
         '- transactions: 数组，每个元素包含 type, category, amount, description, date，可选 confidence(0-1), sourceSpan{start,end}',
@@ -625,7 +738,7 @@ module.exports = function aiRouter(db) {
 
       const normalized = [];
       for (const item of transactionsRaw) {
-        const n = normalizeTransaction(item, allowedCategories, fallbackCategory, today, warnings);
+        const n = normalizeTransaction(item, allowedCategories, fallbackCategory, today, warnings, categoryMap);
         if (n) normalized.push(n);
       }
 
@@ -749,8 +862,12 @@ module.exports = function aiRouter(db) {
       }
 
       // Load user categories and preferences for prompt injection
-      const categoryNames = [...(await getUserCategories(userId))];
-      if (!categoryNames.includes('其他')) categoryNames.push('其他');
+      const categoryMap = await getUserCategories(userId);
+      const categoryNames = [...categoryMap.keys()];
+      if (!categoryNames.includes('其他')) {
+        categoryNames.push('其他');
+        categoryMap.set('其他', { description: '其他未分类项目', type: 'both' });
+      }
       const allowedCategories = new Set(categoryNames);
       const fallbackCategory = '其他';
 
@@ -767,8 +884,13 @@ module.exports = function aiRouter(db) {
         '',
         '## 记账规则',
         '- 支出默认 type=expense，收入 type=income',
-        `- 类别必须从以下列表选择最合适的（无法匹配则使用"${fallbackCategory}"）：`,
-        `  ${categoryNames.join(', ')}`,
+        `- 类别必须从以下分类中选择最合适的（无法匹配则使用"${fallbackCategory}"）：`,
+        ...categoryNames.map(name => {
+          const info = categoryMap.get(name);
+          return info && info.description
+            ? `  - ${name}（${info.description}）`
+            : `  - ${name}`;
+        }),
         '- amount 必须是正数（数字）',
         `- 日期默认 ${today}（YYYY-MM-DD），如用户明确指定则使用指定日期`,
         '',
@@ -796,8 +918,8 @@ module.exports = function aiRouter(db) {
         '',
         '## 重要规则',
         '1. 信息不全时，先追问，不要猜测生成草稿（drafts 应为空）',
-        '2. 用户修正时（如“不对，是60”），结合 pendingDrafts 和上下文更新草稿，并输出 intent=update_draft',
-        '3. 一条消息可能包含多笔交易（如“咖啡30，打车50”）',
+        '2. 用户修正时（如"不对，是60"），结合 pendingDrafts 和上下文更新草稿，并输出 intent=update_draft',
+        '3. 一条消息可能包含多笔交易（如"咖啡30，打车50"）',
         '4. reply 保持简洁友好'
       ].join('\n');
 
@@ -878,7 +1000,7 @@ module.exports = function aiRouter(db) {
               return res.end();
             }
 
-            const out = buildChatResponseFromContent(content, { warnings, allowedCategories, fallbackCategory, today });
+            const out = buildChatResponseFromContent(content, { warnings, allowedCategories, fallbackCategory, today, categoryMap });
             const replyText = typeof out.reply === 'string' ? out.reply : '';
             for (let i = 0; i < replyText.length && !closed; i += 24) {
               writeSse(res, 'delta', { type: 'text', delta: replyText.slice(i, i + 24) });
@@ -946,7 +1068,7 @@ module.exports = function aiRouter(db) {
             });
           });
 
-          const out = buildChatResponseFromContent(fullContent, { warnings, allowedCategories, fallbackCategory, today });
+          const out = buildChatResponseFromContent(fullContent, { warnings, allowedCategories, fallbackCategory, today, categoryMap });
           writeSse(res, 'final', out);
           return res.end();
         } catch (e) {
@@ -986,7 +1108,7 @@ module.exports = function aiRouter(db) {
         throw err;
       }
 
-      const out = buildChatResponseFromContent(content, { warnings, allowedCategories, fallbackCategory, today });
+      const out = buildChatResponseFromContent(content, { warnings, allowedCategories, fallbackCategory, today, categoryMap });
       res.json(out);
     } catch (err) { return next(err); }
   });
@@ -1130,13 +1252,25 @@ module.exports = function aiRouter(db) {
 
       // Get user categories
       const categoriesRows = await db.all(
-        'SELECT name FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
+        'SELECT name, description, type FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
         [userId]
       );
-      const categoryNames = (Array.isArray(categoriesRows) ? categoriesRows : [])
-        .map(r => String(r.name || '').trim())
-        .filter(Boolean);
-      if (!categoryNames.includes('其他')) categoryNames.push('其他');
+      const categoryMap = new Map();
+      const categoryNames = [];
+      for (const r of (Array.isArray(categoriesRows) ? categoriesRows : [])) {
+        const name = String(r.name || '').trim();
+        if (name) {
+          categoryNames.push(name);
+          categoryMap.set(name, {
+            description: r.description ? String(r.description).trim() : '',
+            type: r.type || 'expense'
+          });
+        }
+      }
+      if (!categoryNames.includes('其他')) {
+        categoryNames.push('其他');
+        categoryMap.set('其他', { description: '其他未分类项目', type: 'both' });
+      }
 
       const today = getLocalISODate();
 
@@ -1145,7 +1279,13 @@ module.exports = function aiRouter(db) {
         '',
         '规则：',
         '1. 支出默认 type=expense，收入 type=income',
-        `2. category 必须从以下列表选择（如不确定则选择"其他"）：${categoryNames.join(', ')}`,
+        `2. category 必须从以下分类中选择最合适的（如不确定则选择"其他"）：`,
+        ...categoryNames.map(name => {
+          const info = categoryMap.get(name);
+          return info && info.description
+            ? `   - ${name}（${info.description}）`
+            : `   - ${name}`;
+        }),
         '3. amount 必须是正数（数字）',
         `4. 日期默认 ${today}（YYYY-MM-DD），如票据上有日期则使用票据日期`,
         '5. 只返回 JSON（不要解释、不要 markdown）',
@@ -1228,7 +1368,7 @@ module.exports = function aiRouter(db) {
 
       const normalized = [];
       for (const item of transactionsRaw) {
-        const n = normalizeTransaction(item, allowedCategories, fallbackCategory, today, warnings);
+        const n = normalizeTransaction(item, allowedCategories, fallbackCategory, today, warnings, categoryMap);
         if (n) normalized.push(n);
       }
 
