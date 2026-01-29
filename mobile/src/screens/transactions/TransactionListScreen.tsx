@@ -2,7 +2,7 @@ import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import { ActivityIndicator, Alert, SectionList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../auth/AuthContext';
 import {
   listTransactions,
@@ -18,7 +18,6 @@ import { theme } from '../../theme';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { AppText } from '../../components/AppText';
 import { ScreenContainer } from '../../components/ScreenContainer';
-import { WealthCard } from '../../components/WealthCard';
 import { Card } from '../../components/Card/Card';
 import { BudgetProgressBar } from '../../components/BudgetProgressBar';
 import { TodayExpenseDisplay } from '../../components/TodayExpenseDisplay';
@@ -31,7 +30,6 @@ export default function TransactionListScreen() {
   const [items, setItems] = useState<TransactionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
   const [budgetStatus, setBudgetStatus] = useState<HudBudgetStatus | null>(null);
   const [todayExpense, setTodayExpense] = useState(0);
 
@@ -68,7 +66,6 @@ export default function TransactionListScreen() {
 
     items.forEach(item => {
       const dateObj = new Date(item.date.replace(' ', 'T'));
-      // Manual formatting for consistent Chinese date
       const month = dateObj.getMonth() + 1;
       const day = dateObj.getDate();
       const weekDayDict = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -102,7 +99,6 @@ export default function TransactionListScreen() {
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      setSyncError(null);
       Promise.all([load(), loadHUD()])
         .catch(() => undefined)
         .finally(() => setLoading(false));
@@ -127,12 +123,10 @@ export default function TransactionListScreen() {
   const onRefresh = useCallback(async () => {
     if (!user) return;
     setRefreshing(true);
-    setSyncError(null);
     try {
       await syncNow(user.id);
       await load();
     } catch (err: any) {
-      // Error handling
       await load();
     } finally {
       setRefreshing(false);
@@ -165,46 +159,44 @@ export default function TransactionListScreen() {
 
   const renderTransactionItem = ({ item }: { item: TransactionRecord }) => {
     const isIncome = item.type === 'income';
-    const amountColor = isIncome ? '#059669' : '#1E293B';
-    const iconColor = isIncome ? '#059669' : '#475569';
-    const iconBg = isIncome ? '#ECFDF5' : '#F1F5F9';
+    const amountColor = isIncome ? theme.colors.wealth.functional.income : theme.colors.textPrimary;
+    const iconColor = isIncome ? theme.colors.wealth.functional.income : theme.colors.textSecondary;
+    const iconBg = isIncome ? 'rgba(16, 185, 129, 0.1)' : 'rgba(241, 245, 249, 1)';
 
     return (
       <Card
         onPress={() => navigation.navigate('TransactionEdit', { id: item.id } as any)}
-        // Long press handling would need to be passed via props or handled inside Card if supported.
-        // For now, Card's onPress covers tap. We can add onLongPress to Card props if needed,
-        // or wrap the inner content. Since Card uses Pressable internally if onPress is provided,
-        // let's assume we might need to extend Card props or just use onPress for edit.
-        // Prompt asked for "Sliding interaction", but for now card style is priority.
-        style={{ marginBottom: 12, marginHorizontal: 4 }}
+        style={{ marginBottom: 16, marginHorizontal: 4, overflow: 'hidden' }}
         noPadding
       >
         <Pressable
           onLongPress={() => handleDelete(item)}
           onPress={() => navigation.navigate('TransactionEdit', { id: item.id } as any)}
-          style={{ padding: 16, flexDirection: 'row', alignItems: 'center' }}
+          style={{ padding: 20, flexDirection: 'row', alignItems: 'center' }}
         >
           <View style={[styles.iconBox, { backgroundColor: iconBg }]}>
             <MaterialCommunityIcons
-              name={isIncome ? 'arrow-down' : 'cart-outline'}
-              size={22}
+              name={isIncome ? 'arrow-bottom-left' : 'cart-outline'}
+              size={24}
               color={iconColor}
+              style={{ opacity: 0.9 }}
             />
           </View>
           <View style={styles.itemContent}>
             <View style={styles.itemRow}>
-              <AppText variant="body" bold style={{ fontSize: 15, color: theme.colors.textPrimary }}>{item.category}</AppText>
-              <AppText variant="body" bold style={{ fontSize: 16, color: amountColor }}>
+              <AppText variant="body" bold style={{ fontSize: 16, color: theme.colors.textPrimary }}>{item.category}</AppText>
+              <AppText variant="body" bold style={{ fontSize: 18, color: amountColor, fontWeight: '700' }}>
                 {item.type === 'expense' ? '-' : '+'}
                 {Number(item.amount).toFixed(2)}
               </AppText>
             </View>
             {(item.description && item.description.trim() !== '') ? (
-              <AppText variant="caption" numberOfLines={1} style={{ marginTop: 2, color: theme.colors.textSecondary }}>
+              <AppText variant="caption" numberOfLines={1} style={{ marginTop: 6, color: theme.colors.textSecondary }}>
                 {item.description}
               </AppText>
-            ) : null}
+            ) : (
+              <View style={{ marginTop: 4 }} />
+            )}
           </View>
         </Pressable>
       </Card>
@@ -229,7 +221,7 @@ export default function TransactionListScreen() {
             <BudgetProgressBar percentage={budgetStatus.percentage} animated />
             <View style={styles.hudProgressFooter}>
               <AppText style={styles.hudProgressSpent}>
-                已用 ¥{budgetStatus.spent.toFixed(0)}
+                ¥{budgetStatus.spent.toFixed(0)}
               </AppText>
               <AppText style={styles.hudProgressLimit}>
                 / ¥{budgetStatus.limit.toFixed(0)}
@@ -241,8 +233,10 @@ export default function TransactionListScreen() {
             style={styles.hudNoBudget}
             onPress={() => navigation.navigate('Budget' as any)}
           >
-            <MaterialCommunityIcons name="wallet-plus-outline" size={24} color="rgba(255,255,255,0.7)" />
-            <AppText style={styles.hudNoBudgetText}>设置预算，掌控支出</AppText>
+            <View style={styles.iconCircle}>
+              <MaterialCommunityIcons name="wallet-plus-outline" size={20} color="rgba(255,255,255,0.9)" />
+            </View>
+            <AppText style={styles.hudNoBudgetText}>设立预算</AppText>
           </Pressable>
         )}
 
@@ -256,7 +250,6 @@ export default function TransactionListScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
               <AppText style={styles.headerMonth}>{currentMonth}</AppText>
               <AppText style={styles.headerMonthLabel}>月</AppText>
-              <MaterialCommunityIcons name="chevron-down" size={20} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
             </View>
           </View>
 
@@ -265,7 +258,7 @@ export default function TransactionListScreen() {
               <AppText style={styles.statLabel}>收入</AppText>
               <AppText style={styles.statValueIncome}>+{totalIncome.toFixed(2)}</AppText>
             </View>
-            <View style={[styles.statLine, { marginTop: 4 }]}>
+            <View style={[styles.statLine, { marginTop: 6 }]}>
               <AppText style={styles.statLabel}>支出</AppText>
               <AppText style={styles.statValueExpense}>{totalExpense.toFixed(2)}</AppText>
             </View>
@@ -289,12 +282,13 @@ export default function TransactionListScreen() {
     <ScreenContainer
       headerType="jumbo"
       headerContent={renderHeaderContent()}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0F172A']} tintColor="#0F172A" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.colors.primary]} tintColor={theme.colors.primary} />}
       enableScroll={false}
       useSafeBottom={false}
+      headerGradientColors={theme.colors.wealth.gradients.header}
     >
       <SectionList
-        style={{ marginTop: 25 }}
+        style={{ marginTop: 24 }}
         sections={sections}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
@@ -304,13 +298,13 @@ export default function TransactionListScreen() {
             <AppText variant="caption" bold style={styles.dateText}>{title}</AppText>
           </View>
         )}
-        renderSectionFooter={() => <View style={{ height: 16 }} />}
+        renderSectionFooter={() => <View style={{ height: 8 }} />}
         stickySectionHeadersEnabled={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialCommunityIcons name="clipboard-text-outline" size={64} color={theme.colors.textMuted} />
+            <MaterialCommunityIcons name="playlist-edit" size={64} color={theme.colors.textMuted} />
             <AppText variant="body" color={theme.colors.textSecondary} style={{ marginTop: 16 }}>
-              暂无记录，下拉同步或新增一笔
+              暂无记录，开启新的一天
             </AppText>
           </View>
         }
@@ -328,7 +322,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   hudProgressSection: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   hudProgressHeader: {
     flexDirection: 'row',
@@ -342,69 +336,76 @@ const styles = StyleSheet.create({
   },
   hudProgressPercent: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   hudProgressFooter: {
     flexDirection: 'row',
     marginTop: 8,
+    justifyContent: 'flex-end',
+    alignItems: 'baseline',
   },
   hudProgressSpent: {
-    fontSize: 13,
+    fontSize: 14,
     color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '600',
   },
   hudProgressLimit: {
-    fontSize: 13,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.5)',
+    marginLeft: 2,
   },
   hudNoBudget: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 20,
   },
   hudNoBudgetText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: 'rgba(255, 255, 255, 0.9)',
     marginLeft: 8,
+    fontWeight: '600'
+  },
+  iconCircle: {
+    width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center'
   },
   hudExpense: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    marginBottom: 10,
   },
   headerYear: {
     color: 'rgba(255,255,255,0.6)',
     fontSize: 14,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   headerMonth: {
-    fontSize: 32,
+    fontSize: 42,
     fontWeight: '700',
     color: '#FFF',
-    lineHeight: 38,
+    lineHeight: 46,
+    letterSpacing: -1,
   },
   headerMonthLabel: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    marginLeft: 2,
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.8)',
+    marginLeft: 4,
+    marginBottom: 6,
     fontWeight: '500',
   },
   headerStats: {
     alignItems: 'flex-end',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    paddingBottom: 4,
   },
   statLine: {
     flexDirection: 'row',
@@ -413,17 +414,17 @@ const styles = StyleSheet.create({
   statLabel: {
     color: 'rgba(255,255,255,0.6)',
     fontSize: 13,
-    marginRight: 8,
+    marginRight: 10,
   },
   statValueIncome: {
     color: '#6EE7B7', // Emerald 300
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
   statValueExpense: {
     color: '#FFF',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
@@ -437,40 +438,19 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     alignItems: 'center',
-    marginTop: 150,
-    opacity: 0.5,
+    marginTop: 100,
+    opacity: 0.6,
   },
   sectionHeader: {
-    marginBottom: 8,
+    marginBottom: 12,
     marginLeft: 8,
+    marginTop: 8,
   },
   dateText: {
-    color: '#94A3B8',
-    fontSize: 13,
+    color: theme.colors.textSecondary,
+    fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.5,
-  },
-  itemContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    backgroundColor: theme.colors.surface,
-  },
-  itemFirst: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  itemLast: {
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  itemPressed: {
-    backgroundColor: theme.colors.surfaceVariant,
-  },
-  itemBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F1F5F9',
   },
   iconBox: {
     width: 48,
@@ -478,7 +458,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16
+    marginRight: 16,
   },
   itemContent: { flex: 1 },
   itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

@@ -1,28 +1,31 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Animated, StyleSheet, ViewStyle, LayoutChangeEvent } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { theme } from '../theme';
 
 interface BudgetProgressBarProps {
   percentage: number;
   animated?: boolean;
   style?: ViewStyle;
+  height?: number;
 }
 
-const getColor = (pct: number): string => {
-  if (pct < 50) return '#10B981';
-  if (pct < 80) return '#F59E0B';
-  return '#EF4444';
+const getColorGradient = (pct: number): [string, string] => {
+  if (pct < 50) return ['#10B981', '#059669'];
+  if (pct < 80) return ['#F59E0B', '#D97706'];
+  return ['#EF4444', '#DC2626'];
 };
 
 export const BudgetProgressBar: React.FC<BudgetProgressBarProps> = ({
   percentage,
   animated = true,
   style,
+  height = 10,
 }) => {
   const [barWidth, setBarWidth] = useState(0);
   const animValue = useRef(new Animated.Value(0)).current;
   const clampedRatio = Math.min(Math.max(percentage / 100, 0), 1);
-  const color = getColor(percentage);
+  const [colorStart, colorEnd] = getColorGradient(percentage);
 
   useEffect(() => {
     if (barWidth === 0) return;
@@ -50,16 +53,22 @@ export const BudgetProgressBar: React.FC<BudgetProgressBarProps> = ({
 
   return (
     <View style={[styles.container, style]} onLayout={handleLayout}>
-      <View style={styles.track}>
+      <View style={[styles.track, { height }]}>
         <Animated.View
           style={[
             styles.fill,
             {
-              backgroundColor: color,
               transform: [{ scaleX: animValue }, { translateX }],
             },
           ]}
-        />
+        >
+          <LinearGradient
+            colors={[colorStart, colorEnd]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.gradientFill}
+          />
+        </Animated.View>
       </View>
     </View>
   );
@@ -70,9 +79,8 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   track: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 8,
     overflow: 'hidden',
   },
   fill: {
@@ -81,6 +89,10 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: '100%',
-    borderRadius: 4,
+    borderRadius: 8,
+  },
+  gradientFill: {
+    flex: 1,
+    borderRadius: 8,
   },
 });

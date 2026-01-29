@@ -102,12 +102,14 @@ export const Card: React.FC<CardProps> = ({
       style={[
         styles.container,
         {
-          borderRadius: 20, // 20px radius as requested
+          borderRadius: theme.radii.lg, // Use theme radius (28)
           backgroundColor: glassBackground,
           transform: [{ translateY }],
+          borderWidth: variant === 'glass' ? 1 : 0,
+          borderColor: variant === 'glass' ? 'rgba(255, 255, 255, 0.5)' : 'transparent',
           shadowColor: theme.shadows.small.shadowColor,
           shadowOffset: theme.shadows.small.shadowOffset,
-          shadowOpacity: Platform.OS === 'android' ? theme.shadows.small.shadowOpacity : shadowOpacity,
+          shadowOpacity: Platform.OS === 'android' ? 0.08 : shadowOpacity,
           shadowRadius: theme.shadows.small.shadowRadius,
           elevation: Platform.OS === 'android' ? elevation : theme.shadows.small.elevation,
         },
@@ -131,14 +133,14 @@ export const Card: React.FC<CardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 8,
+    marginVertical: 10, // Increased vertical spacing
   },
   inner: {
     width: '100%',
-    borderRadius: 20,
+    borderRadius: 28, // Matches theme.radii.lg
     overflow: 'hidden',
   },
   padding: {
-    padding: 20,
+    padding: 24, // Increased padding (theme.spacing.lg)
   },
 });

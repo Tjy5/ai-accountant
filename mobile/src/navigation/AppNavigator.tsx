@@ -116,14 +116,14 @@ function MainTabs() {
         tabBarIcon: ({ color, size }) => {
           const name =
             route.name === 'Transactions'
-              ? 'list'
+              ? 'list-outline'
               : route.name === 'Dashboard'
-                ? 'pie-chart'
+                ? 'stats-chart-outline'
                 : route.name === 'Add'
-                  ? 'add-circle'
+                  ? 'add-circle-outline'
                   : route.name === 'Budget'
-                    ? 'wallet'
-                    : 'settings';
+                    ? 'wallet-outline'
+                    : 'settings-outline';
           return <Ionicons name={name as any} size={size} color={color} />;
         },
       })}

@@ -81,20 +81,21 @@ function SimpleDatePicker({
 
 const pickerStyles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
-  container: { width: 300 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  container: { width: 320, padding: 24, borderRadius: 28 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 32 },
   input: {
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.primary,
     textAlign: 'center',
-    fontSize: 18,
-    paddingVertical: 4,
-    width: 60,
-    color: theme.colors.textPrimary
+    fontSize: 20,
+    paddingVertical: 8,
+    width: 70,
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
   },
-  separator: { marginHorizontal: 8, fontSize: 18, color: theme.colors.textSecondary },
-  buttons: { flexDirection: 'row', gap: 12 },
-  btn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: theme.roundness },
+  separator: { marginHorizontal: 8, fontSize: 20, color: theme.colors.textSecondary },
+  buttons: { flexDirection: 'row', gap: 16 },
+  btn: { flex: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 16 },
   btnCancel: { backgroundColor: theme.colors.surfaceVariant },
   btnConfirm: { backgroundColor: theme.colors.primary },
 });
@@ -120,7 +121,7 @@ export default function AddTransactionScreen() {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
-    return `${y} -${m} -${day} `;
+    return `${y}-${m}-${day}`;
   };
 
   const onSave = async () => {
@@ -177,10 +178,6 @@ export default function AddTransactionScreen() {
 
   if (!user) return null;
 
-  const isExpense = type === 'expense';
-  const activeColor = isExpense ? theme.colors.error : '#10B981';
-  const activeBg = isExpense ? '#FEF2F2' : '#ECFDF5';
-
   const inputRef = useRef<TextInput>(null);
 
   // Focus input on mount
@@ -195,9 +192,9 @@ export default function AddTransactionScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Top Section: Dark Gradient with Amount */}
+      {/* Top Section: Dynamic Gradient */}
       <LinearGradient
-        colors={theme.colors.wealth?.gradients?.header || ['#1E293B', '#0F172A']}
+        colors={type === 'expense' ? theme.colors.wealth.gradients.expense : theme.colors.wealth.gradients.income}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.headerSection, { paddingTop: insets.top + 10 }]}
@@ -218,7 +215,7 @@ export default function AddTransactionScreen() {
           </Pressable>
         </View>
 
-        {/* Amount Input (Custom Text Display + Hidden Input) */}
+        {/* Amount Input */}
         <Pressable
           style={styles.amountContainer}
           onPress={() => inputRef.current?.focus()}
@@ -240,33 +237,26 @@ export default function AddTransactionScreen() {
           />
         </Pressable>
 
-        {/* AI Action Buttons */}
+        {/* AI Action Buttons - Floating style */}
         <View style={styles.aiButtonsRow}>
           <Pressable style={styles.aiButton} onPress={() => setAiMode('text')}>
             <View style={styles.aiButtonIcon}>
-              <MaterialCommunityIcons name="text-recognition" size={22} color="#fff" />
+              <MaterialCommunityIcons name="text-recognition" size={20} color="#fff" />
             </View>
             <AppText style={styles.aiButtonLabel}>文字</AppText>
           </Pressable>
           <Pressable style={styles.aiButton} onPress={() => setAiMode('voice')}>
-            <View style={[styles.aiButtonIcon, { backgroundColor: '#10B981' }]}>
-              <MaterialCommunityIcons name="microphone" size={22} color="#fff" />
+            <View style={[styles.aiButtonIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <MaterialCommunityIcons name="microphone" size={20} color="#fff" />
             </View>
             <AppText style={styles.aiButtonLabel}>语音</AppText>
           </Pressable>
 
           <Pressable style={styles.aiButton} onPress={() => setAiMode('camera')}>
-            <View style={[styles.aiButtonIcon, { backgroundColor: '#F59E0B' }]}>
-              <MaterialCommunityIcons name="camera" size={22} color="#fff" />
+            <View style={[styles.aiButtonIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <MaterialCommunityIcons name="camera" size={20} color="#fff" />
             </View>
             <AppText style={styles.aiButtonLabel}>拍照</AppText>
-          </Pressable>
-
-          <Pressable style={styles.aiButton} onPress={() => navigation.navigate('AIChat')}>
-            <View style={[styles.aiButtonIcon, { backgroundColor: '#8B5CF6' }]}>
-              <MaterialCommunityIcons name="chat-processing" size={22} color="#fff" />
-            </View>
-            <AppText style={styles.aiButtonLabel}>聊天</AppText>
           </Pressable>
         </View>
       </LinearGradient>
@@ -280,10 +270,10 @@ export default function AddTransactionScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.formList}>
-              {/* Date Row - Keep as simple row for now as Input is for text */}
+              {/* Date Row */}
               <Pressable style={styles.fieldRow} onPress={() => setShowDatePicker(true)}>
                 <View style={[styles.iconCircle, { backgroundColor: '#F1F5F9' }]}>
-                  <MaterialCommunityIcons name="calendar-month" size={22} color="#64748B" />
+                  <MaterialCommunityIcons name="calendar-month" size={24} color="#64748B" />
                 </View>
                 <View style={styles.fieldContent}>
                   <AppText style={styles.fieldLabel}>日期</AppText>
@@ -296,10 +286,11 @@ export default function AddTransactionScreen() {
 
               <View style={{ marginTop: 24 }}>
                 <Input
-                  placeholder="餐饮, 交通..."
+                  placeholder="分类 (如: 餐饮, 交通...)"
                   value={category}
                   onChangeText={setCategory}
                   style={{ fontSize: 16 }}
+                  leftIcon="tag-outline"
                 />
               </View>
 
@@ -310,13 +301,15 @@ export default function AddTransactionScreen() {
                   onChangeText={setDescription}
                   style={{ fontSize: 16, height: 80 }}
                   multiline
+                  leftIcon="pencil-outline"
                 />
               </View>
             </View>
 
             {/* Messages */}
             {error && <AppText color={theme.colors.error} centered style={{ marginTop: 20 }}>{error}</AppText>}
-            {success && <AppText color="#10B981" centered style={{ marginTop: 20 }}>{success}</AppText>}
+            {success && <AppText color={theme.colors.wealth.functional.income} centered style={{ marginTop: 20 }}>{success}</AppText>}
+            <View style={{ height: 100 }} />
           </ScrollView>
         </KeyboardAvoidingView>
 
@@ -327,6 +320,7 @@ export default function AddTransactionScreen() {
             onPress={onSave}
             disabled={saving}
             size="large"
+            style={{ borderRadius: 16, shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }}
           />
         </View>
       </View>
@@ -353,14 +347,13 @@ export default function AddTransactionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1E293B', // Background matches header color
+    backgroundColor: '#1E293B',
   },
   headerSection: {
-    // Height determined by content + padding
     alignItems: 'center',
     paddingHorizontal: 20,
     justifyContent: 'flex-start',
-    paddingBottom: 50, // Space for the sheet overlap
+    paddingBottom: 40,
   },
   typeSegment: {
     flexDirection: 'row',
@@ -377,14 +370,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   segmentTabActive: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   segmentText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.5)',
+    color: 'rgba(255,255,255,0.6)',
   },
   segmentTextActive: {
     color: '#FFF',
@@ -392,34 +385,35 @@ const styles = StyleSheet.create({
 
   amountContainer: {
     flexDirection: 'row',
-    alignItems: 'baseline', // Proper typographic alignment
+    alignItems: 'baseline',
     justifyContent: 'center',
-    marginTop: 20,
-    paddingVertical: 20,
+    marginTop: 10,
+    paddingVertical: 10,
   },
   currencySymbol: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '600',
     marginRight: 6,
     color: '#FFF',
     opacity: 0.9,
-    lineHeight: 52, // Match amountText lineHeight for baseline alignment
+    lineHeight: 60,
   },
   amountText: {
-    fontSize: 42,
+    fontSize: 56,
     fontWeight: '700',
     color: '#FFF',
-    lineHeight: 52,
+    lineHeight: 64,
   },
   amountPlaceholder: {
     color: 'rgba(255,255,255,0.3)',
   },
   cursor: {
     width: 3,
-    height: 40,
-    backgroundColor: '#3B82F6',
-    marginLeft: 2,
+    height: 48,
+    backgroundColor: '#FFF',
+    marginLeft: 4,
     borderRadius: 2,
+    opacity: 0.8,
   },
   hiddenInput: {
     position: 'absolute',
@@ -434,15 +428,15 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingTop: 10,
-    marginTop: -20, // Small overlap for seamless look
+    marginTop: -24,
   },
   formContent: {
     paddingHorizontal: 24,
-    paddingTop: 20,
+    paddingTop: 24,
     paddingBottom: 120,
   },
   formList: {
-    // No background, just form fields
+    marginTop: 8
   },
   fieldRow: {
     flexDirection: 'row',
@@ -452,12 +446,12 @@ const styles = StyleSheet.create({
   separator: {
     height: 1,
     backgroundColor: '#F1F5F9',
-    marginLeft: 56,
+    marginLeft: 64,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -466,27 +460,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fieldLabel: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#94A3B8',
     marginBottom: 4,
+    fontWeight: '500',
   },
   fieldValue: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#1E293B',
-    fontWeight: '500',
-  },
-  fieldInput: {
-    fontSize: 16,
-    color: '#1E293B',
-    fontWeight: '500',
-    padding: 0,
-    height: 24,
-    textAlignVertical: 'center',
-  },
-  multilineInput: {
-    minHeight: 24,
-    textAlignVertical: 'top',
-    maxHeight: 100,
+    fontWeight: '600',
   },
 
   footer: {
@@ -500,29 +482,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F8FAFC',
   },
-  saveButton: {
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  saveButtonText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: '600',
-    letterSpacing: 2,
-  },
 
   // AI Buttons
   aiButtonsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 20,
+    gap: 24,
     marginTop: 16,
     marginBottom: 8,
   },
@@ -530,13 +495,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   aiButtonIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#3B82F6',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   aiButtonLabel: {
     fontSize: 12,
