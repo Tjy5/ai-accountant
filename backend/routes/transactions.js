@@ -1,27 +1,9 @@
 'use strict'
 
 const express = require('express');
-const { buildCategoryMetaIndex, enrichTransactionRow } = require('../utils/uiFormat');
-const { TtlCache } = require('../utils/ttlCache');
 
 module.exports = function transactionsRouter(db) {
   const router = express.Router();
-
-  const categoryIndexCache = new TtlCache({ maxItems: 2000, defaultTtlMs: 30_000 });
-
-  async function getCategoryIndex(userId) {
-    const key = `categoryIndex:${userId}`;
-    const cached = categoryIndexCache.get(key);
-    if (cached) return cached;
-
-    const rows = await db.all(
-      'SELECT name, icon, color FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
-      [userId]
-    );
-    const index = buildCategoryMetaIndex(rows);
-    categoryIndexCache.set(key, index);
-    return index;
-  }
 
   function toPositiveIntOrNull(v) {
     if (v === undefined || v === null || v === '') return null;
@@ -116,16 +98,15 @@ module.exports = function transactionsRouter(db) {
       }
 
       const rows = await db.all(finalQuery, params);
-      const categoryIndex = await getCategoryIndex(userId);
-      const enriched = (Array.isArray(rows) ? rows : []).map(r => enrichTransactionRow(r, categoryIndex));
+      const list = Array.isArray(rows) ? rows : [];
 
       if (!wantsPaging) {
-        return res.json(enriched);
+        return res.json(list);
       }
 
-      const nextCursor = enriched.length === limit ? makeCursor(rows[rows.length - 1]) : null;
+      const nextCursor = list.length === limit ? makeCursor(rows[rows.length - 1]) : null;
       return res.json({
-        transactions: enriched,
+        transactions: list,
         pageInfo: {
           limit,
           page: page || null,
@@ -162,8 +143,7 @@ module.exports = function transactionsRouter(db) {
         );
       }
       const newRow = await db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [insertResult.lastID, userId]);
-      const categoryIndex = await getCategoryIndex(userId);
-      res.status(201).json(enrichTransactionRow(newRow, categoryIndex));
+      res.status(201).json(newRow);
     } catch (err) { return next(err); }
   });
 
@@ -248,8 +228,7 @@ module.exports = function transactionsRouter(db) {
         throw e;
       }
 
-      const categoryIndex = await getCategoryIndex(userId);
-      res.status(201).json({ transactions: created.map(r => enrichTransactionRow(r, categoryIndex)) });
+      res.status(201).json({ transactions: created });
     } catch (err) { return next(err); }
   });
 
@@ -274,8 +253,7 @@ module.exports = function transactionsRouter(db) {
         [type, category, amount, description || null, updateDate, is_voice_input ? 1 : 0, voice_input_text || null, Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : null), id, userId]
       );
       const updated = await db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [id, userId]);
-      const categoryIndex = await getCategoryIndex(userId);
-      res.json(enrichTransactionRow(updated, categoryIndex));
+      res.json(updated);
     } catch (err) { return next(err); }
   });
 

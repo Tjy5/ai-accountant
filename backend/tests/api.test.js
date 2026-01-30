@@ -13,7 +13,6 @@ const categoriesRouterFactory = require('../routes/categories');
 const transactionsRouterFactory = require('../routes/transactions');
 const dashboardRouterFactory = require('../routes/dashboard');
 const preferencesRouterFactory = require('../routes/preferences');
-const notificationsRouterFactory = require('../routes/notifications');
 
 async function createTestDb() {
   const db = await open({ filename: ':memory:', driver: sqlite3.Database });
@@ -69,30 +68,6 @@ async function createTestDb() {
       updated_at TEXT DEFAULT (datetime('now')),
       deleted_at TEXT
     );
-
-    CREATE TABLE user_ui_preferences (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL UNIQUE,
-      theme TEXT NOT NULL DEFAULT 'system',
-      animations_enabled INTEGER NOT NULL DEFAULT 1,
-      ai_assistant_visible INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      deleted_at TEXT
-    );
-
-    CREATE TABLE notifications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      type TEXT NOT NULL,
-      title TEXT,
-      message TEXT NOT NULL,
-      data_json TEXT,
-      read_at TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      deleted_at TEXT
-    );
   `);
 
   await db.run(
@@ -120,7 +95,6 @@ function createApp(db) {
   app.use('/api', transactionsRouterFactory(db));
   app.use('/api', dashboardRouterFactory(db));
   app.use('/api', preferencesRouterFactory(db));
-  app.use('/api', notificationsRouterFactory(db));
   return app;
 }
 
@@ -130,7 +104,7 @@ function authHeader() {
   return { Authorization: `Bearer ${token}` };
 }
 
-test('GET /api/categories returns iconType', async () => {
+test('GET /api/categories returns categories', async () => {
   const db = await createTestDb();
   await db.run(
     `INSERT INTO categories (user_id, name, type, icon, color, created_at, updated_at, deleted_at)
@@ -144,14 +118,17 @@ test('GET /api/categories returns iconType', async () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.ok(Array.isArray(body.categories));
-    assert.equal(body.categories[0].iconType, 'home');
+    assert.equal(body.categories[0].name, 'Home');
+    assert.equal(body.categories[0].icon, 'HomeOutlined');
+    assert.equal(body.categories[0].color, '#ff0000');
+    assert.ok(!('iconType' in body.categories[0]));
   } finally {
     server.close();
     await db.close();
   }
 });
 
-test('GET /api/transactions enriches rows and supports paging', async () => {
+test('GET /api/transactions returns rows and supports paging', async () => {
   const db = await createTestDb();
   await db.run(
     `INSERT INTO categories (user_id, name, type, icon, color, created_at, updated_at, deleted_at)
@@ -173,11 +150,10 @@ test('GET /api/transactions enriches rows and supports paging', async () => {
     assert.equal(res1.status, 200);
     const list = await res1.json();
     assert.ok(Array.isArray(list));
-    assert.ok(typeof list[0].amountFormatted === 'string');
-    assert.ok('timestamp' in list[0]);
-    assert.ok(list[0].categoryMeta);
-    assert.equal(list[0].categoryMeta.iconType, 'food');
-    assert.equal(list[0].categoryMeta.color, '#00ff00');
+    assert.ok(typeof list[0].amount === 'number');
+    assert.ok(!('amountFormatted' in list[0]));
+    assert.ok(!('timestamp' in list[0]));
+    assert.ok(!('categoryMeta' in list[0]));
 
     const res2 = await fetch(`${baseUrl}/api/transactions?page=1&pageSize=1`, { headers: { ...authHeader() } });
     assert.equal(res2.status, 200);
@@ -226,59 +202,42 @@ test('Dashboard summary/charts endpoints work', async () => {
     const charts = await res2.json();
     assert.ok(Array.isArray(charts.monthlyTrend));
     assert.ok(Array.isArray(charts.categoryShare));
-    assert.equal(charts.categoryShare[0].categoryMeta.iconType, 'home');
+    assert.equal(charts.categoryShare[0].category, 'Rent');
+    assert.ok(!('categoryMeta' in charts.categoryShare[0]));
   } finally {
     server.close();
     await db.close();
   }
 });
 
-test('UI preferences and notifications endpoints work', async () => {
+test('Preferences endpoints work', async () => {
   const db = await createTestDb();
   const app = createApp(db);
   const { server, baseUrl } = await startServer(app);
   try {
-    const res1 = await fetch(`${baseUrl}/api/user/preferences`, { headers: { ...authHeader() } });
+    const res1 = await fetch(`${baseUrl}/api/preferences`, { headers: { ...authHeader() } });
     assert.equal(res1.status, 200);
-    const pref1 = await res1.json();
-    assert.equal(pref1.preferences.theme, 'system');
+    const before = await res1.json();
+    assert.ok(Array.isArray(before.preferences));
+    assert.equal(before.preferences.length, 0);
 
-    const res2 = await fetch(`${baseUrl}/api/user/preferences`, {
-      method: 'PUT',
-      headers: { ...authHeader(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme: 'dark', animationsEnabled: false, aiAssistantVisible: false }),
-    });
-    assert.equal(res2.status, 200);
-    const pref2 = await res2.json();
-    assert.equal(pref2.preferences.theme, 'dark');
-    assert.equal(pref2.preferences.animationsEnabled, false);
-
-    const res3 = await fetch(`${baseUrl}/api/notifications`, {
+    const res2 = await fetch(`${baseUrl}/api/preferences`, {
       method: 'POST',
       headers: { ...authHeader(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'success', title: 'OK', message: 'Done' }),
+      body: JSON.stringify({ keyword: 'coffee', category: 'Food' }),
     });
-    assert.equal(res3.status, 201);
-    const created = await res3.json();
-    assert.equal(created.type, 'success');
-    assert.ok(created.style && created.style.color);
+    assert.equal(res2.status, 201);
+    const created = await res2.json();
+    assert.equal(created.preference.keyword, 'coffee');
+    assert.equal(created.preference.category, 'Food');
 
-    const res4 = await fetch(`${baseUrl}/api/notifications?limit=10`, { headers: { ...authHeader() } });
-    assert.equal(res4.status, 200);
-    const list = await res4.json();
-    assert.ok(Array.isArray(list.notifications));
-    assert.equal(list.notifications.length, 1);
-
-    const res5 = await fetch(`${baseUrl}/api/notifications/${created.id}/read`, {
-      method: 'POST',
-      headers: { ...authHeader() },
-    });
-    assert.equal(res5.status, 200);
-    const read = await res5.json();
-    assert.ok(read.readAt);
+    const res3 = await fetch(`${baseUrl}/api/preferences`, { headers: { ...authHeader() } });
+    assert.equal(res3.status, 200);
+    const after = await res3.json();
+    assert.ok(Array.isArray(after.preferences));
+    assert.equal(after.preferences.length, 1);
   } finally {
     server.close();
     await db.close();
   }
 });
-
