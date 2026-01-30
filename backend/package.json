@@ -12,7 +12,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@tanstack/react-query": "^5.85.5",
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "chinese-numbers-to-arabic": "^2.0.0",

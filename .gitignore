@@ -74,38 +74,8 @@ web_modules/
 .cache
 .parcel-cache
 
-# Next.js build output
-.next
-out
-
-# Nuxt.js build / generate output
-.nuxt
+# Build output
 dist
-
-# Gatsby files
-.cache/
-# Comment in the public line in if your project uses Gatsby and not Next.js
-# https://nextjs.org/blog/next-9-1#public-directory-support
-# public
-
-# vuepress build output
-.vuepress/dist
-
-# vuepress v2.x temp and cache directory
-.temp
-.cache
-
-# Sveltekit cache directory
-.svelte-kit/
-
-# vitepress build output
-**/.vitepress/dist
-
-# vitepress cache directory
-**/.vitepress/cache
-
-# Docusaurus cache and generated files
-.docusaurus
 
 # Serverless directories
 .serverless/
@@ -154,19 +124,17 @@ vite.config.ts.timestamp-*
 
 # Database files
 *.sqlite
+.migrate
 .ace-tool/
 
 # Temporary build output
-mobile/tsc_output*.txt
-mobile/tmpclaude*
 backend/tmpclaude*
 
 # OpenSpec collaboration workspace
 .openspec/
 
-# Expo
-.expo/
-
 # System Files
 .DS_Store
 Thumbs.db
+
+tmpclaude*

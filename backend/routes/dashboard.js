@@ -2,7 +2,6 @@
 
 const express = require('express');
 const { TtlCache } = require('../utils/ttlCache');
-const { buildCategoryMetaIndex, formatAmount, toUnixMs } = require('../utils/uiFormat');
 
 function toYmdLocal(d) {
   const yyyy = d.getFullYear();
@@ -37,21 +36,6 @@ module.exports = function dashboardRouter(db) {
   const router = express.Router();
 
   const responseCache = new TtlCache({ maxItems: 5000, defaultTtlMs: 15_000 });
-  const categoryIndexCache = new TtlCache({ maxItems: 2000, defaultTtlMs: 60_000 });
-
-  async function getCategoryIndex(userId) {
-    const key = `categoryIndex:${userId}`;
-    const cached = categoryIndexCache.get(key);
-    if (cached) return cached;
-
-    const rows = await db.all(
-      'SELECT name, icon, color FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY name',
-      [userId]
-    );
-    const index = buildCategoryMetaIndex(rows);
-    categoryIndexCache.set(key, index);
-    return index;
-  }
 
   function getRangeFromQuery(req) {
     const defaults = getDefaultRange();
@@ -104,13 +88,7 @@ module.exports = function dashboardRouter(db) {
           net,
           count,
         },
-        formatted: {
-          income: formatAmount(income) || '0.00',
-          expense: formatAmount(expense) || '0.00',
-          net: formatAmount(net) || '0.00',
-        },
         updatedAt,
-        updatedAtTs: updatedAt ? toUnixMs(updatedAt) : null,
         timestamp: Date.now(),
         cache: { hit: false },
       };
@@ -135,7 +113,7 @@ module.exports = function dashboardRouter(db) {
         if (cached) return res.json({ ...cached, cache: { hit: true } });
       }
 
-      const [trendRows, shareRows, categoryIndex] = await Promise.all([
+      const [trendRows, shareRows] = await Promise.all([
         db.all(
           `SELECT strftime('%Y-%m', DATE(date)) as month, type, COALESCE(SUM(amount), 0) as total
            FROM transactions
@@ -160,7 +138,6 @@ module.exports = function dashboardRouter(db) {
            LIMIT ?`,
           [userId, range.startDate, range.endDate, topN]
         ),
-        getCategoryIndex(userId),
       ]);
 
       const byMonth = new Map();
@@ -183,11 +160,6 @@ module.exports = function dashboardRouter(db) {
           income,
           expense,
           net,
-          formatted: {
-            income: formatAmount(income) || '0.00',
-            expense: formatAmount(expense) || '0.00',
-            net: formatAmount(net) || '0.00',
-          }
         };
       });
 
@@ -198,18 +170,10 @@ module.exports = function dashboardRouter(db) {
         const category = r && r.category ? String(r.category) : '';
         const total = Number(r?.total) || 0;
         const pct = totalExpense > 0 ? total / totalExpense : 0;
-        const meta = categoryIndex.get(category);
         return {
           category,
           total,
           percentage: Number(pct.toFixed(4)),
-          formattedTotal: formatAmount(total) || '0.00',
-          categoryMeta: meta ? {
-            name: meta.name,
-            icon: meta.icon,
-            iconType: meta.iconType,
-            color: meta.color,
-          } : null,
         };
       });
 
@@ -228,4 +192,3 @@ module.exports = function dashboardRouter(db) {
 
   return router;
 };
-

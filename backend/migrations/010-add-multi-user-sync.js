@@ -43,57 +43,40 @@ exports.up = function (next) {
       `);
       console.log('✅ users 表创建成功');
 
-      // 2) 创建 devices 表
-      await safeRun(`
-        CREATE TABLE IF NOT EXISTS devices (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          device_token TEXT NOT NULL,
-          platform TEXT NOT NULL,
-          last_sync_at TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
-          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
-      `);
-      console.log('✅ devices 表创建成功');
-
-      await safeRun('CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_user_token ON devices(user_id, device_token)');
-      await safeRun('CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id)');
-
-      // 3) 为 transactions 表添加新字段
+      // 2) 为 transactions 表添加新字段
       await safeRun('ALTER TABLE transactions ADD COLUMN user_id INTEGER');
       await safeRun('ALTER TABLE transactions ADD COLUMN updated_at TEXT DEFAULT (datetime(\'now\'))');
       await safeRun('ALTER TABLE transactions ADD COLUMN deleted_at TEXT');
       console.log('✅ transactions 表字段添加成功');
 
-      // 4) 为 categories 表添加新字段
+      // 3) 为 categories 表添加新字段
       await safeRun('ALTER TABLE categories ADD COLUMN user_id INTEGER');
       await safeRun('ALTER TABLE categories ADD COLUMN deleted_at TEXT');
       console.log('✅ categories 表字段添加成功');
 
-      // 5) 为 budgets 表添加新字段
+      // 4) 为 budgets 表添加新字段
       await safeRun('ALTER TABLE budgets ADD COLUMN user_id INTEGER');
       await safeRun('ALTER TABLE budgets ADD COLUMN deleted_at TEXT');
       console.log('✅ budgets 表字段添加成功');
 
-      // 6) 为 user_preferences 表添加新字段
+      // 5) 为 user_preferences 表添加新字段
       await safeRun('ALTER TABLE user_preferences ADD COLUMN user_id INTEGER');
       await safeRun('ALTER TABLE user_preferences ADD COLUMN created_at TEXT DEFAULT (datetime(\'now\'))');
       await safeRun('ALTER TABLE user_preferences ADD COLUMN updated_at TEXT DEFAULT (datetime(\'now\'))');
       await safeRun('ALTER TABLE user_preferences ADD COLUMN deleted_at TEXT');
 
-      // 7) 为 budget_history 表添加新字段
+      // 6) 为 budget_history 表添加新字段
       await safeRun('ALTER TABLE budget_history ADD COLUMN user_id INTEGER');
       await safeRun('ALTER TABLE budget_history ADD COLUMN updated_at TEXT DEFAULT (datetime(\'now\'))');
       await safeRun('ALTER TABLE budget_history ADD COLUMN deleted_at TEXT');
 
-      // 8) 回填 updated_at 字段 (如果为 NULL)
+      // 7) 回填 updated_at 字段 (如果为 NULL)
       await safeRun(`UPDATE transactions SET updated_at = COALESCE(updated_at, created_at, datetime('now')) WHERE updated_at IS NULL`);
       await safeRun(`UPDATE budget_history SET updated_at = COALESCE(updated_at, created_at, datetime('now')) WHERE updated_at IS NULL`);
       await safeRun(`UPDATE user_preferences SET updated_at = COALESCE(updated_at, created_at, datetime('now')) WHERE updated_at IS NULL`);
       await safeRun(`UPDATE user_preferences SET created_at = COALESCE(created_at, datetime('now')) WHERE created_at IS NULL`);
 
-      // 9) 创建索引以提高查询性能
+      // 8) 创建索引以提高查询性能
       await safeRun('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)');
       await safeRun('CREATE INDEX IF NOT EXISTS idx_transactions_updated_at ON transactions(updated_at)');
       await safeRun('CREATE INDEX IF NOT EXISTS idx_transactions_deleted_at ON transactions(deleted_at)');
