@@ -1,11 +1,6 @@
 'use strict'
 
-// 使用 sqlite3 直接操作数据库
-const sqlite3 = require('sqlite3');
-
-exports.up = function (next) {
-  const db = new sqlite3.Database('../backend/database.sqlite');
-  
+exports.up = function (db, next) {
   db.serialize(() => {
     // 添加缺失的列到 budgets 表
     const addColumns = [
@@ -37,7 +32,6 @@ exports.up = function (next) {
             if (err) {
               console.log('创建索引失败:', err);
             }
-            db.close();
             next();
           });
         }
@@ -46,7 +40,7 @@ exports.up = function (next) {
   });
 };
 
-exports.down = function (next) {
+exports.down = function (db, next) {
   // SQLite 不支持 DROP COLUMN，这里仅记录需要手工回滚
   console.log('注意：SQLite 不支持删除列，需要手动处理预算表列回滚');
   next();

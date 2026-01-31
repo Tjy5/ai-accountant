@@ -124,7 +124,7 @@ vite.config.ts.timestamp-*
 
 # Database files
 *.sqlite
-.migrate
+.migrate*
 .ace-tool/
 
 # Temporary build output

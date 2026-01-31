@@ -1,11 +1,6 @@
 'use strict'
 
-// 使用 sqlite3 直接操作数据库
-const sqlite3 = require('sqlite3');
-
-exports.up = function (next) {
-  const db = new sqlite3.Database('../backend/database.sqlite');
-
+exports.up = function (db, next) {
   db.serialize(() => {
     db.run(`
       CREATE TABLE IF NOT EXISTS categories (
@@ -22,14 +17,12 @@ exports.up = function (next) {
       )
     `, function(err) {
       if (err) {
-        db.close();
         return next(err);
       }
 
       // 预置一些常用默认分类（如表为空）
       db.all('SELECT COUNT(*) as cnt FROM categories', (err, rows) => {
         if (err) {
-          db.close();
           return next(err);
         }
 
@@ -50,11 +43,9 @@ exports.up = function (next) {
             stmt.run(d);
           }
           stmt.finalize((finalizeErr) => {
-            db.close();
             next(finalizeErr);
           });
         } else {
-          db.close();
           next();
         }
       });
@@ -62,10 +53,8 @@ exports.up = function (next) {
   });
 };
 
-exports.down = function (next) {
-  const db = new sqlite3.Database('../backend/database.sqlite');
+exports.down = function (db, next) {
   db.run('DROP TABLE IF EXISTS categories', function(err) {
-    db.close();
     next(err);
   });
 };

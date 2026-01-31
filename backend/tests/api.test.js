@@ -13,6 +13,7 @@ const categoriesRouterFactory = require('../routes/categories');
 const transactionsRouterFactory = require('../routes/transactions');
 const dashboardRouterFactory = require('../routes/dashboard');
 const preferencesRouterFactory = require('../routes/preferences');
+const authRouterFactory = require('../routes/auth');
 
 async function createTestDb() {
   const db = await open({ filename: ':memory:', driver: sqlite3.Database });
@@ -95,6 +96,15 @@ function createApp(db) {
   app.use('/api', transactionsRouterFactory(db));
   app.use('/api', dashboardRouterFactory(db));
   app.use('/api', preferencesRouterFactory(db));
+  return app;
+}
+
+function createAppWithAuth(db) {
+  const app = express();
+  app.use(express.json({ limit: '2mb' }));
+  app.use('/api/auth', authRouterFactory(db));
+  app.use('/api', authMiddleware);
+  app.use('/api', categoriesRouterFactory(db));
   return app;
 }
 
@@ -236,6 +246,69 @@ test('Preferences endpoints work', async () => {
     const after = await res3.json();
     assert.ok(Array.isArray(after.preferences));
     assert.equal(after.preferences.length, 1);
+  } finally {
+    server.close();
+    await db.close();
+  }
+});
+
+test('PUT /api/transactions validates amount and allows clearing tags', async () => {
+  const db = await createTestDb();
+  await db.run(
+    `INSERT INTO categories (user_id, name, type, icon, color, created_at, updated_at, deleted_at)
+     VALUES (1, 'Food', 'expense', 'CoffeeOutlined', '#00ff00', datetime('now'), datetime('now'), NULL)`
+  );
+  await db.run(
+    `INSERT INTO transactions (user_id, type, category, amount, description, date, created_at, updated_at, deleted_at, tags)
+     VALUES (1, 'expense', 'Food', 10.0, 'Coffee', '2026-01-10T00:00:00.000Z', datetime('now'), datetime('now'), NULL, '["a"]')`
+  );
+
+  const app = createApp(db);
+  const { server, baseUrl } = await startServer(app);
+  try {
+    const bad = await fetch(`${baseUrl}/api/transactions/1`, {
+      method: 'PUT',
+      headers: { ...authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'expense', category: 'Food', amount: 0 }),
+    });
+    assert.equal(bad.status, 400);
+
+    const ok = await fetch(`${baseUrl}/api/transactions/1`, {
+      method: 'PUT',
+      headers: { ...authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'expense', category: 'Food', amount: 10.0, tags: null }),
+    });
+    assert.equal(ok.status, 200);
+    const updated = await ok.json();
+    assert.equal(updated.tags, null);
+  } finally {
+    server.close();
+    await db.close();
+  }
+});
+
+test('POST /api/auth/register seeds default categories for new user', async () => {
+  const db = await createTestDb();
+  process.env.JWT_SECRET = 'test_secret_1234567890';
+
+  const app = createAppWithAuth(db);
+  const { server, baseUrl } = await startServer(app);
+  try {
+    const reg = await fetch(`${baseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'new.user@example.com', password: 'password123', name: 'New User' }),
+    });
+    assert.equal(reg.status, 201);
+    const regBody = await reg.json();
+    assert.ok(regBody && regBody.token);
+
+    const res = await fetch(`${baseUrl}/api/categories`, { headers: { Authorization: `Bearer ${regBody.token}` } });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(Array.isArray(body.categories));
+    assert.ok(body.categories.length > 0);
+    assert.ok(body.categories.some((c) => c && c.name === '其他'));
   } finally {
     server.close();
     await db.close();
