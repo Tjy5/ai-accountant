@@ -237,8 +237,11 @@ module.exports = function transactionsRouter(db) {
       const userId = req.user.id;
       const { id } = req.params;
       const { type, category, amount, description, date, is_voice_input, voice_input_text, tags } = req.body;
-      if (!type || !['income', 'expense'].includes(type) || !category || typeof amount !== 'number') {
+      if (!type || !['income', 'expense'].includes(type) || typeof category !== 'string' || category.trim().length === 0 || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
         return res.status(400).json({ error: '参数无效' });
+      }
+      if (typeof tags !== 'undefined' && tags !== null && !Array.isArray(tags) && typeof tags !== 'string') {
+        return res.status(400).json({ error: 'tags 参数无效' });
       }
       const existing = await db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [id, userId]);
       if (!existing) return res.status(404).json({ error: '交易记录不存在' });
@@ -247,10 +250,37 @@ module.exports = function transactionsRouter(db) {
         const parsed = new Date(date);
         if (!isNaN(parsed.getTime())) updateDate = parsed.toISOString(); else return res.status(400).json({ error: '无效的日期格式' });
       }
+
+      const setClauses = [
+        'type = ?',
+        'category = ?',
+        'amount = ?',
+        'description = ?',
+        'date = ?',
+        'is_voice_input = ?',
+        'voice_input_text = ?',
+      ];
+      const params = [
+        type,
+        category,
+        amount,
+        description || null,
+        updateDate,
+        is_voice_input ? 1 : 0,
+        voice_input_text || null,
+      ];
+
+      // Allow explicit clearing of tags by sending `null`.
+      if (typeof tags !== 'undefined') {
+        setClauses.push('tags = ?');
+        params.push(Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : null));
+      }
+
+      setClauses.push("updated_at = datetime('now')");
+
       await db.run(
-        `UPDATE transactions SET type = ?, category = ?, amount = ?, description = ?, date = ?, is_voice_input = ?, voice_input_text = ?, tags = COALESCE(?, tags), updated_at = datetime('now')
-         WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
-        [type, category, amount, description || null, updateDate, is_voice_input ? 1 : 0, voice_input_text || null, Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : null), id, userId]
+        `UPDATE transactions SET ${setClauses.join(', ')} WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+        [...params, id, userId]
       );
       const updated = await db.get('SELECT * FROM transactions WHERE id = ? AND user_id = ? AND deleted_at IS NULL', [id, userId]);
       res.json(updated);

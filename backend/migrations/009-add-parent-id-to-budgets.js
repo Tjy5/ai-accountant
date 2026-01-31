@@ -1,10 +1,6 @@
 'use strict';
 
-const sqlite3 = require('sqlite3');
-
-exports.up = function(next) {
-  const db = new sqlite3.Database('../backend/database.sqlite');
-
+exports.up = function(db, next) {
   db.serialize(() => {
     const addColumnSQL = `
       ALTER TABLE budgets 
@@ -14,7 +10,6 @@ exports.up = function(next) {
     db.run(addColumnSQL, function(err) {
       if (err) {
         console.error('Failed to add parent_id column:', err);
-        db.close();
         return next(err);
       }
       console.log('✅ Column parent_id added successfully.');
@@ -30,14 +25,13 @@ exports.up = function(next) {
           console.log('✅ Index for parent_id created successfully.');
         }
         
-        db.close();
         next();
       });
     });
   });
 };
 
-exports.down = function(next) {
+exports.down = function(db, next) {
   // As noted before, dropping columns in SQLite is complex.
   // This down migration is intentionally left blank.
   console.warn('Skipping down migration for 009-add-parent-id-to-budgets.js.');

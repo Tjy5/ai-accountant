@@ -1,10 +1,6 @@
 'use strict'
 
-// 使用 sqlite3 直接操作数据库
-const sqlite3 = require('sqlite3');
-
-exports.up = function (next) {
-  const db = new sqlite3.Database('../backend/database.sqlite');
+exports.up = function (db, next) {
   
   // 创建交易表
   db.run(`
@@ -19,7 +15,6 @@ exports.up = function (next) {
     )
   `, function(err) {
     if (err) {
-      db.close();
       return next(err);
     }
     
@@ -32,7 +27,6 @@ exports.up = function (next) {
       )
     `, function(err) {
       if (err) {
-        db.close();
         return next(err);
       }
       
@@ -48,7 +42,6 @@ exports.up = function (next) {
         )
       `, function(err) {
         if (err) {
-          db.close();
           return next(err);
         }
         
@@ -59,11 +52,8 @@ exports.up = function (next) {
           // 为现有记录设置 created_at 值（如果为 NULL）
           db.run(`UPDATE transactions SET created_at = date WHERE created_at IS NULL`, function(err) {
             if (err) {
-              db.close();
               return next(err);
             }
-            
-            db.close();
             next();
           });
         });
@@ -72,29 +62,22 @@ exports.up = function (next) {
   });
 };
 
-exports.down = function (next) {
-  const db = new sqlite3.Database('../backend/database.sqlite');
-  
+exports.down = function (db, next) {
   // 回滚操作：删除所有表
   db.run('DROP TABLE IF EXISTS budgets', function(err) {
     if (err) {
-      db.close();
       return next(err);
     }
     
     db.run('DROP TABLE IF EXISTS user_preferences', function(err) {
       if (err) {
-        db.close();
         return next(err);
       }
       
       db.run('DROP TABLE IF EXISTS transactions', function(err) {
         if (err) {
-          db.close();
           return next(err);
         }
-        
-        db.close();
         next();
       });
     });

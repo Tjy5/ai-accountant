@@ -436,35 +436,85 @@ module.exports = function budgetsRouter(db) {
       );
       const totalSpent = totalSpentResult.total || 0;
 
-      // Calculate spent for each category
-      const categoryStatuses = [];
-      for (const categoryBudget of categoryBudgets) {
-        const { startStr, endStr } = getPeriodRange(categoryBudget);
-        const categorySpentResult = await db.get(
-          `SELECT SUM(t.amount) as spent
-             FROM transactions t
-             LEFT JOIN categories c
-               ON LOWER(TRIM(t.category)) = LOWER(TRIM(c.name))
-              AND c.user_id = ?
-              AND c.deleted_at IS NULL
-            WHERE t.user_id = ?
-              AND t.deleted_at IS NULL
-              AND t.type = ?
-              AND (c.id = ? OR LOWER(TRIM(t.category)) = LOWER(TRIM(?)))
-              AND DATE(t.date) >= ? AND DATE(t.date) <= ?`,
-          [userId, userId, 'expense', categoryBudget.category_id || -1, categoryBudget.category || '', startStr, endStr]
-        );
-        const categorySpent = categorySpentResult.spent || 0;
+      // Calculate spent for each category budget (avoid N+1 by grouping budgets by date range).
+      const normalizeCategoryKey = (v) => String(v || '').trim().toLowerCase();
 
-        categoryStatuses.push({
-          id: categoryBudget.id,
-          category: categoryBudget.category,
-          categoryId: categoryBudget.category_id,
-          limit: categoryBudget.monthly_limit,
-          spent: categorySpent,
-          remaining: categoryBudget.monthly_limit - categorySpent,
-          parentId: categoryBudget.parent_id
-        });
+      // Some legacy budgets may have category_id but missing/stale `category` text, so fetch names once.
+      const categoryIds = Array.from(new Set(
+        (Array.isArray(categoryBudgets) ? categoryBudgets : [])
+          .map((b) => (b && b.category_id != null ? Number(b.category_id) : null))
+          .filter((n) => Number.isInteger(n) && n > 0)
+      ));
+      const categoryNameById = new Map();
+      if (categoryIds.length > 0) {
+        const ph = categoryIds.map(() => '?').join(',');
+        const rows = await db.all(
+          `SELECT id, name FROM categories WHERE user_id = ? AND deleted_at IS NULL AND id IN (${ph})`,
+          [userId, ...categoryIds]
+        );
+        for (const r of (Array.isArray(rows) ? rows : [])) {
+          const id = Number(r.id);
+          if (!Number.isInteger(id) || id <= 0) continue;
+          const name = typeof r.name === 'string' ? r.name : '';
+          if (name) categoryNameById.set(id, name);
+        }
+      }
+
+      const budgetsByRange = new Map(); // key => { startStr, endStr, budgets: [...] }
+      for (const b of categoryBudgets) {
+        const { startStr, endStr } = getPeriodRange(b);
+        const key = `${startStr}|${endStr}`;
+        const bucket = budgetsByRange.get(key) || { startStr, endStr, budgets: [] };
+        bucket.budgets.push(b);
+        budgetsByRange.set(key, bucket);
+      }
+
+      const categoryStatuses = [];
+      for (const bucket of budgetsByRange.values()) {
+        const spentRows = await db.all(
+          `SELECT LOWER(TRIM(category)) as category_key, SUM(amount) as spent
+             FROM transactions
+            WHERE user_id = ?
+              AND deleted_at IS NULL
+              AND type = 'expense'
+              AND DATE(date) >= ? AND DATE(date) <= ?
+            GROUP BY LOWER(TRIM(category))`,
+          [userId, bucket.startStr, bucket.endStr]
+        );
+
+        const spentByKey = new Map();
+        for (const r of (Array.isArray(spentRows) ? spentRows : [])) {
+          const key = typeof r.category_key === 'string' ? r.category_key : null;
+          if (!key) continue;
+          spentByKey.set(key, Number(r.spent || 0));
+        }
+
+        for (const categoryBudget of bucket.budgets) {
+          const keys = new Set();
+          const k1 = normalizeCategoryKey(categoryBudget.category);
+          if (k1) keys.add(k1);
+          const cid = categoryBudget.category_id != null ? Number(categoryBudget.category_id) : null;
+          if (Number.isInteger(cid) && cid > 0) {
+            const nameFromId = categoryNameById.get(cid);
+            const k2 = normalizeCategoryKey(nameFromId);
+            if (k2) keys.add(k2);
+          }
+
+          let categorySpent = 0;
+          for (const k of keys) {
+            categorySpent += spentByKey.get(k) || 0;
+          }
+
+          categoryStatuses.push({
+            id: categoryBudget.id,
+            category: categoryBudget.category,
+            categoryId: categoryBudget.category_id,
+            limit: categoryBudget.monthly_limit,
+            spent: categorySpent,
+            remaining: categoryBudget.monthly_limit - categorySpent,
+            parentId: categoryBudget.parent_id
+          });
+        }
       }
 
       // Return structured response

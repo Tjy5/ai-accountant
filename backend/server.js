@@ -9,6 +9,21 @@ process.env.DOTENV_CONFIG_SILENT = 'true';
 // 加载环境变量
 require('dotenv').config();
 
+// Production safety checks (fail fast instead of running with insecure defaults)
+if (process.env.NODE_ENV === 'production') {
+  const jwtSecret = typeof process.env.JWT_SECRET === 'string' ? process.env.JWT_SECRET.trim() : '';
+  if (!jwtSecret) {
+    console.error('❌ Missing required env: JWT_SECRET (required in production)');
+    process.exit(1);
+  }
+
+  const encryptionKey = typeof process.env.ENCRYPTION_KEY === 'string' ? process.env.ENCRYPTION_KEY.trim() : '';
+  if (!encryptionKey) {
+    console.error('❌ Missing required env: ENCRYPTION_KEY (required in production)');
+    process.exit(1);
+  }
+}
+
 const app = express();
 const errorHandler = require('./middleware/errorHandler');
 const authMiddleware = require('./middleware/auth');
@@ -52,12 +67,6 @@ app.use(express.urlencoded({ extended: true, limit: jsonLimit }));
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 1000 });
 app.use(limiter);
 
-// 设置响应头编码
-app.use((req, res, next) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  next();
-});
-
 let db;
 // 初始化数据库并运行迁移
 (async () => {
@@ -66,6 +75,12 @@ let db;
       filename: process.env.DATABASE_FILE || './database.sqlite',
       driver: sqlite3.Database
     });
+
+    // SQLite connection PRAGMA (explicit, so behavior is consistent across environments)
+    try { await db.exec('PRAGMA foreign_keys = ON;'); } catch {}
+    try { await db.exec('PRAGMA journal_mode = WAL;'); } catch {}
+    try { await db.exec('PRAGMA synchronous = NORMAL;'); } catch {}
+    try { await db.exec('PRAGMA busy_timeout = 5000;'); } catch {}
 
     // 检查是否需要运行数据库迁移
     const { exec } = require('child_process');

@@ -3,12 +3,16 @@
 const jwt = require('jsonwebtoken');
 
 function getJwtSecret() {
-  const secret = process.env.JWT_SECRET || 'fallback_secret_for_dev_123456_do_not_use_in_prod';
-  // 移除严格长度检查，或者保留但使用足够长的默认值
-  if (!secret) {
-    throw new Error('JWT_SECRET is not set.');
+  const raw = process.env.JWT_SECRET;
+  const secret = typeof raw === 'string' ? raw.trim() : '';
+  if (secret) return secret;
+
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isProd) {
+    throw new Error('JWT_SECRET is required in production.');
   }
-  return secret;
+
+  return 'fallback_secret_for_dev_123456_do_not_use_in_prod';
 }
 
 function signToken(user, options = {}) {

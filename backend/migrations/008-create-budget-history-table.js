@@ -1,11 +1,6 @@
 'use strict'
 
-// 使用 sqlite3 直接操作数据库
-const sqlite3 = require('sqlite3');
-
-exports.up = function (next) {
-  const db = new sqlite3.Database('../backend/database.sqlite');
-
+exports.up = function (db, next) {
   db.serialize(() => {
     // 创建预算历史表
     const createTableSQL = `
@@ -24,7 +19,6 @@ exports.up = function (next) {
     db.run(createTableSQL, function(err) {
       if (err) {
         console.error('创建预算历史表失败:', err);
-        db.close();
         next(err);
         return;
       }
@@ -46,7 +40,6 @@ exports.up = function (next) {
             console.log('✅ 预算历史表时间索引创建成功');
           }
 
-          db.close();
           next();
         });
       });
@@ -54,21 +47,17 @@ exports.up = function (next) {
   });
 };
 
-exports.down = function (next) {
-  const db = new sqlite3.Database('../backend/database.sqlite');
-
+exports.down = function (db, next) {
   db.serialize(() => {
     // 删除预算历史表
     db.run('DROP TABLE IF EXISTS budget_history', function(err) {
       if (err) {
         console.error('删除预算历史表失败:', err);
-        db.close();
         next(err);
         return;
       }
 
       console.log('✅ 预算历史表删除成功');
-      db.close();
       next();
     });
   });

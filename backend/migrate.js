@@ -2,10 +2,26 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const sqlite3 = require('sqlite3');
 
-const dbFile = path.resolve(__dirname, 'database.sqlite');
-const stateFile = path.resolve(__dirname, '.migrate');
+function resolveDbFile(filename) {
+  if (!filename) return path.resolve(__dirname, 'database.sqlite');
+  if (filename === ':memory:') return filename;
+  if (path.isAbsolute(filename)) return filename;
+  return path.resolve(__dirname, filename);
+}
+
+const defaultDbFile = path.resolve(__dirname, 'database.sqlite');
+const dbFile = resolveDbFile(process.env.DATABASE_FILE);
+
+function makeStateFile(dbPath) {
+  if (dbPath === defaultDbFile) return path.resolve(__dirname, '.migrate');
+  const digest = crypto.createHash('sha256').update(dbPath).digest('hex').slice(0, 12);
+  return path.resolve(__dirname, `.migrate.${digest}`);
+}
+
+const stateFile = makeStateFile(dbFile);
 
 function loadState() {
   if (!fs.existsSync(stateFile)) {

@@ -1,11 +1,6 @@
 'use strict';
 
-const path = require('path');
-const sqlite3 = require('sqlite3');
-
-exports.up = function (next) {
-  const dbPath = path.resolve(__dirname, '../database.sqlite');
-  const db = new sqlite3.Database(dbPath);
+exports.up = function (db, next) {
 
   const run = (sql, params = []) =>
     new Promise((resolve, reject) => {
@@ -87,18 +82,16 @@ exports.up = function (next) {
       console.log('✅ 索引创建成功');
 
       await safeRun('PRAGMA foreign_keys = ON');
-      db.close();
       console.log('✅ 数据库迁移 010 完成');
       next();
     } catch (err) {
       console.error('❌ 迁移失败:', err);
-      db.close();
       next(err);
     }
   })();
 };
 
-exports.down = function (next) {
+exports.down = function (db, next) {
   console.log('⚠️ SQLite 不支持删除列，需要手动回滚');
   next();
 };
