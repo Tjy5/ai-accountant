@@ -14,8 +14,6 @@
   "dependencies": {
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
-    "chinese-numbers-to-arabic": "^2.0.0",
-    "chrono-node": "^2.8.4",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
@@ -23,11 +21,8 @@
     "express-rate-limit": "^8.0.1",
     "form-data": "^4.0.5",
     "jsonwebtoken": "^9.0.3",
-    "migrate": "^2.1.0",
     "morgan": "^1.10.1",
-    "multer": "^2.0.2",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
-    "xlsx": "^0.18.5"
+    "sqlite3": "^5.1.7"
   }
 }
