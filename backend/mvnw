@@ -1,0 +1,41 @@
+#!/bin/sh
+
+set -eu
+
+BASE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+WRAPPER_PROPERTIES="$BASE_DIR/.mvn/wrapper/maven-wrapper.properties"
+
+if [ ! -f "$WRAPPER_PROPERTIES" ]; then
+  echo "Missing Maven wrapper properties: $WRAPPER_PROPERTIES" >&2
+  exit 1
+fi
+
+DIST_URL=$(sed -n 's/^distributionUrl=//p' "$WRAPPER_PROPERTIES" | tail -n 1)
+if [ -z "$DIST_URL" ]; then
+  echo "distributionUrl is not set in $WRAPPER_PROPERTIES" >&2
+  exit 1
+fi
+
+DIST_FILE=${DIST_URL##*/}
+MAVEN_DIR=${DIST_FILE%-bin.zip}
+MAVEN_USER_HOME=${MAVEN_USER_HOME:-"$HOME/.m2"}
+CACHE_DIR="$MAVEN_USER_HOME/wrapper/dists/ai-accountant-backend"
+ZIP_FILE="$CACHE_DIR/$DIST_FILE"
+MAVEN_HOME="$CACHE_DIR/$MAVEN_DIR"
+
+if [ ! -x "$MAVEN_HOME/bin/mvn" ]; then
+  mkdir -p "$CACHE_DIR"
+  if [ ! -f "$ZIP_FILE" ]; then
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL "$DIST_URL" -o "$ZIP_FILE"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -q "$DIST_URL" -O "$ZIP_FILE"
+    else
+      echo "curl or wget is required to download Maven" >&2
+      exit 1
+    fi
+  fi
+  unzip -oq "$ZIP_FILE" -d "$CACHE_DIR"
+fi
+
+exec "$MAVEN_HOME/bin/mvn" "$@"
