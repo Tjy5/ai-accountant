@@ -1,0 +1,40 @@
+server:
+  port: ${SERVER_PORT:3002}
+
+spring:
+  application:
+    name: ai-accountant-backend
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/ai_accountant?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USER:ai_accountant}
+    password: ${MYSQL_PASSWORD:ai_accountant}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: never
+  jackson:
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deletedAt
+      logic-delete-value: now()
+      logic-not-delete-value: "null"
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173}
+  jwt:
+    secret: ${JWT_SECRET:fallback_secret_for_dev_123456_do_not_use_in_prod}
+    expires-in: ${JWT_EXPIRES_IN:30d}
+  ai:
+    enabled: ${AI_ENABLED:true}
+    api-key: ${AI_API_KEY:}
+    base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+    model: ${AI_MODEL:gpt-4o-mini}
+    base-url-allowlist: ${AI_BASE_URL_ALLOWLIST:}
