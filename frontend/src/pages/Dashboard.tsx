@@ -49,6 +49,20 @@ interface TransactionData {
   icon: string;
 }
 
+type RawDashboardTransaction = {
+  id?: string | number;
+  type?: string;
+  category?: string;
+  amount?: number | string;
+  description?: string;
+  date?: string;
+};
+
+type RawCategoryShare = {
+  category?: string;
+  total?: number | string;
+};
+
 const DONUT_COLORS = ['#FF8C94', '#64B5F6', '#FFD54F', '#BA68C8', '#A1887F'];
 const NOTE_BACKGROUNDS = [
   'bg-[#FFD1DC]', // macaron pink
@@ -135,22 +149,14 @@ export const Dashboard = () => {
   const [textInput, setTextInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [draftDrawerDismissed, setDraftDrawerDismissed] = useState(false);
+  const drawerOpen = drafts.length > 0 && !draftDrawerDismissed;
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<DraftTransaction>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    // Open drawer automatically when drafts populate
-    if (drafts.length > 0) {
-      setDrawerOpen(true);
-    } else {
-      setDrawerOpen(false);
-    }
-  }, [drafts]);
 
   // Fetch Dashboard Stats from Backend (if live)
   useEffect(() => {
@@ -175,14 +181,17 @@ export const Dashboard = () => {
         });
 
         // Transactions list mapping
-        if (summaryRes.data.recentTransactions && summaryRes.data.recentTransactions.length > 0) {
-          const list = summaryRes.data.recentTransactions.slice(0, 5).map((t: any, idx: number) => {
+        const recentRows: RawDashboardTransaction[] = Array.isArray(summaryRes.data?.recentTransactions)
+          ? summaryRes.data.recentTransactions
+          : [];
+        if (recentRows.length > 0) {
+          const list = recentRows.slice(0, 5).map((t, idx) => {
             const mapped = {
               id: t.id || idx,
-              type: t.type,
-              category: t.category,
+              type: t.type || 'expense',
+              category: t.category || 'Other',
               amount: Number(t.amount),
-              description: t.description || t.category,
+              description: t.description || t.category || 'Transaction',
               date: formatTransactionDate(t.date),
               icon: ''
             };
@@ -196,13 +205,16 @@ export const Dashboard = () => {
         }
 
         // Charts data mapping
-        if (chartsRes.data.categoryShare && chartsRes.data.categoryShare.length > 0) {
-          const totalVal = chartsRes.data.categoryShare.reduce((sum: number, c: any) => sum + Number(c.total || 0), 0);
-          const mapped = chartsRes.data.categoryShare.slice(0, 5).map((item: any, i: number) => {
+        const categoryShare: RawCategoryShare[] = Array.isArray(chartsRes.data?.categoryShare)
+          ? chartsRes.data.categoryShare
+          : [];
+        if (categoryShare.length > 0) {
+          const totalVal = categoryShare.reduce((sum, c) => sum + Number(c.total || 0), 0);
+          const mapped = categoryShare.slice(0, 5).map((item, i) => {
             const amt = Number(item.total);
             const pct = totalVal > 0 ? Math.round((amt / totalVal) * 100) : 0;
             return {
-              name: item.category,
+              name: item.category || 'Other',
               value: amt,
               percentage: pct,
               amount: amt,
@@ -225,6 +237,7 @@ export const Dashboard = () => {
     try {
       const response = await api.post('/ai/analyze', { text: textInput });
       addDrafts(response.data.drafts || []);
+      setDraftDrawerDismissed(false);
       setTextInput('');
     } catch {
       console.warn('Backend not available, adding mockup draft card');
@@ -237,6 +250,7 @@ export const Dashboard = () => {
         type: 'expense'
       };
       addDrafts([mockDraft]);
+      setDraftDrawerDismissed(false);
       setTextInput('');
     } finally {
       setLoading(false);
@@ -253,6 +267,7 @@ export const Dashboard = () => {
       try {
         const response = await api.post('/ai/analyze-image', { image: base64, text: file.name });
         addDrafts(response.data.drafts || []);
+        setDraftDrawerDismissed(false);
       } catch {
         console.warn('Backend not available, adding receipt scan draft card');
         const mockDraft: DraftTransaction = {
@@ -264,6 +279,7 @@ export const Dashboard = () => {
           type: 'expense'
         };
         addDrafts([mockDraft]);
+        setDraftDrawerDismissed(false);
       } finally {
         setUploading(false);
       }
@@ -452,7 +468,7 @@ export const Dashboard = () => {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: any) => [`$${value}`, 'Category Total']}
+                    formatter={(value) => [`$${value ?? ''}`, 'Category Total']}
                     contentStyle={{
                       borderRadius: '15px',
                       border: '1px solid #EFE2D8',
@@ -734,7 +750,7 @@ export const Dashboard = () => {
                   Save All to Ledger ✨
                 </button>
                 <button
-                  onClick={() => setDrawerOpen(false)}
+                  onClick={() => setDraftDrawerDismissed(true)}
                   className="p-1.5 border border-[#EFE2D8] rounded-full hover:bg-gray-100 cursor-pointer"
                 >
                   <X size={16} strokeWidth={3} />

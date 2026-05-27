@@ -11,8 +11,10 @@ const Register = lazy(() => import('./pages/Register').then((module) => ({ defau
 const Dashboard = lazy(() => import('./pages/Dashboard').then((module) => ({ default: module.Dashboard })));
 const Transactions = lazy(() => import('./pages/Transactions').then((module) => ({ default: module.Transactions })));
 const Categories = lazy(() => import('./pages/Categories').then((module) => ({ default: module.Categories })));
+const Goals = lazy(() => import('./pages/Goals').then((module) => ({ default: module.Goals })));
 const Budgets = lazy(() => import('./pages/Budgets').then((module) => ({ default: module.Budgets })));
-const Placeholder = lazy(() => import('./pages/Placeholder').then((module) => ({ default: module.Placeholder })));
+const Reports = lazy(() => import('./pages/Reports').then((module) => ({ default: module.Reports })));
+const Settings = lazy(() => import('./pages/Settings').then((module) => ({ default: module.Settings })));
 
 const RouteFallback = () => (
   <div className="min-h-screen bg-cute-bg flex items-center justify-center text-[#4E3629] font-black">
@@ -73,7 +75,7 @@ function App() {
             path="/goals"
             element={
               <ProtectedRoute>
-                <Placeholder title="Goals" />
+                <Goals />
               </ProtectedRoute>
             }
           />
@@ -89,7 +91,7 @@ function App() {
             path="/reports"
             element={
               <ProtectedRoute>
-                <Placeholder title="Reports" />
+                <Reports />
               </ProtectedRoute>
             }
           />
@@ -97,7 +99,7 @@ function App() {
             path="/settings"
             element={
               <ProtectedRoute>
-                <Placeholder title="Settings" />
+                <Settings />
               </ProtectedRoute>
             }
           />

@@ -28,6 +28,6 @@ public interface BudgetMapper extends BaseMapper<Budget> {
         @Param("id") Long id
     );
 
-    @Update("UPDATE budgets SET deleted_at = #{deletedAt}, updated_at = #{deletedAt} WHERE id = #{id} AND user_id = #{userId} AND deleted_at IS NULL")
+    @Update("UPDATE budgets SET deleted_at = #{deletedAt}, updated_at = #{deletedAt}, active_key = CONCAT('DELETED-', id) WHERE id = #{id} AND user_id = #{userId} AND deleted_at IS NULL")
     int softDeleteByIdAndUser(@Param("id") Long id, @Param("userId") Long userId, @Param("deletedAt") LocalDateTime deletedAt);
 }
