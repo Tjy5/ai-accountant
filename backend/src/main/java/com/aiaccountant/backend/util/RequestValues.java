@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import org.springframework.util.MultiValueMap;
 
 public final class RequestValues {
     private RequestValues() {
@@ -25,33 +26,62 @@ public final class RequestValues {
         return null;
     }
 
+    public static String firstQuery(MultiValueMap<String, String> query, String... keys) {
+        if (query == null) return null;
+        for (String key : keys) {
+            String value = query.getFirst(key);
+            if (value != null) return value;
+        }
+        return null;
+    }
+
+    public static String trimQuery(MultiValueMap<String, String> query, String... keys) {
+        if (query == null) return null;
+        for (String key : keys) {
+            String value = trimToNull(query.getFirst(key));
+            if (value != null) return value;
+        }
+        return null;
+    }
+
+    public static boolean hasAny(Map<String, Object> body, String... keys) {
+        if (body == null) return false;
+        for (String key : keys) {
+            if (body.containsKey(key)) return true;
+        }
+        return false;
+    }
+
     public static String trimToNull(Object value) {
         String s = value == null ? "" : String.valueOf(value).trim();
         return s.isEmpty() ? null : s;
     }
 
     public static BigDecimal decimal(Object value) {
-        if (value == null || String.valueOf(value).isBlank()) return null;
+        String raw = trimToNull(value);
+        if (raw == null) return null;
         try {
-            return new BigDecimal(String.valueOf(value));
+            return new BigDecimal(raw);
         } catch (NumberFormatException ex) {
             return null;
         }
     }
 
     public static Integer integer(Object value) {
-        if (value == null || String.valueOf(value).isBlank()) return null;
+        String raw = trimToNull(value);
+        if (raw == null) return null;
         try {
-            return Integer.valueOf(String.valueOf(value));
+            return Integer.valueOf(raw);
         } catch (NumberFormatException ex) {
             return null;
         }
     }
 
     public static Long longValue(Object value) {
-        if (value == null || String.valueOf(value).isBlank()) return null;
+        String raw = trimToNull(value);
+        if (raw == null) return null;
         try {
-            return Long.valueOf(String.valueOf(value));
+            return Long.valueOf(raw);
         } catch (NumberFormatException ex) {
             return null;
         }
@@ -60,8 +90,8 @@ public final class RequestValues {
     public static boolean bool(Object value) {
         if (value instanceof Boolean b) return b;
         if (value instanceof Number n) return n.intValue() != 0;
-        String s = value == null ? "" : String.valueOf(value).trim().toLowerCase();
-        return s.equals("1") || s.equals("true") || s.equals("yes") || s.equals("on");
+        String raw = value == null ? "" : String.valueOf(value).trim().toLowerCase();
+        return raw.equals("1") || raw.equals("true") || raw.equals("yes") || raw.equals("on");
     }
 
     public static LocalDateTime dateTime(Object value) {

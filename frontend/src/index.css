@@ -46,9 +46,6 @@
   }
 }
 
-/* Custom Cute & Cozy Styles */
-
-/* Cute sticky note page curl effect */
 .cute-sticky-card {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%);
   position: relative;
@@ -67,25 +64,26 @@
   border-top: 3px solid var(--color-warm-brown);
 }
 
-/* Custom scrollbars for cozy feel */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: #FAF8F5;
   border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #FFD1DC;
   border: 2px solid #FAF8F5;
   border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #FFB87A;
 }
 
-/* Slide up animation for Cozy Sticker Drawer */
 @keyframes slideUp {
   from {
     transform: translateY(100%);
@@ -99,8 +97,6 @@
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Dashboard width behavior: keep normal desktop at 12 columns, only use
-   the companion rail on truly wide screens. */
 .dashboard-wide-grid {
   grid-template-columns: 1fr;
 }

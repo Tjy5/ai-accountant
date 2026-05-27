@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   CalendarDays,
@@ -19,6 +19,8 @@ import {
 import api from '../api/axiosInstance';
 import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
+import { money, normalizeDateInput, readableInputDate, todayInput } from '../utils/formatters';
+import { asRecord, asRecordArray, toNumber, type RawRecord } from '../utils/records';
 
 type TransactionType = 'income' | 'expense';
 
@@ -55,14 +57,20 @@ interface TransactionFormState {
   date: string;
 }
 
-type RawTransaction = {
-  id?: string | number;
-  type?: string;
-  category?: string;
-  amount?: number | string;
-  description?: string;
-  date?: string;
-};
+interface TransactionFilters {
+  type: 'all' | TransactionType;
+  category: string;
+  search: string;
+  startDate: string;
+  endDate: string;
+  page: number;
+}
+
+interface TransactionListState {
+  rows: TransactionItem[];
+  totals: TotalsState;
+  pagination: PaginationState;
+}
 
 const PAGE_SIZE = 8;
 
@@ -91,36 +99,11 @@ const DEFAULT_CATEGORIES = [
   '其他',
 ];
 
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const todayInput = () => new Date().toISOString().slice(0, 10);
-
-const normalizeDateInput = (date?: string) => {
-  const raw = date || todayInput();
-  const match = raw.match(/^\d{4}-\d{2}-\d{2}/);
-  return match ? match[0] : todayInput();
-};
-
-const readableDate = (date?: string) => {
-  const value = normalizeDateInput(date);
-  const [year, month, day] = value.split('-').map(Number);
-  return new Date(year, month - 1, day).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
-
-const normalizeTransaction = (raw: RawTransaction, index: number): TransactionItem => ({
+const normalizeTransaction = (raw: RawRecord, index: number): TransactionItem => ({
   id: String(raw?.id ?? `local-${index}`),
   type: raw?.type === 'income' ? 'income' : 'expense',
   category: String(raw?.category || 'Other'),
-  amount: Number(raw?.amount || 0),
+  amount: toNumber(raw?.amount),
   description: String(raw?.description || raw?.category || 'Untitled transaction'),
   date: String(raw?.date || todayInput()),
 });
@@ -152,32 +135,62 @@ const accountLabel = (transaction: TransactionItem) => {
 };
 
 const computeTotals = (transactions: TransactionItem[]): TotalsState => {
-  const income = transactions
-    .filter((transaction) => transaction.type === 'income')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const expense = transactions
-    .filter((transaction) => transaction.type === 'expense')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totals = transactions.reduce(
+    (next, transaction) => {
+      if (transaction.type === 'income') {
+        next.income += transaction.amount;
+      } else {
+        next.expense += transaction.amount;
+      }
+      return next;
+    },
+    { income: 0, expense: 0 },
+  );
 
   return {
-    income,
-    expense,
-    net: income - expense,
+    income: totals.income,
+    expense: totals.expense,
+    net: totals.income - totals.expense,
     count: transactions.length,
   };
 };
 
-const applyLocalFilters = (
-  transactions: TransactionItem[],
-  filters: {
-    type: string;
-    category: string;
-    search: string;
-    startDate: string;
-    endDate: string;
-    page: number;
-  },
-) => {
+const transactionParams = (filters: TransactionFilters, page = filters.page) => ({
+  page,
+  pageSize: PAGE_SIZE,
+  ...(filters.search ? { search: filters.search } : {}),
+  ...(filters.type !== 'all' ? { type: filters.type } : {}),
+  ...(filters.category !== 'all' ? { category: filters.category } : {}),
+  ...(filters.startDate ? { startDate: filters.startDate } : {}),
+  ...(filters.endDate ? { endDate: filters.endDate } : {}),
+});
+
+const normalizeTransactionResponse = (data: unknown, fallbackPage: number): TransactionListState => {
+  const source = asRecord(data);
+  const rows = asRecordArray(source.transactions).map(normalizeTransaction);
+  const totals = asRecord(source.totals);
+  const pagination = asRecord(source.pagination);
+
+  return {
+    rows,
+    totals: {
+      income: toNumber(totals.income),
+      expense: toNumber(totals.expense),
+      net: toNumber(totals.net),
+      count: toNumber(totals.count, rows.length),
+    },
+    pagination: {
+      page: toNumber(pagination.page, fallbackPage),
+      pageSize: toNumber(pagination.pageSize, PAGE_SIZE),
+      total: toNumber(pagination.total, rows.length),
+      totalPages: toNumber(pagination.totalPages),
+      hasNext: Boolean(pagination.hasNext),
+      hasPrevious: Boolean(pagination.hasPrevious),
+    },
+  };
+};
+
+const applyLocalFilters = (transactions: TransactionItem[], filters: TransactionFilters): TransactionListState => {
   const filtered = transactions
     .filter((transaction) => filters.type === 'all' || transaction.type === filters.type)
     .filter((transaction) => filters.category === 'all' || transaction.category === filters.category)
@@ -243,6 +256,15 @@ export const Transactions = () => {
     description: '',
     date: todayInput(),
   });
+  const filters = useMemo<TransactionFilters>(
+    () => ({ type: typeFilter, category: categoryFilter, search, startDate, endDate, page }),
+    [categoryFilter, endDate, page, search, startDate, typeFilter],
+  );
+  const applyListState = useCallback((state: TransactionListState) => {
+    setTransactions(state.rows);
+    setTotals(state.totals);
+    setPagination(state.pagination);
+  }, []);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -260,50 +282,14 @@ export const Transactions = () => {
       setLoading(true);
       setError(null);
 
-      const params: Record<string, string | number> = {
-        page,
-        pageSize: PAGE_SIZE,
-      };
-      if (search) params.search = search;
-      if (typeFilter !== 'all') params.type = typeFilter;
-      if (categoryFilter !== 'all') params.category = categoryFilter;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-
       try {
-        const response = await api.get('/transactions', { params });
+        const response = await api.get('/transactions', { params: transactionParams(filters) });
         if (!alive) return;
-        const rawTransactions: RawTransaction[] = Array.isArray(response.data?.transactions) ? response.data.transactions : [];
-        const rows = rawTransactions.map(normalizeTransaction);
-        setTransactions(rows);
-        setTotals({
-          income: Number(response.data?.totals?.income || 0),
-          expense: Number(response.data?.totals?.expense || 0),
-          net: Number(response.data?.totals?.net || 0),
-          count: Number(response.data?.totals?.count || rows.length),
-        });
-        setPagination({
-          page: Number(response.data?.pagination?.page || page),
-          pageSize: Number(response.data?.pagination?.pageSize || PAGE_SIZE),
-          total: Number(response.data?.pagination?.total || rows.length),
-          totalPages: Number(response.data?.pagination?.totalPages || 0),
-          hasNext: Boolean(response.data?.pagination?.hasNext),
-          hasPrevious: Boolean(response.data?.pagination?.hasPrevious),
-        });
+        applyListState(normalizeTransactionResponse(response.data, filters.page));
         setOfflineMode(false);
       } catch {
         if (!alive) return;
-        const local = applyLocalFilters(offlineRows, {
-          type: typeFilter,
-          category: categoryFilter,
-          search,
-          startDate,
-          endDate,
-          page,
-        });
-        setTransactions(local.rows);
-        setTotals(local.totals);
-        setPagination(local.pagination);
+        applyListState(applyLocalFilters(offlineRows, filters));
         setOfflineMode(true);
         setError(null);
       } finally {
@@ -315,7 +301,7 @@ export const Transactions = () => {
     return () => {
       alive = false;
     };
-  }, [categoryFilter, endDate, offlineRows, page, search, startDate, typeFilter]);
+  }, [applyListState, filters, offlineRows]);
 
   const categoryOptions = useMemo(() => {
     const values = new Set([...DEFAULT_CATEGORIES, ...offlineRows.map((transaction) => transaction.category), ...transactions.map((transaction) => transaction.category)]);
@@ -323,9 +309,9 @@ export const Transactions = () => {
   }, [offlineRows, transactions]);
 
   const dateLabel = useMemo(() => {
-    if (startDate && endDate) return `${readableDate(startDate)} - ${readableDate(endDate)}`;
-    if (startDate) return `From ${readableDate(startDate)}`;
-    if (endDate) return `Until ${readableDate(endDate)}`;
+    if (startDate && endDate) return `${readableInputDate(startDate)} - ${readableInputDate(endDate)}`;
+    if (startDate) return `From ${readableInputDate(startDate)}`;
+    if (endDate) return `Until ${readableInputDate(endDate)}`;
     return 'All Dates';
   }, [endDate, startDate]);
 
@@ -355,19 +341,10 @@ export const Transactions = () => {
     setDrawerOpen(true);
   };
 
-  const refreshLocalRows = (nextRows: TransactionItem[]) => {
-    const local = applyLocalFilters(nextRows, {
-      type: typeFilter,
-      category: categoryFilter,
-      search,
-      startDate,
-      endDate,
-      page,
-    });
-    setTransactions(local.rows);
-    setTotals(local.totals);
-    setPagination(local.pagination);
-  };
+  const refreshLocalRows = useCallback(
+    (nextRows: TransactionItem[]) => applyListState(applyLocalFilters(nextRows, filters)),
+    [applyListState, filters],
+  );
 
   const handleSave = async () => {
     const amount = Number(form.amount);
@@ -412,33 +389,9 @@ export const Transactions = () => {
       if (!offlineMode) {
         setPage(1);
         const response = await api.get('/transactions', {
-          params: {
-            page: 1,
-            pageSize: PAGE_SIZE,
-            ...(search ? { search } : {}),
-            ...(typeFilter !== 'all' ? { type: typeFilter } : {}),
-            ...(categoryFilter !== 'all' ? { category: categoryFilter } : {}),
-            ...(startDate ? { startDate } : {}),
-            ...(endDate ? { endDate } : {}),
-          },
+          params: transactionParams(filters, 1),
         });
-        const rawTransactions: RawTransaction[] = Array.isArray(response.data?.transactions) ? response.data.transactions : [];
-        const rows = rawTransactions.map(normalizeTransaction);
-        setTransactions(rows);
-        setTotals({
-          income: Number(response.data?.totals?.income || 0),
-          expense: Number(response.data?.totals?.expense || 0),
-          net: Number(response.data?.totals?.net || 0),
-          count: Number(response.data?.totals?.count || rows.length),
-        });
-        setPagination({
-          page: Number(response.data?.pagination?.page || 1),
-          pageSize: Number(response.data?.pagination?.pageSize || PAGE_SIZE),
-          total: Number(response.data?.pagination?.total || rows.length),
-          totalPages: Number(response.data?.pagination?.totalPages || 0),
-          hasNext: Boolean(response.data?.pagination?.hasNext),
-          hasPrevious: Boolean(response.data?.pagination?.hasPrevious),
-        });
+        applyListState(normalizeTransactionResponse(response.data, 1));
       }
     } catch {
       setFormError('Could not save this transaction.');
@@ -689,7 +642,7 @@ export const Transactions = () => {
                       <td className="py-4">
                         <span className="block h-5 w-5 rounded-[6px] border-2 border-[#C8D0D8] bg-white" />
                       </td>
-                      <td className="py-4 text-[#536073]">{readableDate(transaction.date)}</td>
+                      <td className="py-4 text-[#536073]">{readableInputDate(transaction.date)}</td>
                       <td className="py-4">
                         <div className="flex min-w-0 items-center gap-3">
                           <span

@@ -13,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,32 +21,6 @@ import org.springframework.util.MultiValueMap;
 @Service
 public class CategoryService {
     private static final Set<String> VALID_TYPES = Set.of("income", "expense", "both");
-    private static final Set<String> ICONS = Set.of(
-        "utensils",
-        "bus",
-        "shopping-bag",
-        "gamepad",
-        "receipt",
-        "heart-pulse",
-        "wallet",
-        "briefcase",
-        "gift",
-        "sparkles",
-        "tag",
-        "more-horizontal"
-    );
-    private static final Set<String> COLORS = Set.of(
-        "#FF8C94",
-        "#64B5F6",
-        "#FFD54F",
-        "#BA68C8",
-        "#7ACB9C",
-        "#FFB87A",
-        "#A1887F",
-        "#4DB6AC",
-        "#F27C8B",
-        "#8C9EFF"
-    );
 
     private final CategoryMapper categoryMapper;
     private final TransactionMapper transactionMapper;
@@ -224,7 +197,7 @@ public class CategoryService {
             }
         }
 
-        if (!partial || hasAny(body, "name")) {
+        if (!partial || RequestValues.hasAny(body, "name")) {
             String name = RequestValues.trimToNull(RequestValues.first(body, "name"));
             if (name == null) throw new ApiException(HttpStatus.BAD_REQUEST, "category name is required");
             if (name.length() > 120) throw new ApiException(HttpStatus.BAD_REQUEST, "category name is too long");
@@ -235,23 +208,23 @@ public class CategoryService {
             category.setName(name);
         }
 
-        if (!partial || hasAny(body, "type")) {
+        if (!partial || RequestValues.hasAny(body, "type")) {
             String type = RequestValues.trimToNull(RequestValues.first(body, "type"));
             if (type == null || !VALID_TYPES.contains(type)) throw new ApiException(HttpStatus.BAD_REQUEST, "invalid category type");
             category.setType(type);
         }
 
-        if (!partial || hasAny(body, "icon")) {
+        if (!partial || RequestValues.hasAny(body, "icon")) {
             String icon = RequestValues.trimToNull(RequestValues.first(body, "icon"));
-            category.setIcon(icon == null || !ICONS.contains(icon) ? "tag" : icon);
+            category.setIcon(icon == null || !PresentationOptions.FINANCE_ICONS.contains(icon) ? "tag" : icon);
         }
 
-        if (!partial || hasAny(body, "color")) {
+        if (!partial || RequestValues.hasAny(body, "color")) {
             String color = RequestValues.trimToNull(RequestValues.first(body, "color"));
-            category.setColor(color == null || !COLORS.contains(color) ? "#FF8C94" : color);
+            category.setColor(color == null || !PresentationOptions.COLORS.contains(color) ? "#FF8C94" : color);
         }
 
-        if (!partial || hasAny(body, "description")) {
+        if (!partial || RequestValues.hasAny(body, "description")) {
             String description = RequestValues.trimToNull(RequestValues.first(body, "description"));
             if (description != null && description.length() > 500) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "category description is too long");
@@ -293,27 +266,13 @@ public class CategoryService {
     }
 
     private QueryFilters parseFilters(MultiValueMap<String, String> query) {
-        String type = trimQuery(query, "type");
+        String type = RequestValues.trimQuery(query, "type");
         if (type != null && !"all".equalsIgnoreCase(type)) {
             if (!VALID_TYPES.contains(type)) throw new ApiException(HttpStatus.BAD_REQUEST, "invalid category type");
         } else {
             type = null;
         }
-        return new QueryFilters(type, trimQuery(query, "search", "q", "keyword"));
-    }
-
-    private String trimQuery(MultiValueMap<String, String> query, String... keys) {
-        if (query == null) return null;
-        for (String key : keys) {
-            String value = RequestValues.trimToNull(query.getFirst(key));
-            if (value != null) return value;
-        }
-        return null;
-    }
-
-    private boolean hasAny(Map<String, Object> body, String... keys) {
-        if (body == null) return false;
-        return Stream.of(keys).anyMatch(body::containsKey);
+        return new QueryFilters(type, RequestValues.trimQuery(query, "search", "q", "keyword"));
     }
 
     private int typeRank(String type) {

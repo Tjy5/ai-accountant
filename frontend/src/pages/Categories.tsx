@@ -27,6 +27,9 @@ import {
 import api from '../api/axiosInstance';
 import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
+import { COLORS, fallbackColor, type ColorName } from '../constants/palette';
+import { money } from '../utils/formatters';
+import { asRecord, asRecordArray, toNumber, type RawRecord } from '../utils/records';
 
 type CategoryType = 'income' | 'expense' | 'both';
 type CategoryFilter = 'all' | CategoryType;
@@ -65,26 +68,10 @@ interface CategoryStats {
   trackedSpend: number;
 }
 
-type RawCategory = {
-  id?: string | number;
-  name?: string;
-  type?: string;
-  icon?: string;
-  color?: string;
-  description?: string;
-  is_default?: boolean;
-  isDefault?: boolean;
-  usage_count?: number | string;
-  usageCount?: number | string;
-  transaction_count?: number | string;
-  transactionCount?: number | string;
-  income_total?: number | string;
-  incomeTotal?: number | string;
-  expense_total?: number | string;
-  expenseTotal?: number | string;
-  total_amount?: number | string;
-  totalAmount?: number | string;
-};
+interface CategoryFilters {
+  type: CategoryFilter;
+  search: string;
+}
 
 const ICONS = {
   utensils: Utensils,
@@ -117,21 +104,6 @@ const ICON_OPTIONS: IconName[] = [
   'tag',
   'more-horizontal',
 ];
-
-const COLORS = [
-  '#FF8C94',
-  '#64B5F6',
-  '#FFD54F',
-  '#BA68C8',
-  '#7ACB9C',
-  '#FFB87A',
-  '#A1887F',
-  '#4DB6AC',
-  '#F27C8B',
-  '#8C9EFF',
-] as const;
-
-type ColorName = (typeof COLORS)[number];
 
 const SAMPLE_CATEGORIES: CategoryItem[] = [
   {
@@ -234,32 +206,25 @@ const SAMPLE_CATEGORIES: CategoryItem[] = [
   },
 ];
 
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+const fallbackIcon = (value: unknown): IconName =>
+  typeof value === 'string' && value in ICONS ? (value as IconName) : 'tag';
 
-const fallbackColor = (value?: string): ColorName => (COLORS.includes(value as ColorName) ? (value as ColorName) : '#FF8C94');
-const fallbackIcon = (value?: string): IconName => (value && value in ICONS ? (value as IconName) : 'tag');
-
-const normalizeCategory = (raw: RawCategory, index: number): CategoryItem => {
-  const transactionCount = Number(raw?.transaction_count ?? raw?.transactionCount ?? raw?.usage_count ?? raw?.usageCount ?? 0);
-  const incomeTotal = Number(raw?.income_total ?? raw?.incomeTotal ?? 0);
-  const expenseTotal = Number(raw?.expense_total ?? raw?.expenseTotal ?? 0);
-  const totalAmount = Number(raw?.total_amount ?? raw?.totalAmount ?? incomeTotal + expenseTotal);
-  const type = raw?.type === 'income' || raw?.type === 'both' ? raw.type : 'expense';
+const normalizeCategory = (raw: RawRecord, index: number): CategoryItem => {
+  const transactionCount = toNumber(raw.transaction_count ?? raw.transactionCount ?? raw.usage_count ?? raw.usageCount);
+  const incomeTotal = toNumber(raw.income_total ?? raw.incomeTotal);
+  const expenseTotal = toNumber(raw.expense_total ?? raw.expenseTotal);
+  const totalAmount = toNumber(raw.total_amount ?? raw.totalAmount, incomeTotal + expenseTotal);
+  const type = raw.type === 'income' || raw.type === 'both' ? raw.type : 'expense';
 
   return {
-    id: String(raw?.id ?? `local-${index}`),
-    name: String(raw?.name || 'Untitled Category'),
+    id: String(raw.id ?? `local-${index}`),
+    name: String(raw.name || 'Untitled Category'),
     type,
-    icon: fallbackIcon(raw?.icon),
-    color: fallbackColor(raw?.color),
-    description: String(raw?.description || 'No notes yet.'),
-    isDefault: Boolean(raw?.is_default ?? raw?.isDefault),
-    usageCount: Number(raw?.usage_count ?? raw?.usageCount ?? transactionCount),
+    icon: fallbackIcon(raw.icon),
+    color: fallbackColor(raw.color),
+    description: String(raw.description || 'No notes yet.'),
+    isDefault: Boolean(raw.is_default ?? raw.isDefault),
+    usageCount: toNumber(raw.usage_count ?? raw.usageCount, transactionCount),
     transactionCount,
     incomeTotal,
     expenseTotal,
@@ -267,16 +232,30 @@ const normalizeCategory = (raw: RawCategory, index: number): CategoryItem => {
   };
 };
 
-const computeStats = (categories: CategoryItem[]): CategoryStats => ({
-  total: categories.length,
-  expense: categories.filter((category) => category.type === 'expense').length,
-  income: categories.filter((category) => category.type === 'income').length,
-  both: categories.filter((category) => category.type === 'both').length,
-  custom: categories.filter((category) => !category.isDefault).length,
-  default: categories.filter((category) => category.isDefault).length,
-  transactions: categories.reduce((sum, category) => sum + category.transactionCount, 0),
-  trackedSpend: categories.reduce((sum, category) => sum + category.expenseTotal, 0),
+const normalizeCategoryResponse = (data: unknown) =>
+  asRecordArray(asRecord(data).categories).map(normalizeCategory);
+
+const categoryParams = (filters: CategoryFilters) => ({
+  ...(filters.type !== 'all' ? { type: filters.type } : {}),
+  ...(filters.search ? { search: filters.search } : {}),
 });
+
+const computeStats = (categories: CategoryItem[]): CategoryStats =>
+  categories.reduce(
+    (stats, category) => {
+      stats.total += 1;
+      stats[category.type] += 1;
+      if (category.isDefault) {
+        stats.default += 1;
+      } else {
+        stats.custom += 1;
+      }
+      stats.transactions += category.transactionCount;
+      stats.trackedSpend += category.expenseTotal;
+      return stats;
+    },
+    { total: 0, expense: 0, income: 0, both: 0, custom: 0, default: 0, transactions: 0, trackedSpend: 0 },
+  );
 
 const applyLocalFilters = (categories: CategoryItem[], typeFilter: CategoryFilter, search: string) => {
   const query = search.trim().toLowerCase();
@@ -345,6 +324,7 @@ export const Categories = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState<CategoryFormState>(emptyForm);
+  const filters = useMemo<CategoryFilters>(() => ({ type: typeFilter, search }), [search, typeFilter]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -363,19 +343,14 @@ export const Categories = () => {
 
       try {
         const response = await api.get('/categories', {
-          params: {
-            ...(typeFilter !== 'all' ? { type: typeFilter } : {}),
-            ...(search ? { search } : {}),
-          },
+          params: categoryParams(filters),
         });
         if (!alive) return;
-        const rawCategories: RawCategory[] = Array.isArray(response.data?.categories) ? response.data.categories : [];
-        const rows = rawCategories.map(normalizeCategory);
-        setCategories(rows);
+        setCategories(normalizeCategoryResponse(response.data));
         setOfflineMode(false);
       } catch {
         if (!alive) return;
-        setCategories(applyLocalFilters(offlineRows, typeFilter, search));
+        setCategories(applyLocalFilters(offlineRows, filters.type, filters.search));
         setOfflineMode(true);
         setError(null);
       } finally {
@@ -387,7 +362,7 @@ export const Categories = () => {
     return () => {
       alive = false;
     };
-  }, [offlineRows, search, typeFilter]);
+  }, [filters, offlineRows]);
 
   const stats = useMemo(() => computeStats(categories), [categories]);
   const maxAmount = useMemo(() => Math.max(1, ...categories.map((category) => category.totalAmount)), [categories]);
@@ -397,7 +372,7 @@ export const Categories = () => {
   );
 
   const refreshLocal = (nextRows: CategoryItem[]) => {
-    setCategories(applyLocalFilters(nextRows, typeFilter, search));
+    setCategories(applyLocalFilters(nextRows, filters.type, filters.search));
   };
 
   const openCreateDrawer = () => {
@@ -465,14 +440,9 @@ export const Categories = () => {
       setEditing(null);
       if (!offlineMode) {
         const response = await api.get('/categories', {
-          params: {
-            ...(typeFilter !== 'all' ? { type: typeFilter } : {}),
-            ...(search ? { search } : {}),
-          },
+          params: categoryParams(filters),
         });
-        const rawCategories: RawCategory[] = Array.isArray(response.data?.categories) ? response.data.categories : [];
-        const rows = rawCategories.map(normalizeCategory);
-        setCategories(rows);
+        setCategories(normalizeCategoryResponse(response.data));
       }
     } catch {
       setFormError('Could not save this category.');

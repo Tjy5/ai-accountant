@@ -110,6 +110,10 @@ class BackendJavaApiIntegrationTest {
             .andExpect(jsonPath("$.categoryShare", hasSize(1)))
             .andExpect(jsonPath("$.categoryShare[0].category", is("餐饮")));
 
+        mvc.perform(get("/api/dashboard/summary?startDate=bad-date").header("Authorization", auth))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("date is invalid")));
+
         String otherAuth = "Bearer " + register("core.other@example.com");
         mvc.perform(get("/api/dashboard/summary?startDate=2026-01-01&endDate=2026-01-31").header("Authorization", otherAuth))
             .andExpect(status().isOk())

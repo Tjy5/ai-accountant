@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   CalendarDays,
@@ -26,11 +26,13 @@ import {
 import api from '../api/axiosInstance';
 import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
+import { COLORS, fallbackColor, type ColorName } from '../constants/palette';
+import { compactMoney, money, readableDate } from '../utils/formatters';
+import { asRecord, asRecordArray, toNumber, type RawRecord } from '../utils/records';
 
 type GoalStatus = 'active' | 'paused' | 'completed';
 type GoalFilter = 'all' | GoalStatus;
 type Pace = 'complete' | 'open' | 'overdue' | 'due_soon' | 'steady';
-type RawRecord = Record<string, unknown>;
 
 interface GoalItem {
   id: string;
@@ -70,6 +72,16 @@ interface GoalFormState {
   notes: string;
 }
 
+interface GoalFilters {
+  status: GoalFilter;
+  search: string;
+}
+
+interface GoalListState {
+  rows: GoalItem[];
+  summary: GoalSummary;
+}
+
 const ICONS = {
   plane: Plane,
   home: Home,
@@ -97,21 +109,6 @@ const ICON_OPTIONS: IconName[] = [
   'heart-handshake',
   'more-horizontal',
 ];
-
-const COLORS = [
-  '#FF8C94',
-  '#64B5F6',
-  '#FFD54F',
-  '#BA68C8',
-  '#7ACB9C',
-  '#FFB87A',
-  '#A1887F',
-  '#4DB6AC',
-  '#F27C8B',
-  '#8C9EFF',
-] as const;
-
-type ColorName = (typeof COLORS)[number];
 
 const SAMPLE_GOALS: GoalItem[] = [
   {
@@ -161,36 +158,8 @@ const SAMPLE_GOALS: GoalItem[] = [
   },
 ];
 
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const compactMoney = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  notation: 'compact',
-  maximumFractionDigits: 1,
-});
-
-const isRecord = (value: unknown): value is RawRecord =>
-  typeof value === 'object' && value !== null;
-
-const asRecordArray = (value: unknown): RawRecord[] =>
-  Array.isArray(value) ? value.filter(isRecord) : [];
-
-const toNumber = (value: unknown, fallback = 0) => {
-  const next = Number(value);
-  return Number.isFinite(next) ? next : fallback;
-};
-
 const fallbackIcon = (value: unknown): IconName =>
   typeof value === 'string' && value in ICONS ? (value as IconName) : 'target';
-
-const fallbackColor = (value: unknown): ColorName =>
-  COLORS.includes(value as ColorName) ? (value as ColorName) : '#FF8C94';
 
 const fallbackStatus = (value: unknown, progress: number): GoalStatus => {
   if (value === 'active' || value === 'paused' || value === 'completed') return value;
@@ -223,13 +192,6 @@ const paceFrom = (remaining: number, daysLeft: number | null): Pace => {
   if (daysLeft < 0) return 'overdue';
   if (daysLeft <= 30) return 'due_soon';
   return 'steady';
-};
-
-const readableDate = (value: string) => {
-  if (!value) return 'No date';
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const dueLabel = (goal: GoalItem) => {
@@ -309,23 +271,28 @@ const normalizeSamples = () =>
   });
 
 const computeSummary = (goals: GoalItem[]): GoalSummary => {
-  const totalTarget = goals.reduce((sum, goal) => sum + goal.targetAmount, 0);
-  const totalSaved = goals.reduce((sum, goal) => sum + goal.savedAmount, 0);
+  const summary = goals.reduce(
+    (next, goal) => {
+      next.totalTarget += goal.targetAmount;
+      next.totalSaved += goal.savedAmount;
+      if (goal.status === 'active') next.active += 1;
+      if (goal.status === 'completed' || goal.progress >= 100) next.completed += 1;
+      if (goal.daysLeft !== null && goal.daysLeft >= 0 && goal.daysLeft <= 30) next.dueSoon += 1;
+      return next;
+    },
+    { totalTarget: 0, totalSaved: 0, active: 0, completed: 0, dueSoon: 0 },
+  );
 
   return {
-    totalTarget,
-    totalSaved,
-    remaining: Math.max(totalTarget - totalSaved, 0),
-    progress: percent(totalSaved, totalTarget),
+    ...summary,
+    remaining: Math.max(summary.totalTarget - summary.totalSaved, 0),
+    progress: percent(summary.totalSaved, summary.totalTarget),
     count: goals.length,
-    active: goals.filter((goal) => goal.status === 'active').length,
-    completed: goals.filter((goal) => goal.status === 'completed' || goal.progress >= 100).length,
-    dueSoon: goals.filter((goal) => goal.daysLeft !== null && goal.daysLeft >= 0 && goal.daysLeft <= 30).length,
   };
 };
 
 const normalizeSummary = (raw: unknown, goals: GoalItem[]): GoalSummary => {
-  const data = isRecord(raw) ? raw : {};
+  const data = asRecord(raw);
   const fallback = computeSummary(goals);
   return {
     totalTarget: toNumber(data.totalTarget ?? data.total_target, fallback.totalTarget),
@@ -337,6 +304,22 @@ const normalizeSummary = (raw: unknown, goals: GoalItem[]): GoalSummary => {
     completed: toNumber(data.completed, fallback.completed),
     dueSoon: toNumber(data.dueSoon ?? data.due_soon, fallback.dueSoon),
   };
+};
+
+const goalParams = (filters: GoalFilters) => ({
+  ...(filters.status !== 'all' ? { status: filters.status } : {}),
+  ...(filters.search ? { search: filters.search } : {}),
+});
+
+const normalizeGoalResponse = (data: unknown): GoalListState => {
+  const source = asRecord(data);
+  const rows = asRecordArray(source.goals).map(normalizeGoal);
+  return { rows, summary: normalizeSummary(source.summary, rows) };
+};
+
+const localGoalState = (goals: GoalItem[], filters: GoalFilters): GoalListState => {
+  const rows = applyLocalFilters(goals, filters.status, filters.search);
+  return { rows, summary: computeSummary(rows) };
 };
 
 const applyLocalFilters = (goals: GoalItem[], status: GoalFilter, search: string) => {
@@ -412,6 +395,11 @@ export const Goals = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState<GoalFormState>(emptyForm);
+  const filters = useMemo<GoalFilters>(() => ({ status: statusFilter, search }), [search, statusFilter]);
+  const applyGoalState = useCallback((state: GoalListState) => {
+    setGoals(state.rows);
+    setSummary(state.summary);
+  }, []);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -429,21 +417,14 @@ export const Goals = () => {
       setError(null);
       try {
         const response = await api.get('/goals', {
-          params: {
-            ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-            ...(search ? { search } : {}),
-          },
+          params: goalParams(filters),
         });
         if (!alive) return;
-        const rows = asRecordArray(response.data?.goals).map(normalizeGoal);
-        setGoals(rows);
-        setSummary(normalizeSummary(response.data?.summary, rows));
+        applyGoalState(normalizeGoalResponse(response.data));
         setOfflineMode(false);
       } catch {
         if (!alive) return;
-        const rows = applyLocalFilters(offlineRows, statusFilter, search);
-        setGoals(rows);
-        setSummary(computeSummary(rows));
+        applyGoalState(localGoalState(offlineRows, filters));
         setOfflineMode(true);
         setError(null);
       } finally {
@@ -455,7 +436,7 @@ export const Goals = () => {
     return () => {
       alive = false;
     };
-  }, [offlineRows, reloadKey, search, statusFilter]);
+  }, [applyGoalState, filters, offlineRows, reloadKey]);
 
   const topGoal = useMemo(
     () => [...goals].sort((a, b) => b.progress - a.progress || b.savedAmount - a.savedAmount)[0],
@@ -472,20 +453,13 @@ export const Goals = () => {
 
   const refreshRemoteRows = async () => {
     const response = await api.get('/goals', {
-      params: {
-        ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-        ...(search ? { search } : {}),
-      },
+      params: goalParams(filters),
     });
-    const rows = asRecordArray(response.data?.goals).map(normalizeGoal);
-    setGoals(rows);
-    setSummary(normalizeSummary(response.data?.summary, rows));
+    applyGoalState(normalizeGoalResponse(response.data));
   };
 
   const refreshLocalRows = (nextRows: GoalItem[]) => {
-    const rows = applyLocalFilters(nextRows, statusFilter, search);
-    setGoals(rows);
-    setSummary(computeSummary(rows));
+    applyGoalState(localGoalState(nextRows, filters));
   };
 
   const openCreateDrawer = () => {

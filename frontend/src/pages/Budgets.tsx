@@ -25,6 +25,9 @@ import {
 import api from '../api/axiosInstance';
 import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
+import { COLORS, fallbackColor, type ColorName } from '../constants/palette';
+import { currentMonthInput, money, readableMonth } from '../utils/formatters';
+import { asRecord, asRecordArray, toNumber, type RawRecord } from '../utils/records';
 
 interface BudgetItem {
   id: string;
@@ -61,45 +64,6 @@ interface BudgetFormState {
 
 type BudgetStatus = 'on_track' | 'watch' | 'over';
 
-type RawBudget = {
-  id?: string | number;
-  category?: string;
-  categoryName?: string;
-  name?: string;
-  amount?: number | string;
-  budget?: number | string;
-  budgetAmount?: number | string;
-  spent?: number | string;
-  remaining?: number | string;
-  progress?: number | string;
-  status?: string;
-  period_month?: string;
-  periodMonth?: string;
-  month?: string;
-  icon?: string;
-  color?: string;
-  notes?: string;
-  description?: string;
-};
-
-type RawSummary = {
-  month?: string;
-  totalBudget?: number | string;
-  total_budget?: number | string;
-  totalSpent?: number | string;
-  total_spent?: number | string;
-  remaining?: number | string;
-  progress?: number | string;
-  count?: number | string;
-  overBudget?: number | string;
-  over_budget?: number | string;
-};
-
-type RawCategory = {
-  name?: string;
-  type?: string;
-};
-
 const ICONS = {
   utensils: Utensils,
   bus: Bus,
@@ -126,21 +90,6 @@ const ICON_OPTIONS: IconName[] = [
   'more-horizontal',
 ];
 
-const COLORS = [
-  '#FF8C94',
-  '#64B5F6',
-  '#FFD54F',
-  '#BA68C8',
-  '#7ACB9C',
-  '#FFB87A',
-  '#A1887F',
-  '#4DB6AC',
-  '#F27C8B',
-  '#8C9EFF',
-] as const;
-
-type ColorName = (typeof COLORS)[number];
-
 const DEFAULT_CATEGORIES = [
   'Food & Dining',
   'Shopping',
@@ -155,29 +104,8 @@ const DEFAULT_CATEGORIES = [
   '其他',
 ];
 
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const currentMonthInput = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-};
-
-const readableMonth = (month: string) => {
-  const match = month.match(/^(\d{4})-(\d{2})$/);
-  if (!match) return month;
-  return new Date(Number(match[1]), Number(match[2]) - 1, 1).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
-};
-
-const fallbackIcon = (value?: string): IconName => (value && value in ICONS ? (value as IconName) : 'tag');
-const fallbackColor = (value?: string): ColorName => (COLORS.includes(value as ColorName) ? (value as ColorName) : '#FF8C94');
+const fallbackIcon = (value: unknown): IconName =>
+  typeof value === 'string' && value in ICONS ? (value as IconName) : 'tag';
 
 const progressFrom = (spent: number, amount: number) => {
   if (!Number.isFinite(amount) || amount <= 0) return 0;
@@ -190,55 +118,77 @@ const statusFrom = (progress: number): BudgetStatus => {
   return 'on_track';
 };
 
-const normalizeBudget = (raw: RawBudget, index: number, month: string): BudgetItem => {
-  const amount = Number(raw?.amount ?? raw?.budget ?? raw?.budgetAmount ?? 0);
-  const spent = Number(raw?.spent ?? 0);
-  const remaining = Number(raw?.remaining ?? amount - spent);
-  const progress = Number(raw?.progress ?? progressFrom(spent, amount));
+const normalizeBudget = (raw: RawRecord, index: number, month: string): BudgetItem => {
+  const amount = toNumber(raw.amount ?? raw.budget ?? raw.budgetAmount);
+  const spent = toNumber(raw.spent);
+  const remaining = toNumber(raw.remaining, amount - spent);
+  const progress = toNumber(raw.progress, progressFrom(spent, amount));
   const status = raw?.status === 'over' || raw?.status === 'watch' ? raw.status : statusFrom(progress);
 
   return {
-    id: String(raw?.id ?? `local-${index}`),
-    category: String(raw?.category ?? raw?.categoryName ?? raw?.name ?? 'Other'),
+    id: String(raw.id ?? `local-${index}`),
+    category: String(raw.category ?? raw.categoryName ?? raw.name ?? 'Other'),
     amount,
     spent,
     remaining,
     progress,
     status,
-    periodMonth: String(raw?.period_month ?? raw?.periodMonth ?? raw?.month ?? month),
-    icon: fallbackIcon(raw?.icon),
-    color: fallbackColor(raw?.color),
-    notes: String(raw?.notes ?? raw?.description ?? ''),
+    periodMonth: String(raw.period_month ?? raw.periodMonth ?? raw.month ?? month),
+    icon: fallbackIcon(raw.icon),
+    color: fallbackColor(raw.color),
+    notes: String(raw.notes ?? raw.description ?? ''),
   };
 };
 
 const computeSummary = (month: string, rows: BudgetItem[]): BudgetSummary => {
-  const totalBudget = rows.reduce((sum, budget) => sum + budget.amount, 0);
-  const totalSpent = rows.reduce((sum, budget) => sum + budget.spent, 0);
-  const remaining = totalBudget - totalSpent;
+  const totals = rows.reduce(
+    (next, budget) => {
+      next.totalBudget += budget.amount;
+      next.totalSpent += budget.spent;
+      if (budget.status === 'over') next.overBudget += 1;
+      return next;
+    },
+    { totalBudget: 0, totalSpent: 0, overBudget: 0 },
+  );
+  const remaining = totals.totalBudget - totals.totalSpent;
 
   return {
     month,
-    totalBudget,
-    totalSpent,
+    totalBudget: totals.totalBudget,
+    totalSpent: totals.totalSpent,
     remaining,
-    progress: progressFrom(totalSpent, totalBudget),
+    progress: progressFrom(totals.totalSpent, totals.totalBudget),
     count: rows.length,
-    overBudget: rows.filter((budget) => budget.status === 'over').length,
+    overBudget: totals.overBudget,
   };
 };
 
-const normalizeSummary = (raw: RawSummary | undefined, month: string, rows: BudgetItem[]): BudgetSummary => {
+const normalizeSummary = (raw: unknown, month: string, rows: BudgetItem[]): BudgetSummary => {
+  const data = asRecord(raw);
   const fallback = computeSummary(month, rows);
   return {
-    month: String(raw?.month ?? month),
-    totalBudget: Number(raw?.totalBudget ?? raw?.total_budget ?? fallback.totalBudget),
-    totalSpent: Number(raw?.totalSpent ?? raw?.total_spent ?? fallback.totalSpent),
-    remaining: Number(raw?.remaining ?? fallback.remaining),
-    progress: Number(raw?.progress ?? fallback.progress),
-    count: Number(raw?.count ?? fallback.count),
-    overBudget: Number(raw?.overBudget ?? raw?.over_budget ?? fallback.overBudget),
+    month: String(data.month ?? month),
+    totalBudget: toNumber(data.totalBudget ?? data.total_budget, fallback.totalBudget),
+    totalSpent: toNumber(data.totalSpent ?? data.total_spent, fallback.totalSpent),
+    remaining: toNumber(data.remaining, fallback.remaining),
+    progress: toNumber(data.progress, fallback.progress),
+    count: toNumber(data.count, fallback.count),
+    overBudget: toNumber(data.overBudget ?? data.over_budget, fallback.overBudget),
   };
+};
+
+const normalizeBudgetResponse = (data: unknown, month: string) => {
+  const source = asRecord(data);
+  const rows = asRecordArray(source.budgets).map((budget, index) => normalizeBudget(budget, index, month));
+  return { rows, summary: normalizeSummary(source.summary, month, rows) };
+};
+
+const categoryOptionsFromResponse = (data: unknown) => {
+  const names = asRecordArray(asRecord(data).categories)
+    .filter((category) => category.type !== 'income')
+    .map((category) => String(category.name || '').trim())
+    .filter(Boolean);
+  return Array.from(new Set([...DEFAULT_CATEGORIES, ...names])).sort((a, b) => a.localeCompare(b));
 };
 
 const emptyForm = (periodMonth: string): BudgetFormState => ({
@@ -315,12 +265,7 @@ export const Budgets = () => {
     api.get('/categories', { params: { type: 'expense' } })
       .then((response) => {
         if (!alive) return;
-        const rawCategories: RawCategory[] = Array.isArray(response.data?.categories) ? response.data.categories : [];
-        const names = rawCategories
-              .filter((category) => category?.type !== 'income')
-              .map((category) => String(category?.name || '').trim())
-              .filter(Boolean)
-        setCategoryOptions(Array.from(new Set([...DEFAULT_CATEGORIES, ...names])).sort((a, b) => a.localeCompare(b)));
+        setCategoryOptions(categoryOptionsFromResponse(response.data));
       })
       .catch(() => {
         if (alive) setCategoryOptions(DEFAULT_CATEGORIES);
@@ -341,10 +286,9 @@ export const Budgets = () => {
       try {
         const response = await api.get('/budgets', { params: { month } });
         if (!alive) return;
-        const rawBudgets: RawBudget[] = Array.isArray(response.data?.budgets) ? response.data.budgets : [];
-        const rows = rawBudgets.map((budget, index) => normalizeBudget(budget, index, month));
-        setBudgets(rows);
-        setSummary(normalizeSummary(response.data?.summary, month, rows));
+        const next = normalizeBudgetResponse(response.data, month);
+        setBudgets(next.rows);
+        setSummary(next.summary);
       } catch {
         if (!alive) return;
         setBudgets([]);
@@ -382,10 +326,9 @@ export const Budgets = () => {
 
   const refreshRemoteRows = async (selectedMonth = month) => {
     const response = await api.get('/budgets', { params: { month: selectedMonth } });
-    const rawBudgets: RawBudget[] = Array.isArray(response.data?.budgets) ? response.data.budgets : [];
-    const rows = rawBudgets.map((budget, index) => normalizeBudget(budget, index, selectedMonth));
-    setBudgets(rows);
-    setSummary(normalizeSummary(response.data?.summary, selectedMonth, rows));
+    const next = normalizeBudgetResponse(response.data, selectedMonth);
+    setBudgets(next.rows);
+    setSummary(next.summary);
   };
 
   const openCreateDrawer = () => {

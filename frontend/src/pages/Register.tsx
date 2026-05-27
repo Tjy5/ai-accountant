@@ -40,7 +40,6 @@ export const Register = () => {
     <div className="min-h-screen bg-cute-bg flex items-center justify-center p-4 text-[#4E3629]">
       <div className="w-full max-w-sm bg-white border-4 border-[#4E3629] rounded-[35px] p-8 shadow-md flex flex-col gap-6 relative">
 
-        {/* Cute Mascot Header */}
         <div className="flex flex-col items-center gap-4">
           <div className="w-32 h-32 rounded-[32px] bg-[#FFF1E2] border border-[#F0D9C7] p-2.5 flex items-center justify-center shadow-[0_12px_26px_rgba(92,65,45,0.08)]">
             <CuteSticker name="calculator-cat" className="w-full h-full" title="Cute Calico Cat with Calculator" />
@@ -48,9 +47,7 @@ export const Register = () => {
           <h1 className="text-3xl font-black tracking-tight">Join Us!</h1>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleRegister} className="flex flex-col gap-5">
-          {/* Account/Email */}
           <div className="flex flex-col gap-1.5 text-left">
             <label className="text-sm font-black ml-4">Account</label>
             <div className="relative flex items-center">
@@ -68,7 +65,6 @@ export const Register = () => {
             </div>
           </div>
 
-          {/* Name */}
           <div className="flex flex-col gap-1.5 text-left">
             <label className="text-sm font-black ml-4">Name (Optional)</label>
             <div className="relative flex items-center">
@@ -85,7 +81,6 @@ export const Register = () => {
             </div>
           </div>
 
-          {/* Password */}
           <div className="flex flex-col gap-1.5 text-left">
             <label className="text-sm font-black ml-4">Password</label>
             <div className="relative flex items-center">
@@ -109,7 +104,6 @@ export const Register = () => {
             </div>
           )}
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
@@ -119,7 +113,6 @@ export const Register = () => {
           </button>
         </form>
 
-        {/* Links */}
         <div className="flex flex-col items-center gap-3 mt-2 text-xs font-bold text-gray-500">
           <p>
             Already have an account?{' '}

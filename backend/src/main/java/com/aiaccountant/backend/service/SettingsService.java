@@ -44,14 +44,14 @@ public class SettingsService {
         UserSettings settings = ensureSettings(userId);
         LocalDateTime now = LocalDateTime.now();
 
-        if (hasAny(body, "name", "displayName")) {
+        if (RequestValues.hasAny(body, "name", "displayName")) {
             String name = RequestValues.trimToNull(RequestValues.first(body, "displayName", "name"));
             if (name != null && name.length() > 80) throw new ApiException(HttpStatus.BAD_REQUEST, "display name is too long");
             userMapper.updateName(userId, name, now);
             user.setName(name);
         }
 
-        if (hasAny(body, "defaultCurrency", "default_currency", "currency")) {
+        if (RequestValues.hasAny(body, "defaultCurrency", "default_currency", "currency")) {
             String currency = RequestValues.trimToNull(RequestValues.first(body, "defaultCurrency", "default_currency", "currency"));
             currency = currency == null ? null : currency.toUpperCase();
             if (currency == null || !CURRENCIES.contains(currency)) {
@@ -60,7 +60,7 @@ public class SettingsService {
             settings.setDefaultCurrency(currency);
         }
 
-        if (hasAny(body, "monthStartDay", "month_start_day")) {
+        if (RequestValues.hasAny(body, "monthStartDay", "month_start_day")) {
             Integer day = RequestValues.integer(RequestValues.first(body, "monthStartDay", "month_start_day"));
             if (day == null || day < 1 || day > 28) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "month start day must be between 1 and 28");
@@ -68,16 +68,16 @@ public class SettingsService {
             settings.setMonthStartDay(day);
         }
 
-        if (hasAny(body, "receiptReminders", "receipt_reminders")) {
+        if (RequestValues.hasAny(body, "receiptReminders", "receipt_reminders")) {
             settings.setReceiptReminders(RequestValues.bool(RequestValues.first(body, "receiptReminders", "receipt_reminders")));
         }
-        if (hasAny(body, "budgetAlerts", "budget_alerts")) {
+        if (RequestValues.hasAny(body, "budgetAlerts", "budget_alerts")) {
             settings.setBudgetAlerts(RequestValues.bool(RequestValues.first(body, "budgetAlerts", "budget_alerts")));
         }
-        if (hasAny(body, "weeklyReport", "weekly_report")) {
+        if (RequestValues.hasAny(body, "weeklyReport", "weekly_report")) {
             settings.setWeeklyReport(RequestValues.bool(RequestValues.first(body, "weeklyReport", "weekly_report")));
         }
-        if (hasAny(body, "aiAssistEnabled", "ai_assist_enabled")) {
+        if (RequestValues.hasAny(body, "aiAssistEnabled", "ai_assist_enabled")) {
             settings.setAiAssistEnabled(RequestValues.bool(RequestValues.first(body, "aiAssistEnabled", "ai_assist_enabled")));
         }
 
@@ -121,8 +121,4 @@ public class SettingsService {
         return out;
     }
 
-    private boolean hasAny(Map<String, Object> body, String... keys) {
-        if (body == null) return false;
-        return Stream.of(keys).anyMatch(body::containsKey);
-    }
 }

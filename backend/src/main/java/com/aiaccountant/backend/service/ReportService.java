@@ -37,7 +37,7 @@ public class ReportService {
 
     public Map<String, Object> overview(Long userId, MultiValueMap<String, String> query) {
         DateRange range = range(query);
-        YearMonth budgetMonth = parseMonth(firstQuery(query, "month", "periodMonth", "period_month"), YearMonth.from(range.end()));
+        YearMonth budgetMonth = parseMonth(RequestValues.firstQuery(query, "month", "periodMonth", "period_month"), YearMonth.from(range.end()));
         List<Transaction> transactions = transactionMapper.findByDateRange(
             userId,
             range.start().atStartOfDay(),
@@ -285,8 +285,8 @@ public class ReportService {
         LocalDate now = LocalDate.now();
         LocalDate fallbackStart = now.minusMonths(5).withDayOfMonth(1);
         LocalDate fallbackEnd = now.withDayOfMonth(now.lengthOfMonth());
-        LocalDate start = parseDate(firstQuery(query, "startDate", "from"), fallbackStart);
-        LocalDate end = parseDate(firstQuery(query, "endDate", "to"), fallbackEnd);
+        LocalDate start = parseDate(RequestValues.firstQuery(query, "startDate", "from"), fallbackStart);
+        LocalDate end = parseDate(RequestValues.firstQuery(query, "endDate", "to"), fallbackEnd);
         if (end.isBefore(start)) throw new ApiException(HttpStatus.BAD_REQUEST, "endDate 不能早于 startDate");
         return new DateRange(start, end);
     }
@@ -309,15 +309,6 @@ public class ReportService {
         } catch (Exception ex) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "month is invalid");
         }
-    }
-
-    private String firstQuery(MultiValueMap<String, String> query, String... keys) {
-        if (query == null) return null;
-        for (String key : keys) {
-            String value = query.getFirst(key);
-            if (value != null) return value;
-        }
-        return null;
     }
 
     private record DateRange(LocalDate start, LocalDate end) {

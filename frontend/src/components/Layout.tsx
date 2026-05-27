@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { CuteSticker } from './CuteStickers';
+import { userLabel } from '../utils/profile';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -25,8 +26,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
 
   const [profileOpen, setProfileOpen] = useState(false);
-  const rawProfileLabel = user?.name || user?.email || 'Sarah';
-  const profileLabel = /^\d+$/.test(rawProfileLabel.trim()) ? 'Sarah' : rawProfileLabel;
+  const profileLabel = userLabel(user);
 
   const handleLogout = () => {
     logout();
@@ -59,7 +59,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-[#ECE7DF] p-0 text-[#4E3629] selection:bg-[#FFD1DC]/50 sm:flex sm:items-center sm:justify-center sm:p-2">
       <div className="flex h-[100svh] min-h-0 w-full flex-col overflow-hidden bg-[#FBF8F3] font-sans antialiased shadow-[0_22px_70px_rgba(92,65,45,0.13)] sm:h-[calc(100vh-16px)] sm:w-[calc(100vw-16px)] sm:rounded-[26px] md:min-h-[720px] md:flex-row">
-      {/* Mobile Header */}
       <header className="shrink-0 border-b border-[#EDE1D5] bg-[#FFFDF8] px-4 py-3 shadow-[0_10px_26px_rgba(92,65,45,0.05)] md:hidden">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5 select-none">
@@ -122,10 +121,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </nav>
       </header>
 
-      {/* Left Sidebar */}
       <aside className="hidden w-[282px] shrink-0 flex-col justify-between border-r border-[#EDE1D5] bg-[#FFFDF8] px-5 py-6 shadow-[12px_0_32px_rgba(92,65,45,0.05)] md:flex md:h-full">
         <div className="flex flex-col gap-7">
-          {/* Brand Logo Header */}
           <div className="flex items-center gap-3 select-none">
             <div className="w-12 h-12 rounded-[18px] bg-[#FFF1E2] border border-[#F0D9C7] p-1.5 shadow-[0_8px_18px_rgba(92,65,45,0.08)]">
               <CuteSticker name="logo-cat" className="w-full h-full" title="AI Accountant Logo" />
@@ -133,7 +130,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <h1 className="text-[22px] font-black tracking-tight text-[#33251E]">AI Accountant</h1>
           </div>
 
-          {/* New Entry Button */}
           <button
             onClick={handleNewEntry}
             className="w-full py-3.5 bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] text-white font-black rounded-full shadow-[0_12px_24px_rgba(255,111,143,0.28)] hover:translate-y-[-1px] active:translate-y-0 transition-all cursor-pointer text-center text-base flex items-center justify-center gap-2"
@@ -141,7 +137,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <span className="text-lg leading-none">+</span> New Entry
           </button>
 
-          {/* Navigation Links */}
           <nav className="flex flex-col gap-2 mt-1">
             {menuItems.map((item) => (
               <NavLink
@@ -162,7 +157,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </nav>
         </div>
 
-        {/* User Profile Card */}
         <div className="relative">
           {profileOpen && (
             <div className="absolute bottom-16 left-0 w-full bg-white border border-[#EEE3D9] rounded-[20px] p-3 shadow-lg flex flex-col gap-2 z-[55] animate-slide-up">
@@ -191,7 +185,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </aside>
 
-      {/* Main Container */}
       <div className="flex min-h-0 min-w-0 flex-grow flex-col overflow-y-auto">
         <main className="flex min-h-0 w-full flex-grow flex-col px-4 py-5 sm:px-6 sm:py-6 md:px-7 md:py-7">
           {children}
