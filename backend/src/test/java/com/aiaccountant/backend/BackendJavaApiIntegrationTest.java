@@ -479,6 +479,358 @@ class BackendJavaApiIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.budgets", hasSize(1)))
             .andExpect(jsonPath("$.budgets[0].category", is("Transport")));
+
+        mvc.perform(post("/api/budgets")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "category", "Food & Dining",
+                    "amount", 90,
+                    "month", "2026-05"
+                ))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.budget.category", is("Food & Dining")))
+            .andExpect(jsonPath("$.budget.period_month", is("2026-05")));
+
+        mvc.perform(get("/api/budgets?month=2026-05").header("Authorization", auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.budgets", hasSize(2)));
+    }
+
+    @Test
+    void goalCrudSupportsSummaryFilteringAndUserIsolation() throws Exception {
+        String auth = "Bearer " + register("goals.crud@example.com");
+
+        MvcResult createdResult = mvc.perform(post("/api/goals")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "title", "Japan Trip",
+                    "targetAmount", 2400,
+                    "savedAmount", 900,
+                    "targetDate", "2026-08-15",
+                    "status", "active",
+                    "icon", "plane",
+                    "color", "#64B5F6",
+                    "notes", "Flights and hotels"
+                ))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.goal.id", notNullValue()))
+            .andExpect(jsonPath("$.goal.title", is("Japan Trip")))
+            .andExpect(jsonPath("$.goal.target_amount", is(2400.0)))
+            .andExpect(jsonPath("$.goal.saved_amount", is(900.0)))
+            .andExpect(jsonPath("$.goal.remaining", is(1500.0)))
+            .andExpect(jsonPath("$.goal.progress", is(38)))
+            .andExpect(jsonPath("$.goal.status", is("active")))
+            .andReturn();
+
+        long goalId = read(createdResult).get("goal").get("id").asLong();
+
+        mvc.perform(post("/api/goals")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "title", "Emergency Fund",
+                    "targetAmount", 1000,
+                    "savedAmount", 1000,
+                    "status", "completed",
+                    "icon", "piggy-bank",
+                    "color", "#7ACB9C"
+                ))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.goal.progress", is(100)))
+            .andExpect(jsonPath("$.goal.pace", is("complete")));
+
+        mvc.perform(get("/api/goals").header("Authorization", auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.goals", hasSize(2)))
+            .andExpect(jsonPath("$.summary.totalTarget", is(3400.0)))
+            .andExpect(jsonPath("$.summary.totalSaved", is(1900.0)))
+            .andExpect(jsonPath("$.summary.remaining", is(1500.0)))
+            .andExpect(jsonPath("$.summary.progress", is(56)))
+            .andExpect(jsonPath("$.summary.count", is(2)))
+            .andExpect(jsonPath("$.summary.active", is(1)))
+            .andExpect(jsonPath("$.summary.completed", is(1)));
+
+        mvc.perform(get("/api/goals")
+                .queryParam("status", "active")
+                .queryParam("search", "Japan")
+                .header("Authorization", auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.goals", hasSize(1)))
+            .andExpect(jsonPath("$.goals[0].title", is("Japan Trip")))
+            .andExpect(jsonPath("$.filters.status", is("active")))
+            .andExpect(jsonPath("$.filters.search", is("Japan")));
+
+        mvc.perform(post("/api/goals")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "title", "Japan Trip",
+                    "targetAmount", 3000
+                ))))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error", is("goal title already exists")));
+
+        mvc.perform(patch("/api/goals/{id}", goalId)
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "savedAmount", 2450,
+                    "status", "completed",
+                    "notes", "Fully funded"
+                ))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.goal.saved_amount", is(2450.0)))
+            .andExpect(jsonPath("$.goal.remaining", is(0)))
+            .andExpect(jsonPath("$.goal.progress", is(102)))
+            .andExpect(jsonPath("$.goal.status", is("completed")))
+            .andExpect(jsonPath("$.goal.pace", is("complete")));
+
+        String otherAuth = "Bearer " + register("goals.other@example.com");
+        mvc.perform(patch("/api/goals/{id}", goalId)
+                .header("Authorization", otherAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("savedAmount", 1))))
+            .andExpect(status().isNotFound());
+
+        mvc.perform(delete("/api/goals/{id}", goalId).header("Authorization", auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deleted", is(true)))
+            .andExpect(jsonPath("$.id", is((int) goalId)));
+
+        mvc.perform(get("/api/goals?search=Japan").header("Authorization", auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.goals", hasSize(0)));
+
+        mvc.perform(post("/api/goals")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "title", "Japan Trip",
+                    "targetAmount", 3200
+                ))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.goal.title", is("Japan Trip")));
+    }
+
+    @Test
+    void reportOverviewAggregatesTrendsCategoriesBudgetsAndUserIsolation() throws Exception {
+        String auth = "Bearer " + register("reports.overview@example.com");
+
+        mvc.perform(post("/api/transactions")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "type", "income",
+                    "category", "Salary",
+                    "amount", 3000,
+                    "description", "June salary",
+                    "date", "2026-06-01"
+                ))))
+            .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/transactions")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "type", "expense",
+                    "category", "Food & Dining",
+                    "amount", 120,
+                    "description", "June groceries",
+                    "date", "2026-06-05"
+                ))))
+            .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/transactions")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "type", "expense",
+                    "category", "Transport",
+                    "amount", 80,
+                    "description", "June train pass",
+                    "date", "2026-06-12"
+                ))))
+            .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/transactions")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "type", "income",
+                    "category", "Salary",
+                    "amount", 3200,
+                    "description", "July salary",
+                    "date", "2026-07-01"
+                ))))
+            .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/transactions")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "type", "expense",
+                    "category", "Food & Dining",
+                    "amount", 150,
+                    "description", "July dinner party",
+                    "date", "2026-07-10"
+                ))))
+            .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/transactions")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "type", "expense",
+                    "category", "Shopping",
+                    "amount", 50,
+                    "description", "July supplies",
+                    "date", "2026-07-14"
+                ))))
+            .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/budgets")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "category", "Food & Dining",
+                    "amount", 100,
+                    "month", "2026-07",
+                    "icon", "utensils",
+                    "color", "#FF8C94"
+                ))))
+            .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/budgets")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "category", "Shopping",
+                    "amount", 60,
+                    "month", "2026-07",
+                    "icon", "shopping-bag",
+                    "color", "#FFD54F"
+                ))))
+            .andExpect(status().isCreated());
+
+        mvc.perform(get("/api/reports")
+                .queryParam("startDate", "2026-06-01")
+                .queryParam("endDate", "2026-07-31")
+                .queryParam("month", "2026-07")
+                .header("Authorization", auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.range.startDate", is("2026-06-01")))
+            .andExpect(jsonPath("$.range.endDate", is("2026-07-31")))
+            .andExpect(jsonPath("$.range.budgetMonth", is("2026-07")))
+            .andExpect(jsonPath("$.summary.income", is(6200.0)))
+            .andExpect(jsonPath("$.summary.expense", is(400.0)))
+            .andExpect(jsonPath("$.summary.net", is(5800.0)))
+            .andExpect(jsonPath("$.summary.transactionCount", is(6)))
+            .andExpect(jsonPath("$.summary.expenseCount", is(4)))
+            .andExpect(jsonPath("$.summary.averageExpense", is(100.0)))
+            .andExpect(jsonPath("$.summary.largestExpense", is(150.0)))
+            .andExpect(jsonPath("$.summary.savingsRate", is(94)))
+            .andExpect(jsonPath("$.monthlyTrend", hasSize(2)))
+            .andExpect(jsonPath("$.monthlyTrend[0].month", is("2026-06")))
+            .andExpect(jsonPath("$.monthlyTrend[0].income", is(3000.0)))
+            .andExpect(jsonPath("$.monthlyTrend[0].expense", is(200.0)))
+            .andExpect(jsonPath("$.monthlyTrend[1].month", is("2026-07")))
+            .andExpect(jsonPath("$.monthlyTrend[1].income", is(3200.0)))
+            .andExpect(jsonPath("$.monthlyTrend[1].expense", is(200.0)))
+            .andExpect(jsonPath("$.categoryBreakdown[0].category", is("Food & Dining")))
+            .andExpect(jsonPath("$.categoryBreakdown[0].total", is(270.0)))
+            .andExpect(jsonPath("$.categoryBreakdown[0].percentage", is(68)))
+            .andExpect(jsonPath("$.budgetHealth.month", is("2026-07")))
+            .andExpect(jsonPath("$.budgetHealth.totalBudget", is(160.0)))
+            .andExpect(jsonPath("$.budgetHealth.totalSpent", is(200.0)))
+            .andExpect(jsonPath("$.budgetHealth.progress", is(125)))
+            .andExpect(jsonPath("$.budgetHealth.overBudget", is(1)))
+            .andExpect(jsonPath("$.budgetHealth.watch", is(1)))
+            .andExpect(jsonPath("$.budgetHealth.categories", hasSize(2)))
+            .andExpect(jsonPath("$.budgetHealth.categories[0].category", is("Food & Dining")))
+            .andExpect(jsonPath("$.budgetHealth.categories[0].status", is("over")))
+            .andExpect(jsonPath("$.largeExpenses[0].description", is("July dinner party")))
+            .andExpect(jsonPath("$.insights", hasSize(4)))
+            .andExpect(jsonPath("$.updatedAt", notNullValue()))
+            .andExpect(jsonPath("$.timestamp", notNullValue()));
+
+        String otherAuth = "Bearer " + register("reports.other@example.com");
+        mvc.perform(get("/api/reports")
+                .queryParam("startDate", "2026-06-01")
+                .queryParam("endDate", "2026-07-31")
+                .queryParam("month", "2026-07")
+                .header("Authorization", otherAuth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.summary.transactionCount", is(0)))
+            .andExpect(jsonPath("$.summary.income", is(0)))
+            .andExpect(jsonPath("$.summary.expense", is(0)))
+            .andExpect(jsonPath("$.categoryBreakdown", hasSize(0)))
+            .andExpect(jsonPath("$.budgetHealth.categories", hasSize(0)));
+    }
+
+    @Test
+    void settingsCanBeReadUpdatedValidatedAndAreUserScoped() throws Exception {
+        String auth = "Bearer " + register("settings.owner@example.com");
+
+        mvc.perform(get("/api/settings").header("Authorization", auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.email", is("settings.owner@example.com")))
+            .andExpect(jsonPath("$.user.name", is("Test User")))
+            .andExpect(jsonPath("$.settings.default_currency", is("USD")))
+            .andExpect(jsonPath("$.settings.month_start_day", is(1)))
+            .andExpect(jsonPath("$.settings.receipt_reminders", is(true)))
+            .andExpect(jsonPath("$.settings.budget_alerts", is(true)))
+            .andExpect(jsonPath("$.settings.weekly_report", is(false)))
+            .andExpect(jsonPath("$.settings.ai_assist_enabled", is(true)))
+            .andExpect(jsonPath("$.options.currencies", hasSize(6)));
+
+        mvc.perform(patch("/api/settings")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of(
+                    "displayName", "Mimi Ledger",
+                    "defaultCurrency", "CNY",
+                    "monthStartDay", 5,
+                    "receiptReminders", false,
+                    "budgetAlerts", true,
+                    "weeklyReport", true,
+                    "aiAssistEnabled", false
+                ))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.name", is("Mimi Ledger")))
+            .andExpect(jsonPath("$.settings.default_currency", is("CNY")))
+            .andExpect(jsonPath("$.settings.month_start_day", is(5)))
+            .andExpect(jsonPath("$.settings.receipt_reminders", is(false)))
+            .andExpect(jsonPath("$.settings.weekly_report", is(true)))
+            .andExpect(jsonPath("$.settings.ai_assist_enabled", is(false)));
+
+        mvc.perform(get("/api/settings").header("Authorization", auth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.name", is("Mimi Ledger")))
+            .andExpect(jsonPath("$.settings.default_currency", is("CNY")))
+            .andExpect(jsonPath("$.settings.month_start_day", is(5)));
+
+        String otherAuth = "Bearer " + register("settings.other@example.com");
+        mvc.perform(get("/api/settings").header("Authorization", otherAuth))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.name", is("Test User")))
+            .andExpect(jsonPath("$.settings.default_currency", is("USD")))
+            .andExpect(jsonPath("$.settings.month_start_day", is(1)));
+
+        mvc.perform(patch("/api/settings")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("defaultCurrency", "BTC"))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("currency is not supported")));
+
+        mvc.perform(patch("/api/settings")
+                .header("Authorization", auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("monthStartDay", 31))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error", is("month start day must be between 1 and 28")));
     }
 
     @Test

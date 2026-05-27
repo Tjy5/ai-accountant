@@ -5,7 +5,10 @@ import loginCat from '../assets/kawaii/ui-login-cat.png';
 import hangingCat from '../assets/kawaii/ui-hanging-cat.png';
 import transactionsCat from '../assets/kawaii/ui-transactions-cat.png';
 import categoriesCat from '../assets/kawaii/ui-categories-cat.png';
+import goalsCat from '../assets/kawaii/ui-goals-cat.png';
 import budgetsCat from '../assets/kawaii/ui-budgets-cat.png';
+import reportsCat from '../assets/kawaii/ui-reports-cat.png';
+import settingsCat from '../assets/kawaii/ui-settings-cat.png';
 import wavingCat from '../assets/kawaii/ui-waving-cat.png';
 import sprout from '../assets/kawaii/ui-sprout.png';
 import moneyBag from '../assets/kawaii/ui-money-bag.png';
@@ -19,7 +22,10 @@ type StickerName =
   | 'hanging-cat'
   | 'transactions-cat'
   | 'categories-cat'
+  | 'goals-cat'
   | 'budgets-cat'
+  | 'reports-cat'
+  | 'settings-cat'
   | 'waving-cat'
   | 'sprout'
   | 'money-bag'
@@ -40,7 +46,10 @@ const stickers: Record<StickerName, string> = {
   'hanging-cat': hangingCat,
   'transactions-cat': transactionsCat,
   'categories-cat': categoriesCat,
+  'goals-cat': goalsCat,
   'budgets-cat': budgetsCat,
+  'reports-cat': reportsCat,
+  'settings-cat': settingsCat,
   'waving-cat': wavingCat,
   sprout,
   'money-bag': moneyBag,

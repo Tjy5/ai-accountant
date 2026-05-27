@@ -7,16 +7,20 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@TableName("budgets")
-public class Budget {
+@TableName("goals")
+public class Goal {
     @TableId(type = IdType.AUTO)
     private Long id;
     @TableField("user_id")
     private Long userId;
-    private String category;
-    private BigDecimal amount;
-    @TableField("period_month")
-    private String periodMonth;
+    private String title;
+    @TableField("target_amount")
+    private BigDecimal targetAmount;
+    @TableField("saved_amount")
+    private BigDecimal savedAmount;
+    @TableField("target_date")
+    private LocalDateTime targetDate;
+    private String status;
     private String color;
     private String icon;
     private String notes;
@@ -33,12 +37,16 @@ public class Budget {
     public void setId(Long id) { this.id = id; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
-    public String getCategory() { return category; }
-    public void setCategory(String category) { this.category = category; }
-    public BigDecimal getAmount() { return amount; }
-    public void setAmount(BigDecimal amount) { this.amount = amount; }
-    public String getPeriodMonth() { return periodMonth; }
-    public void setPeriodMonth(String periodMonth) { this.periodMonth = periodMonth; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public BigDecimal getTargetAmount() { return targetAmount; }
+    public void setTargetAmount(BigDecimal targetAmount) { this.targetAmount = targetAmount; }
+    public BigDecimal getSavedAmount() { return savedAmount; }
+    public void setSavedAmount(BigDecimal savedAmount) { this.savedAmount = savedAmount; }
+    public LocalDateTime getTargetDate() { return targetDate; }
+    public void setTargetDate(LocalDateTime targetDate) { this.targetDate = targetDate; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
     public String getColor() { return color; }
     public void setColor(String color) { this.color = color; }
     public String getIcon() { return icon; }

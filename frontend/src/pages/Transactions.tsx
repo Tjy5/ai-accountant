@@ -55,6 +55,15 @@ interface TransactionFormState {
   date: string;
 }
 
+type RawTransaction = {
+  id?: string | number;
+  type?: string;
+  category?: string;
+  amount?: number | string;
+  description?: string;
+  date?: string;
+};
+
 const PAGE_SIZE = 8;
 
 const SAMPLE_TRANSACTIONS: TransactionItem[] = [
@@ -107,7 +116,7 @@ const readableDate = (date?: string) => {
   });
 };
 
-const normalizeTransaction = (raw: any, index: number): TransactionItem => ({
+const normalizeTransaction = (raw: RawTransaction, index: number): TransactionItem => ({
   id: String(raw?.id ?? `local-${index}`),
   type: raw?.type === 'income' ? 'income' : 'expense',
   category: String(raw?.category || 'Other'),
@@ -245,10 +254,6 @@ export const Transactions = () => {
   }, [searchInput]);
 
   useEffect(() => {
-    setPage(1);
-  }, [typeFilter, categoryFilter, startDate, endDate]);
-
-  useEffect(() => {
     let alive = true;
 
     const load = async () => {
@@ -268,9 +273,8 @@ export const Transactions = () => {
       try {
         const response = await api.get('/transactions', { params });
         if (!alive) return;
-        const rows = Array.isArray(response.data?.transactions)
-          ? response.data.transactions.map(normalizeTransaction)
-          : [];
+        const rawTransactions: RawTransaction[] = Array.isArray(response.data?.transactions) ? response.data.transactions : [];
+        const rows = rawTransactions.map(normalizeTransaction);
         setTransactions(rows);
         setTotals({
           income: Number(response.data?.totals?.income || 0),
@@ -418,9 +422,8 @@ export const Transactions = () => {
             ...(endDate ? { endDate } : {}),
           },
         });
-        const rows = Array.isArray(response.data?.transactions)
-          ? response.data.transactions.map(normalizeTransaction)
-          : [];
+        const rawTransactions: RawTransaction[] = Array.isArray(response.data?.transactions) ? response.data.transactions : [];
+        const rows = rawTransactions.map(normalizeTransaction);
         setTransactions(rows);
         setTotals({
           income: Number(response.data?.totals?.income || 0),
@@ -520,7 +523,10 @@ export const Transactions = () => {
               <Filter className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
               <select
                 value={typeFilter}
-                onChange={(event) => setTypeFilter(event.target.value as 'all' | TransactionType)}
+                onChange={(event) => {
+                  setPage(1);
+                  setTypeFilter(event.target.value as 'all' | TransactionType);
+                }}
                 className="h-12 w-full appearance-none rounded-[16px] border border-[#EFE2D8] bg-[#FFFDFB] px-11 pr-9 text-[14px] font-black text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.05)] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
               >
                 <option value="all">All Accounts</option>
@@ -535,7 +541,10 @@ export const Transactions = () => {
               <ReceiptText className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
               <select
                 value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
+                onChange={(event) => {
+                  setPage(1);
+                  setCategoryFilter(event.target.value);
+                }}
                 className="h-12 w-full appearance-none rounded-[16px] border border-[#EFE2D8] bg-[#FFFDFB] px-11 pr-9 text-[14px] font-black text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.05)] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
               >
                 <option value="all">All Categories</option>
@@ -554,7 +563,10 @@ export const Transactions = () => {
               <input
                 type="date"
                 value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
+                onChange={(event) => {
+                  setPage(1);
+                  setStartDate(event.target.value);
+                }}
                 className="h-12 w-full rounded-[16px] border border-[#EFE2D8] bg-[#FFFDFB] pl-11 pr-4 text-[14px] font-black text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.05)] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
               />
             </label>
@@ -565,7 +577,10 @@ export const Transactions = () => {
               <input
                 type="date"
                 value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
+                onChange={(event) => {
+                  setPage(1);
+                  setEndDate(event.target.value);
+                }}
                 className="h-12 w-full rounded-[16px] border border-[#EFE2D8] bg-[#FFFDFB] pl-11 pr-4 text-[14px] font-black text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.05)] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
               />
             </label>

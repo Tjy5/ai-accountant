@@ -65,6 +65,27 @@ interface CategoryStats {
   trackedSpend: number;
 }
 
+type RawCategory = {
+  id?: string | number;
+  name?: string;
+  type?: string;
+  icon?: string;
+  color?: string;
+  description?: string;
+  is_default?: boolean;
+  isDefault?: boolean;
+  usage_count?: number | string;
+  usageCount?: number | string;
+  transaction_count?: number | string;
+  transactionCount?: number | string;
+  income_total?: number | string;
+  incomeTotal?: number | string;
+  expense_total?: number | string;
+  expenseTotal?: number | string;
+  total_amount?: number | string;
+  totalAmount?: number | string;
+};
+
 const ICONS = {
   utensils: Utensils,
   bus: Bus,
@@ -223,7 +244,7 @@ const money = new Intl.NumberFormat('en-US', {
 const fallbackColor = (value?: string): ColorName => (COLORS.includes(value as ColorName) ? (value as ColorName) : '#FF8C94');
 const fallbackIcon = (value?: string): IconName => (value && value in ICONS ? (value as IconName) : 'tag');
 
-const normalizeCategory = (raw: any, index: number): CategoryItem => {
+const normalizeCategory = (raw: RawCategory, index: number): CategoryItem => {
   const transactionCount = Number(raw?.transaction_count ?? raw?.transactionCount ?? raw?.usage_count ?? raw?.usageCount ?? 0);
   const incomeTotal = Number(raw?.income_total ?? raw?.incomeTotal ?? 0);
   const expenseTotal = Number(raw?.expense_total ?? raw?.expenseTotal ?? 0);
@@ -348,9 +369,8 @@ export const Categories = () => {
           },
         });
         if (!alive) return;
-        const rows = Array.isArray(response.data?.categories)
-          ? response.data.categories.map(normalizeCategory)
-          : [];
+        const rawCategories: RawCategory[] = Array.isArray(response.data?.categories) ? response.data.categories : [];
+        const rows = rawCategories.map(normalizeCategory);
         setCategories(rows);
         setOfflineMode(false);
       } catch {
@@ -450,9 +470,8 @@ export const Categories = () => {
             ...(search ? { search } : {}),
           },
         });
-        const rows = Array.isArray(response.data?.categories)
-          ? response.data.categories.map(normalizeCategory)
-          : [];
+        const rawCategories: RawCategory[] = Array.isArray(response.data?.categories) ? response.data.categories : [];
+        const rows = rawCategories.map(normalizeCategory);
         setCategories(rows);
       }
     } catch {

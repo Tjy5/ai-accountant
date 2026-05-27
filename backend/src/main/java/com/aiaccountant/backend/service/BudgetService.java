@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ import org.springframework.util.MultiValueMap;
 
 @Service
 public class BudgetService {
+    private static final String ACTIVE_KEY = "ACTIVE";
     private static final Set<String> ICONS = Set.of(
         "utensils",
         "bus",
@@ -75,7 +77,11 @@ public class BudgetService {
     @Transactional
     public Map<String, Object> create(Long userId, Map<String, Object> body) {
         Budget budget = normalizeBudget(userId, null, body, false);
-        budgetMapper.insert(budget);
+        try {
+            budgetMapper.insert(budget);
+        } catch (DuplicateKeyException ex) {
+            throw duplicateBudgetException();
+        }
 
         Budget saved = budgetMapper.findActiveByIdAndUser(budget.getId(), userId);
         YearMonth month = parseMonth(saved.getPeriodMonth(), false);
@@ -95,7 +101,11 @@ public class BudgetService {
 
         normalizeBudget(userId, budget, body, true);
         budget.setUpdatedAt(LocalDateTime.now());
-        budgetMapper.updateById(budget);
+        try {
+            budgetMapper.updateById(budget);
+        } catch (DuplicateKeyException ex) {
+            throw duplicateBudgetException();
+        }
 
         Budget saved = budgetMapper.findActiveByIdAndUser(id, userId);
         YearMonth month = parseMonth(saved.getPeriodMonth(), false);
@@ -123,7 +133,10 @@ public class BudgetService {
     private Budget normalizeBudget(Long userId, Budget existing, Map<String, Object> body, boolean partial) {
         if (body == null) throw new ApiException(HttpStatus.BAD_REQUEST, "budget is invalid");
         Budget budget = existing == null ? new Budget() : existing;
-        if (existing == null) budget.setUserId(userId);
+        if (existing == null) {
+            budget.setUserId(userId);
+        }
+        budget.setActiveKey(ACTIVE_KEY);
 
         if (!partial || hasAny(body, "category", "categoryName", "name")) {
             String category = RequestValues.trimToNull(RequestValues.first(body, "category", "categoryName", "name"));
@@ -167,6 +180,10 @@ public class BudgetService {
         if (duplicate != null) throw new ApiException(HttpStatus.CONFLICT, "budget already exists for category and month");
 
         return budget;
+    }
+
+    private ApiException duplicateBudgetException() {
+        return new ApiException(HttpStatus.CONFLICT, "budget already exists for category and month");
     }
 
     private Map<String, BigDecimal> spentByCategory(Long userId, YearMonth month) {

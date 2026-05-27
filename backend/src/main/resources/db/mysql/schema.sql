@@ -9,6 +9,23 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE KEY uk_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS user_settings (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  default_currency VARCHAR(8) NOT NULL DEFAULT 'USD',
+  month_start_day INT NOT NULL DEFAULT 1,
+  receipt_reminders TINYINT NOT NULL DEFAULT 1,
+  budget_alerts TINYINT NOT NULL DEFAULT 1,
+  weekly_report TINYINT NOT NULL DEFAULT 0,
+  ai_assist_enabled TINYINT NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME,
+  CONSTRAINT fk_user_settings_user FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT ck_user_settings_month_start CHECK (month_start_day BETWEEN 1 AND 28),
+  UNIQUE KEY uk_user_settings_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS categories (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
@@ -57,12 +74,37 @@ CREATE TABLE IF NOT EXISTS budgets (
   color VARCHAR(40),
   icon VARCHAR(120),
   notes VARCHAR(500),
+  active_key VARCHAR(40) NOT NULL DEFAULT 'ACTIVE',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   deleted_at DATETIME,
   CONSTRAINT fk_budgets_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT ck_budgets_amount CHECK (amount > 0),
-  UNIQUE KEY uk_budgets_user_category_month_active (user_id, category, period_month, deleted_at),
+  UNIQUE KEY uk_budgets_user_category_month_active (user_id, category, period_month, active_key),
   KEY idx_budgets_user_month_active (user_id, period_month, deleted_at),
   KEY idx_budgets_user_category (user_id, category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS goals (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(120) NOT NULL,
+  target_amount DECIMAL(18,2) NOT NULL,
+  saved_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+  target_date DATETIME,
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  color VARCHAR(40),
+  icon VARCHAR(120),
+  notes VARCHAR(500),
+  active_key VARCHAR(40) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME,
+  CONSTRAINT fk_goals_user FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT ck_goals_target_amount CHECK (target_amount > 0),
+  CONSTRAINT ck_goals_saved_amount CHECK (saved_amount >= 0),
+  CONSTRAINT ck_goals_status CHECK (status IN ('active', 'paused', 'completed')),
+  UNIQUE KEY uk_goals_user_title_active (user_id, title, active_key),
+  KEY idx_goals_user_status_active (user_id, status, deleted_at),
+  KEY idx_goals_user_target_date (user_id, target_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

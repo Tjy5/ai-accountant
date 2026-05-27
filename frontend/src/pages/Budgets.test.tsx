@@ -114,6 +114,53 @@ describe('Budgets', () => {
     expect(screen.getByText('-$20.00')).toBeInTheDocument();
   });
 
+  it('shows an API failure instead of falling back to local sample budgets', async () => {
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/categories') return Promise.resolve(categoriesResponse);
+      if (url === '/budgets') return Promise.reject(new Error('backend down'));
+      return Promise.reject(new Error(`unexpected url ${url}`));
+    });
+
+    render(<Budgets />);
+
+    expect(await screen.findByText(/could not load budgets/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(screen.queryByText('Local Preview')).not.toBeInTheDocument();
+    expect(screen.queryByText('Food & Dining')).not.toBeInTheDocument();
+    expect(screen.queryByText('Transport')).not.toBeInTheDocument();
+    expect(screen.getByText(/no budgets for/i)).toBeInTheDocument();
+  });
+
+  it('filters budget rows from the search menu', async () => {
+    const user = userEvent.setup();
+    render(<Budgets />);
+
+    await screen.findByText('Transport');
+    await user.click(screen.getByRole('button', { name: /search budgets/i }));
+    const searchInput = screen.getByPlaceholderText(/search category or notes/i);
+
+    await user.type(searchInput, 'Transport');
+    expect(screen.getByText('1 of 2 budgets shown')).toBeInTheDocument();
+    expect(screen.getByText('Transport')).toBeInTheDocument();
+    expect(screen.queryByText('Food & Dining')).not.toBeInTheDocument();
+
+    await user.clear(searchInput);
+    await user.type(searchInput, 'missing');
+    expect(screen.getByText('0 of 2 budgets shown')).toBeInTheDocument();
+    expect(screen.getByText('No matching budgets')).toBeInTheDocument();
+  });
+
+  it('opens budget alerts for watched and over-budget rows', async () => {
+    const user = userEvent.setup();
+    render(<Budgets />);
+
+    await screen.findByText('Transport');
+    await user.click(screen.getByRole('button', { name: /budget alerts/i }));
+
+    expect(screen.getByText('Budget Alerts')).toBeInTheDocument();
+    expect(screen.getByText('105% used, -$20.00 remaining')).toBeInTheDocument();
+  });
+
   it('opens the budget drawer and posts a new budget', async () => {
     const user = userEvent.setup();
     render(<Budgets />);

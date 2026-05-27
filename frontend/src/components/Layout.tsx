@@ -57,10 +57,73 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#ECE7DF] p-2 flex items-center justify-center text-[#4E3629] font-sans antialiased selection:bg-[#FFD1DC]/50">
-      <div className="w-[calc(100vw-16px)] h-[calc(100vh-16px)] min-h-[720px] bg-[#FBF8F3] flex overflow-hidden rounded-[26px] shadow-[0_22px_70px_rgba(92,65,45,0.13)]">
+    <div className="min-h-screen bg-[#ECE7DF] p-0 text-[#4E3629] selection:bg-[#FFD1DC]/50 sm:flex sm:items-center sm:justify-center sm:p-2">
+      <div className="flex h-[100svh] min-h-0 w-full flex-col overflow-hidden bg-[#FBF8F3] font-sans antialiased shadow-[0_22px_70px_rgba(92,65,45,0.13)] sm:h-[calc(100vh-16px)] sm:w-[calc(100vw-16px)] sm:rounded-[26px] md:min-h-[720px] md:flex-row">
+      {/* Mobile Header */}
+      <header className="shrink-0 border-b border-[#EDE1D5] bg-[#FFFDF8] px-4 py-3 shadow-[0_10px_26px_rgba(92,65,45,0.05)] md:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5 select-none">
+            <div className="h-10 w-10 shrink-0 rounded-[15px] border border-[#F0D9C7] bg-[#FFF1E2] p-1.5 shadow-[0_8px_18px_rgba(92,65,45,0.08)]">
+              <CuteSticker name="logo-cat" className="h-full w-full" title="AI Accountant Logo" />
+            </div>
+            <h1 className="truncate text-[18px] font-black tracking-tight text-[#33251E]">AI Accountant</h1>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={handleNewEntry}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] px-3 text-sm font-black text-white shadow-[0_10px_20px_rgba(255,111,143,0.22)]"
+            >
+              <span className="text-base leading-none">+</span>
+              New
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setProfileOpen(!profileOpen)}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EEE3D9] bg-white shadow-[0_8px_18px_rgba(92,65,45,0.08)]"
+                aria-label="Open profile menu"
+              >
+                <CuteSticker name="avatar" className="h-8 w-8" title="User Profile" />
+              </button>
+              {profileOpen && (
+                <div className="absolute right-0 top-12 z-[55] w-44 rounded-[18px] border border-[#EEE3D9] bg-white p-2 shadow-lg">
+                  <p className="truncate px-3 py-2 text-xs font-black text-[#4E3629]">{profileLabel}</p>
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-bold text-red-500 transition-colors hover:bg-red-50"
+                  >
+                    <LogOut size={16} />
+                    Log Out
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <nav className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {menuItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[13px] font-extrabold transition-all ${
+                  isActive
+                    ? 'border-[#EDE1D5] bg-[#F4EDE6] text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.06)]'
+                    : 'border-transparent bg-white/70 text-[#7F8794] hover:text-[#4E3629]'
+                }`
+              }
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </header>
+
       {/* Left Sidebar */}
-      <aside className="w-[282px] bg-[#FFFDF8] border-r border-[#EDE1D5] flex flex-col justify-between px-5 py-6 shrink-0 h-full z-30 shadow-[12px_0_32px_rgba(92,65,45,0.05)]">
+      <aside className="hidden w-[282px] shrink-0 flex-col justify-between border-r border-[#EDE1D5] bg-[#FFFDF8] px-5 py-6 shadow-[12px_0_32px_rgba(92,65,45,0.05)] md:flex md:h-full">
         <div className="flex flex-col gap-7">
           {/* Brand Logo Header */}
           <div className="flex items-center gap-3 select-none">
@@ -129,8 +192,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main Container */}
-      <div className="flex-grow flex flex-col h-full min-w-0 min-h-0 overflow-y-auto">
-        <main className="px-7 py-7 w-full flex-grow min-h-0 flex flex-col">
+      <div className="flex min-h-0 min-w-0 flex-grow flex-col overflow-y-auto">
+        <main className="flex min-h-0 w-full flex-grow flex-col px-4 py-5 sm:px-6 sm:py-6 md:px-7 md:py-7">
           {children}
         </main>
       </div>

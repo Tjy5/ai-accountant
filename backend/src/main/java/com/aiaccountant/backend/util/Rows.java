@@ -2,8 +2,10 @@ package com.aiaccountant.backend.util;
 
 import com.aiaccountant.backend.entity.Budget;
 import com.aiaccountant.backend.entity.Category;
+import com.aiaccountant.backend.entity.Goal;
 import com.aiaccountant.backend.entity.Transaction;
 import com.aiaccountant.backend.entity.User;
+import com.aiaccountant.backend.entity.UserSettings;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -18,6 +20,18 @@ public final class Rows {
         out.put("email", user.getEmail());
         out.put("name", user.getName());
         out.put("created_at", user.getCreatedAt());
+        return out;
+    }
+
+    public static Map<String, Object> settings(UserSettings settings) {
+        Map<String, Object> out = base(settings.getId(), settings.getCreatedAt(), settings.getUpdatedAt(), settings.getDeletedAt());
+        out.put("user_id", settings.getUserId());
+        out.put("default_currency", settings.getDefaultCurrency());
+        out.put("month_start_day", settings.getMonthStartDay());
+        out.put("receipt_reminders", settings.getReceiptReminders());
+        out.put("budget_alerts", settings.getBudgetAlerts());
+        out.put("weekly_report", settings.getWeeklyReport());
+        out.put("ai_assist_enabled", settings.getAiAssistEnabled());
         return out;
     }
 
@@ -54,6 +68,20 @@ public final class Rows {
         out.put("color", b.getColor());
         out.put("icon", b.getIcon());
         out.put("notes", b.getNotes());
+        return out;
+    }
+
+    public static Map<String, Object> goal(Goal g) {
+        Map<String, Object> out = base(g.getId(), g.getCreatedAt(), g.getUpdatedAt(), g.getDeletedAt());
+        out.put("user_id", g.getUserId());
+        out.put("title", g.getTitle());
+        out.put("target_amount", g.getTargetAmount());
+        out.put("saved_amount", g.getSavedAmount());
+        out.put("target_date", g.getTargetDate());
+        out.put("status", g.getStatus());
+        out.put("color", g.getColor());
+        out.put("icon", g.getIcon());
+        out.put("notes", g.getNotes());
         return out;
     }
 

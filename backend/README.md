@@ -88,16 +88,22 @@ The retained public API surface is:
 - `POST /api/budgets`
 - `PATCH /api/budgets/{id}`
 - `DELETE /api/budgets/{id}`
+- `GET /api/goals`
+- `POST /api/goals`
+- `PATCH /api/goals/{id}`
+- `DELETE /api/goals/{id}`
 - `GET /api/dashboard/summary`
 - `GET /api/dashboard/charts`
+- `GET /api/settings`
+- `PATCH /api/settings`
 
 Point the frontend API base URL or Vite proxy target at `http://127.0.0.1:3002`.
 
 ## Product Scope
 
-The backend is centered on AI-assisted bookkeeping, transaction management, category management, monthly budgets, and dashboard reporting. Authentication isolates each user's data. Default categories are seeded internally for AI classification and dashboard grouping, and the Categories and Budgets modules expose protected CRUD for user-managed labels and spending caps.
+The backend is centered on AI-assisted bookkeeping, transaction management, category management, monthly budgets, savings goals, dashboard reporting, and user-level app settings. Authentication isolates each user's data. Default categories are seeded internally for AI classification and dashboard grouping, and the Categories, Budgets, and Goals modules expose protected CRUD for user-managed labels, spending caps, and savings targets.
 
-Budget history, user preferences, public AI settings, generic chat, legacy text analysis, and standalone transcription endpoints are intentionally not exposed.
+Budget history, public AI settings, generic chat, legacy text analysis, and standalone transcription endpoints are intentionally not exposed.
 
 ## Tests
 

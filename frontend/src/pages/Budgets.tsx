@@ -61,6 +61,45 @@ interface BudgetFormState {
 
 type BudgetStatus = 'on_track' | 'watch' | 'over';
 
+type RawBudget = {
+  id?: string | number;
+  category?: string;
+  categoryName?: string;
+  name?: string;
+  amount?: number | string;
+  budget?: number | string;
+  budgetAmount?: number | string;
+  spent?: number | string;
+  remaining?: number | string;
+  progress?: number | string;
+  status?: string;
+  period_month?: string;
+  periodMonth?: string;
+  month?: string;
+  icon?: string;
+  color?: string;
+  notes?: string;
+  description?: string;
+};
+
+type RawSummary = {
+  month?: string;
+  totalBudget?: number | string;
+  total_budget?: number | string;
+  totalSpent?: number | string;
+  total_spent?: number | string;
+  remaining?: number | string;
+  progress?: number | string;
+  count?: number | string;
+  overBudget?: number | string;
+  over_budget?: number | string;
+};
+
+type RawCategory = {
+  name?: string;
+  type?: string;
+};
+
 const ICONS = {
   utensils: Utensils,
   bus: Bus,
@@ -116,100 +155,6 @@ const DEFAULT_CATEGORIES = [
   '其他',
 ];
 
-const SAMPLE_BUDGETS: BudgetItem[] = [
-  {
-    id: 'sample-food',
-    category: 'Food & Dining',
-    amount: 600,
-    spent: 413.2,
-    remaining: 186.8,
-    progress: 69,
-    status: 'on_track',
-    periodMonth: '2026-05',
-    icon: 'utensils',
-    color: '#FF8C94',
-    notes: 'Meals, snacks, coffee, and groceries.',
-  },
-  {
-    id: 'sample-shopping',
-    category: 'Shopping',
-    amount: 800,
-    spent: 615.85,
-    remaining: 184.15,
-    progress: 77,
-    status: 'on_track',
-    periodMonth: '2026-05',
-    icon: 'shopping-bag',
-    color: '#FFD54F',
-    notes: 'Clothes, home items, and online orders.',
-  },
-  {
-    id: 'sample-transport',
-    category: 'Transport',
-    amount: 400,
-    spent: 265.5,
-    remaining: 134.5,
-    progress: 66,
-    status: 'on_track',
-    periodMonth: '2026-05',
-    icon: 'bus',
-    color: '#64B5F6',
-    notes: 'Transit, fuel, parking, and rideshare.',
-  },
-  {
-    id: 'sample-entertainment',
-    category: 'Entertainment',
-    amount: 300,
-    spent: 210.42,
-    remaining: 89.58,
-    progress: 70,
-    status: 'on_track',
-    periodMonth: '2026-05',
-    icon: 'gamepad',
-    color: '#BA68C8',
-    notes: 'Movies, games, shows, and little treats.',
-  },
-  {
-    id: 'sample-bills',
-    category: 'Bills & Utilities',
-    amount: 600,
-    spent: 448.6,
-    remaining: 151.4,
-    progress: 75,
-    status: 'on_track',
-    periodMonth: '2026-05',
-    icon: 'receipt',
-    color: '#4DB6AC',
-    notes: 'Utilities, phone, internet, and recurring bills.',
-  },
-  {
-    id: 'sample-health',
-    category: 'Health & Fitness',
-    amount: 200,
-    spent: 142.88,
-    remaining: 57.12,
-    progress: 71,
-    status: 'on_track',
-    periodMonth: '2026-05',
-    icon: 'heart-pulse',
-    color: '#F27C8B',
-    notes: 'Medicine, gym, and wellness care.',
-  },
-  {
-    id: 'sample-other',
-    category: 'Other',
-    amount: 300,
-    spent: 262.75,
-    remaining: 37.25,
-    progress: 88,
-    status: 'watch',
-    periodMonth: '2026-05',
-    icon: 'more-horizontal',
-    color: '#8C9EFF',
-    notes: 'Flexible spending that needs a little room.',
-  },
-];
-
 const money = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -217,7 +162,10 @@ const money = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
-const currentMonthInput = () => new Date().toISOString().slice(0, 7);
+const currentMonthInput = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
 
 const readableMonth = (month: string) => {
   const match = month.match(/^(\d{4})-(\d{2})$/);
@@ -242,7 +190,7 @@ const statusFrom = (progress: number): BudgetStatus => {
   return 'on_track';
 };
 
-const normalizeBudget = (raw: any, index: number, month: string): BudgetItem => {
+const normalizeBudget = (raw: RawBudget, index: number, month: string): BudgetItem => {
   const amount = Number(raw?.amount ?? raw?.budget ?? raw?.budgetAmount ?? 0);
   const spent = Number(raw?.spent ?? 0);
   const remaining = Number(raw?.remaining ?? amount - spent);
@@ -280,7 +228,7 @@ const computeSummary = (month: string, rows: BudgetItem[]): BudgetSummary => {
   };
 };
 
-const normalizeSummary = (raw: any, month: string, rows: BudgetItem[]): BudgetSummary => {
+const normalizeSummary = (raw: RawSummary | undefined, month: string, rows: BudgetItem[]): BudgetSummary => {
   const fallback = computeSummary(month, rows);
   return {
     month: String(raw?.month ?? month),
@@ -292,8 +240,6 @@ const normalizeSummary = (raw: any, month: string, rows: BudgetItem[]): BudgetSu
     overBudget: Number(raw?.overBudget ?? raw?.over_budget ?? fallback.overBudget),
   };
 };
-
-const sampleRowsForMonth = (month: string) => SAMPLE_BUDGETS.map((budget) => ({ ...budget, periodMonth: month }));
 
 const emptyForm = (periodMonth: string): BudgetFormState => ({
   category: 'Food & Dining',
@@ -349,11 +295,13 @@ export const Budgets = () => {
   const [month, setMonth] = useState(currentMonthInput());
   const [budgets, setBudgets] = useState<BudgetItem[]>([]);
   const [summary, setSummary] = useState<BudgetSummary>(() => computeSummary(currentMonthInput(), []));
-  const [offlineRows, setOfflineRows] = useState<BudgetItem[]>(sampleRowsForMonth(currentMonthInput()));
   const [categoryOptions, setCategoryOptions] = useState(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
-  const [offlineMode, setOfflineMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [alertsOpen, setAlertsOpen] = useState(false);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<BudgetItem | null>(null);
@@ -367,12 +315,11 @@ export const Budgets = () => {
     api.get('/categories', { params: { type: 'expense' } })
       .then((response) => {
         if (!alive) return;
-        const names = Array.isArray(response.data?.categories)
-          ? response.data.categories
-              .filter((category: any) => category?.type !== 'income')
-              .map((category: any) => String(category?.name || '').trim())
+        const rawCategories: RawCategory[] = Array.isArray(response.data?.categories) ? response.data.categories : [];
+        const names = rawCategories
+              .filter((category) => category?.type !== 'income')
+              .map((category) => String(category?.name || '').trim())
               .filter(Boolean)
-          : [];
         setCategoryOptions(Array.from(new Set([...DEFAULT_CATEGORIES, ...names])).sort((a, b) => a.localeCompare(b)));
       })
       .catch(() => {
@@ -394,19 +341,15 @@ export const Budgets = () => {
       try {
         const response = await api.get('/budgets', { params: { month } });
         if (!alive) return;
-        const rows = Array.isArray(response.data?.budgets)
-          ? response.data.budgets.map((budget: any, index: number) => normalizeBudget(budget, index, month))
-          : [];
+        const rawBudgets: RawBudget[] = Array.isArray(response.data?.budgets) ? response.data.budgets : [];
+        const rows = rawBudgets.map((budget, index) => normalizeBudget(budget, index, month));
         setBudgets(rows);
         setSummary(normalizeSummary(response.data?.summary, month, rows));
-        setOfflineMode(false);
       } catch {
         if (!alive) return;
-        const rows = offlineRows.filter((budget) => budget.periodMonth === month);
-        setBudgets(rows);
-        setSummary(computeSummary(month, rows));
-        setOfflineMode(true);
-        setError(null);
+        setBudgets([]);
+        setSummary(computeSummary(month, []));
+        setError('Could not load budgets. Check the backend connection and try again.');
       } finally {
         if (alive) setLoading(false);
       }
@@ -416,24 +359,31 @@ export const Budgets = () => {
     return () => {
       alive = false;
     };
-  }, [month, offlineRows]);
+  }, [month, reloadKey]);
 
   const topBudget = useMemo(
     () => [...budgets].sort((a, b) => b.progress - a.progress || b.spent - a.spent)[0],
     [budgets],
   );
 
-  const refreshLocalRows = (nextRows: BudgetItem[], selectedMonth = month) => {
-    const visible = nextRows.filter((budget) => budget.periodMonth === selectedMonth);
-    setBudgets(visible);
-    setSummary(computeSummary(selectedMonth, visible));
-  };
+  const filteredBudgets = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return budgets;
+    return budgets.filter((budget) =>
+      [budget.category, budget.notes, budget.status, readableMonth(budget.periodMonth)]
+        .some((value) => value.toLowerCase().includes(term)),
+    );
+  }, [budgets, searchTerm]);
+
+  const budgetAlerts = useMemo(
+    () => budgets.filter((budget) => budget.status === 'over' || budget.status === 'watch'),
+    [budgets],
+  );
 
   const refreshRemoteRows = async (selectedMonth = month) => {
     const response = await api.get('/budgets', { params: { month: selectedMonth } });
-    const rows = Array.isArray(response.data?.budgets)
-      ? response.data.budgets.map((budget: any, index: number) => normalizeBudget(budget, index, selectedMonth))
-      : [];
+    const rawBudgets: RawBudget[] = Array.isArray(response.data?.budgets) ? response.data.budgets : [];
+    const rows = rawBudgets.map((budget, index) => normalizeBudget(budget, index, selectedMonth));
     setBudgets(rows);
     setSummary(normalizeSummary(response.data?.summary, selectedMonth, rows));
   };
@@ -496,29 +446,7 @@ export const Budgets = () => {
     };
 
     try {
-      if (offlineMode) {
-        const spent = editing && editing.category === payload.category && editing.periodMonth === payload.month ? editing.spent : 0;
-        const progress = progressFrom(spent, amount);
-        const nextBudget: BudgetItem = {
-          id: editing?.id || `local-${Date.now()}`,
-          category: payload.category,
-          amount,
-          spent,
-          remaining: amount - spent,
-          progress,
-          status: statusFrom(progress),
-          periodMonth: payload.month,
-          icon: payload.icon,
-          color: payload.color,
-          notes: payload.notes,
-        };
-        const nextRows = editing
-          ? offlineRows.map((budget) => (budget.id === editing.id ? nextBudget : budget))
-          : [nextBudget, ...offlineRows];
-        setOfflineRows(nextRows);
-        setMonth(payload.month);
-        refreshLocalRows(nextRows, payload.month);
-      } else if (editing) {
+      if (editing) {
         await api.patch(`/budgets/${editing.id}`, payload);
         setMonth(payload.month);
         await refreshRemoteRows(payload.month);
@@ -541,13 +469,6 @@ export const Budgets = () => {
     const confirmed = window.confirm(`Delete "${budget.category}" budget?`);
     if (!confirmed) return;
 
-    if (offlineMode) {
-      const nextRows = offlineRows.filter((row) => row.id !== budget.id);
-      setOfflineRows(nextRows);
-      refreshLocalRows(nextRows);
-      return;
-    }
-
     try {
       await api.delete(`/budgets/${budget.id}`);
       await refreshRemoteRows();
@@ -562,45 +483,103 @@ export const Budgets = () => {
         <div>
           <div className="mb-1 flex items-center gap-2">
             <span className="text-[11px] font-black uppercase text-[#FF7F96]">Plan</span>
-            {offlineMode && (
-              <span className="rounded-full bg-[#FFF2E7] px-2.5 py-0.5 text-[11px] font-black text-[#9D4E2B]">
-                Local Preview
-              </span>
-            )}
           </div>
           <h2 className="text-[32px] font-black leading-tight tracking-tight text-[#2F2925]">Budgets</h2>
           <p className="mt-1 text-[15px] font-bold text-[#6F7785]">Set and manage your monthly budgets.</p>
         </div>
 
-        <div className="flex items-center gap-3 pt-1">
+        <div className="relative flex items-center gap-3 pt-1">
           <button
+            type="button"
+            onClick={() => {
+              setSearchOpen((open) => !open);
+              setAlertsOpen(false);
+            }}
+            aria-expanded={searchOpen}
             className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white shadow-[0_8px_18px_rgba(92,65,45,0.08)] transition-colors hover:bg-[#FFF8F2]"
             aria-label="Search budgets"
           >
             <Search size={19} strokeWidth={2.5} className="text-[#2F2925]" />
           </button>
           <button
+            type="button"
+            onClick={() => {
+              setAlertsOpen((open) => !open);
+              setSearchOpen(false);
+            }}
+            aria-expanded={alertsOpen}
             className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white shadow-[0_8px_18px_rgba(92,65,45,0.08)] transition-colors hover:bg-[#FFF8F2]"
-            aria-label="Notifications"
+            aria-label="Budget alerts"
           >
             <Bell size={19} strokeWidth={2.5} className="text-[#2F2925]" />
           </button>
+          {searchOpen && (
+            <div className="absolute right-0 top-12 z-20 w-[320px] rounded-[20px] border border-[#EFE2D8] bg-white p-3 shadow-[0_18px_36px_rgba(92,65,45,0.14)]">
+              <label htmlFor="budget-search" className="sr-only">Search budgets</label>
+              <div className="flex h-11 items-center gap-2 rounded-[15px] border border-[#EFE2D8] bg-[#FFFDFB] px-3 focus-within:ring-4 focus-within:ring-[#FFD1DC]/40">
+                <Search size={16} strokeWidth={2.5} className="text-[#8B929C]" />
+                <input
+                  id="budget-search"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search category or notes"
+                  className="h-full min-w-0 flex-1 bg-transparent text-sm font-bold text-[#4E3629] outline-none placeholder:text-[#A7A0A0]"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-[#8B929C] hover:bg-[#FFF2E7] hover:text-[#4E3629]"
+                    aria-label="Clear budget search"
+                  >
+                    <X size={14} strokeWidth={3} />
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 px-1 text-[11px] font-black text-[#8B929C]">
+                {filteredBudgets.length} of {budgets.length} budgets shown
+              </p>
+            </div>
+          )}
+          {alertsOpen && (
+            <div className="absolute right-0 top-12 z-20 w-[320px] rounded-[20px] border border-[#EFE2D8] bg-white p-3 shadow-[0_18px_36px_rgba(92,65,45,0.14)]">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <p className="text-[13px] font-black text-[#2F2925]">Budget Alerts</p>
+                <span className="rounded-full bg-[#FFF2E7] px-2 py-0.5 text-[11px] font-black text-[#9D4E2B]">
+                  {budgetAlerts.length}
+                </span>
+              </div>
+              {budgetAlerts.length === 0 ? (
+                <p className="rounded-[15px] bg-[#F5FBF7] px-3 py-3 text-sm font-bold text-[#169B61]">
+                  All budgets are on track.
+                </p>
+              ) : (
+                <div className="max-h-[220px] overflow-auto">
+                  {budgetAlerts.map((budget) => (
+                    <div key={budget.id} className="flex items-center gap-3 rounded-[15px] px-2 py-2 hover:bg-[#FFF8F2]">
+                      <IconBadge budget={budget} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-[#2F2925]">{budget.category}</p>
+                        <p className={`text-[11px] font-black ${budget.status === 'over' ? 'text-[#C44B61]' : 'text-[#9D4E2B]'}`}>
+                          {budget.progress}% used, {money.format(budget.remaining)} remaining
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="relative">
-        <CuteSticker
-          name="budgets-cat"
-          className="pointer-events-none absolute right-[10.5rem] top-[-56px] z-10 hidden select-none drop-shadow-[0_8px_10px_rgba(92,65,45,0.12)] xl:block"
-          style={{ width: 88, height: 88 }}
-          title="Budgets helper cat"
-        />
-
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <label className="relative block w-full sm:w-[230px]">
+      <div>
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <label htmlFor="budget-filter-month" className="relative block w-full sm:w-[230px]">
             <span className="sr-only">Budget month</span>
             <CalendarDays className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
             <input
+              id="budget-filter-month"
               type="month"
               value={month}
               onChange={(event) => setMonth(event.target.value || currentMonthInput())}
@@ -608,13 +587,20 @@ export const Budgets = () => {
             />
           </label>
 
-          <button
-            onClick={openCreateDrawer}
-            className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] px-6 text-[15px] font-black text-white shadow-[0_12px_24px_rgba(255,111,143,0.28)] transition-all hover:translate-y-[-1px] active:translate-y-0 xl:w-auto"
-          >
-            <Plus size={19} strokeWidth={3} />
-            New Budget
-          </button>
+          <div className="flex w-full items-center justify-end gap-3 xl:w-auto">
+            <CuteSticker
+              name="budgets-cat"
+              className="pointer-events-none hidden h-16 w-16 shrink-0 select-none drop-shadow-[0_8px_10px_rgba(92,65,45,0.12)] xl:block"
+              title="Budgets helper cat"
+            />
+            <button
+              onClick={openCreateDrawer}
+              className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] px-6 text-[15px] font-black text-white shadow-[0_12px_24px_rgba(255,111,143,0.28)] transition-all hover:translate-y-[-1px] active:translate-y-0 xl:w-auto"
+            >
+              <Plus size={19} strokeWidth={3} />
+              New Budget
+            </button>
+          </div>
         </div>
       </div>
 
@@ -649,8 +635,15 @@ export const Budgets = () => {
       </div>
 
       {error && (
-        <div className="rounded-[16px] border border-[#F8C7CE] bg-[#FFF0F2] px-4 py-3 text-sm font-black text-[#C44B61]">
-          {error}
+        <div className="flex flex-col gap-3 rounded-[16px] border border-[#F8C7CE] bg-[#FFF0F2] px-4 py-3 text-sm font-black text-[#C44B61] sm:flex-row sm:items-center sm:justify-between">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={() => setReloadKey((key) => key + 1)}
+            className="h-9 rounded-full bg-white px-4 text-sm font-black text-[#C44B61] shadow-[0_8px_18px_rgba(92,65,45,0.08)] hover:bg-[#FFF8F2]"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -697,8 +690,15 @@ export const Budgets = () => {
                     <p className="mt-1 text-sm font-bold text-[#8B929C]">Create a monthly cap for a category.</p>
                   </td>
                 </tr>
+              ) : filteredBudgets.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-14 text-center">
+                    <p className="text-lg font-black text-[#2F2925]">No matching budgets</p>
+                    <p className="mt-1 text-sm font-bold text-[#8B929C]">Try a different category, note, or status.</p>
+                  </td>
+                </tr>
               ) : (
-                budgets.map((budget) => (
+                filteredBudgets.map((budget) => (
                   <tr key={budget.id} className="border-b border-[#F0E4DA] text-[14px] font-bold text-[#2F2925] last:border-b-0">
                     <td className="py-4 pr-4">
                       <div className="flex min-w-0 items-center gap-3">
@@ -777,9 +777,10 @@ export const Budgets = () => {
             </div>
 
             <div className="grid gap-4 py-5 md:grid-cols-2">
-              <label className="block">
+              <label htmlFor="budget-category" className="block">
                 <span className="mb-2 block text-xs font-black uppercase text-[#8B929C]">Category</span>
                 <input
+                  id="budget-category"
                   value={form.category}
                   onChange={(event) => handleCategoryChange(event.target.value)}
                   list="budget-categories"
@@ -792,9 +793,10 @@ export const Budgets = () => {
                 </datalist>
               </label>
 
-              <label className="block">
+              <label htmlFor="budget-month" className="block">
                 <span className="mb-2 block text-xs font-black uppercase text-[#8B929C]">Month</span>
                 <input
+                  id="budget-month"
                   type="month"
                   value={form.periodMonth}
                   onChange={(event) => setForm((current) => ({ ...current, periodMonth: event.target.value }))}
@@ -802,11 +804,12 @@ export const Budgets = () => {
                 />
               </label>
 
-              <label className="block">
+              <label htmlFor="budget-amount" className="block">
                 <span className="mb-2 block text-xs font-black uppercase text-[#8B929C]">Amount</span>
                 <div className="flex h-12 items-center rounded-[16px] border border-[#EFE2D8] bg-white px-4 focus-within:ring-4 focus-within:ring-[#FFD1DC]/40">
                   <span className="mr-2 text-sm font-black text-[#8B929C]">$</span>
                   <input
+                    id="budget-amount"
                     type="number"
                     min="0"
                     step="0.01"
@@ -817,9 +820,10 @@ export const Budgets = () => {
                 </div>
               </label>
 
-              <label className="block">
+              <label htmlFor="budget-notes" className="block">
                 <span className="mb-2 block text-xs font-black uppercase text-[#8B929C]">Notes</span>
                 <input
+                  id="budget-notes"
                   value={form.notes}
                   onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
                   placeholder="Groceries, rides, subscriptions..."
