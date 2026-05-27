@@ -1,6 +1,11 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import dns from 'node:dns'
+
+dns.setDefaultResultOrder('ipv4first')
+
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3002'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -8,7 +13,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:3002',
+        target: apiProxyTarget,
         changeOrigin: true,
       }
     }

@@ -16,6 +16,9 @@ yarn-error.log*
 # Local database and migration state
 *.sqlite
 *.sqlite-*
+*.mv.db
+*.trace.db
+backend/data/
 .migrate*
 
 # Test and coverage output
@@ -31,6 +34,8 @@ target/
 .npm/
 .eslintcache
 *.tsbuildinfo
+output/
+tmp/
 
 # Local tool/editor artifacts
 .codex/

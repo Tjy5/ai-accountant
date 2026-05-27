@@ -6,6 +6,8 @@
   --color-macaron-mint: #C2F2D0;
   --color-macaron-yellow: #FFF2B2;
   --color-warm-orange: #FFB87A;
+  --color-warm-brown: #4E3629;
+  --color-cute-orange: #FFAE58;
   --radius-cute: 20px;
   --radius-super-cute: 30px;
   --shadow-cute: 0 4px 14px 0 rgb(255 184 122 / 0.1);
@@ -17,6 +19,7 @@
     font-family: Nunito, Quicksand, ui-rounded, "Segoe UI", system-ui, sans-serif;
     letter-spacing: 0;
     background: var(--color-cute-bg);
+    color: var(--color-warm-brown);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -28,6 +31,7 @@
     min-height: 100svh;
     margin: 0;
     background: var(--color-cute-bg);
+    color: var(--color-warm-brown);
   }
 
   #root {
@@ -39,5 +43,103 @@
   textarea,
   select {
     font: inherit;
+  }
+}
+
+/* Custom Cute & Cozy Styles */
+
+/* Cute sticky note page curl effect */
+.cute-sticky-card {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%);
+  position: relative;
+}
+
+.cute-page-curl {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  background: rgba(78, 54, 41, 0.15);
+  border-bottom-right-radius: 6px;
+  border-top-left-radius: 12px;
+  border-left: 3px solid var(--color-warm-brown);
+  border-top: 3px solid var(--color-warm-brown);
+}
+
+/* Custom scrollbars for cozy feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF8F5;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #FFD1DC;
+  border: 2px solid #FAF8F5;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FFB87A;
+}
+
+/* Slide up animation for Cozy Sticker Drawer */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Dashboard width behavior: keep normal desktop at 12 columns, only use
+   the companion rail on truly wide screens. */
+.dashboard-wide-grid {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-chart-card,
+.dashboard-transactions-card {
+  grid-column: auto;
+}
+
+.dashboard-helper-card {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-wide-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .dashboard-chart-card {
+    grid-column: span 7 / span 7;
+  }
+
+  .dashboard-transactions-card {
+    grid-column: span 5 / span 5;
+  }
+}
+
+@media (min-width: 1900px) {
+  .dashboard-wide-grid {
+    grid-template-columns: minmax(0, 1.32fr) minmax(420px, 0.94fr) 300px;
+  }
+
+  .dashboard-chart-card,
+  .dashboard-transactions-card,
+  .dashboard-helper-card {
+    grid-column: auto;
+  }
+
+  .dashboard-helper-card {
+    display: flex;
   }
 }

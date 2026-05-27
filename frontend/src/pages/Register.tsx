@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { isAxiosError } from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import { Card } from '../components/Card';
-import { Input } from '../components/Input';
-import { Button } from '../components/Button';
 import { useAuthStore } from '../store/useAuthStore';
 import api from '../api/axiosInstance';
-import { Cat } from 'lucide-react';
+import { CuteSticker } from '../components/CuteStickers';
+import { Mail, Lock, User } from 'lucide-react';
 
 export const Register = () => {
   const [email, setEmail] = useState('');
@@ -29,7 +27,7 @@ export const Register = () => {
     } catch (err) {
       if (isAxiosError(err)) {
         const data = err.response?.data as { error?: string; message?: string } | undefined;
-        setError(data?.error || data?.message || 'Failed to register. Email might be taken.');
+        setError(data?.error || data?.message || 'Failed to register. Account might be taken.');
       } else {
         setError('An unexpected error occurred.');
       }
@@ -39,63 +37,97 @@ export const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-cute-bg flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex justify-center mb-6 relative">
-          <div className="w-32 h-32 bg-white rounded-full shadow-cute flex items-center justify-center -mb-8 relative z-10 border-4 border-cute-bg">
-            <Cat size={64} className="text-macaron-mint" />
+    <div className="min-h-screen bg-cute-bg flex items-center justify-center p-4 text-[#4E3629]">
+      <div className="w-full max-w-sm bg-white border-4 border-[#4E3629] rounded-[35px] p-8 shadow-md flex flex-col gap-6 relative">
+
+        {/* Cute Mascot Header */}
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-32 h-32 rounded-[32px] bg-[#FFF1E2] border border-[#F0D9C7] p-2.5 flex items-center justify-center shadow-[0_12px_26px_rgba(92,65,45,0.08)]">
+            <CuteSticker name="calculator-cat" className="w-full h-full" title="Cute Calico Cat with Calculator" />
           </div>
+          <h1 className="text-3xl font-black tracking-tight">Join Us!</h1>
         </div>
-        
-        <Card className="pt-12 pb-8 px-8 flex flex-col gap-6 relative z-0">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-800">Join Us!</h1>
-            <p className="text-sm text-gray-500 mt-1">Start tracking your money smartly.</p>
+
+        {/* Form */}
+        <form onSubmit={handleRegister} className="flex flex-col gap-5">
+          {/* Account/Email */}
+          <div className="flex flex-col gap-1.5 text-left">
+            <label className="text-sm font-black ml-4">Account</label>
+            <div className="relative flex items-center">
+              <span className="absolute left-4 text-gray-400">
+                <Mail size={18} className="text-[#4E3629]/60" />
+              </span>
+              <input
+                type="text"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full pl-12 pr-4 py-3 bg-white border-2 border-[#4E3629] rounded-full focus:outline-none focus:ring-2 focus:ring-macaron-pink/20 text-sm font-bold text-[#4E3629] placeholder-gray-400"
+              />
+            </div>
           </div>
 
-          <form onSubmit={handleRegister} className="flex flex-col gap-4">
-            <Input 
-              label="Email" 
-              type="email"
-              placeholder="e.g. fluffy@cat.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Input 
-              label="Name (Optional)" 
-              type="text"
-              placeholder="Pick a cute name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Input 
-              label="Password" 
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            
-            {error && (
-              <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded-lg">
-                {error}
-              </div>
-            )}
+          {/* Name */}
+          <div className="flex flex-col gap-1.5 text-left">
+            <label className="text-sm font-black ml-4">Name (Optional)</label>
+            <div className="relative flex items-center">
+              <span className="absolute left-4 text-gray-400">
+                <User size={18} className="text-[#4E3629]/60" />
+              </span>
+              <input
+                type="text"
+                placeholder="Pick a cute name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-white border-2 border-[#4E3629] rounded-full focus:outline-none focus:ring-2 focus:ring-macaron-pink/20 text-sm font-bold text-[#4E3629] placeholder-gray-400"
+              />
+            </div>
+          </div>
 
-            <Button type="submit" variant="secondary" fullWidth className="mt-2" disabled={loading}>
-              {loading ? 'Creating account...' : "Sign Up 🐾"}
-            </Button>
-          </form>
+          {/* Password */}
+          <div className="flex flex-col gap-1.5 text-left">
+            <label className="text-sm font-black ml-4">Password</label>
+            <div className="relative flex items-center">
+              <span className="absolute left-4 text-gray-400">
+                <Lock size={18} className="text-[#4E3629]/60" />
+              </span>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full pl-12 pr-4 py-3 bg-white border-2 border-[#4E3629] rounded-full focus:outline-none focus:ring-2 focus:ring-macaron-pink/20 text-sm font-bold text-[#4E3629] placeholder-gray-400"
+              />
+            </div>
+          </div>
 
-          <p className="text-center text-sm text-gray-500 mt-4">
+          {error && (
+            <div className="text-red-500 text-xs text-center bg-red-50 p-2.5 rounded-2xl border-2 border-red-200 font-bold">
+              {error}
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-2 w-full py-3 bg-[#C2F2D0] hover:bg-[#A9DFB7] text-[#4E3629] font-black rounded-full border-2 border-[#4E3629] shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+          >
+            {loading ? 'Creating account...' : "Sign Up 🐾"}
+          </button>
+        </form>
+
+        {/* Links */}
+        <div className="flex flex-col items-center gap-3 mt-2 text-xs font-bold text-gray-500">
+          <p>
             Already have an account?{' '}
-            <Link to="/login" className="text-macaron-mint font-bold hover:underline">
+            <Link to="/login" className="text-[#C2F2D0] font-black brightness-75 hover:underline">
               Log in
             </Link>
           </p>
-        </Card>
+        </div>
       </div>
     </div>
   );

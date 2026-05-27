@@ -32,14 +32,14 @@ describe('Login', () => {
     mockedApi.post.mockResolvedValueOnce({
       data: {
         token: 'token-1',
-        user: { id: '1', email: 'mimi@example.com', name: 'Mimi' },
+        user: { id: '1', email: '1', name: 'Mimi' },
       },
     });
 
     const { container } = renderLogin();
 
-    await user.type(screen.getByPlaceholderText('e.g. fluffy@cat.com'), 'mimi@example.com');
-    await user.type(container.querySelector('input[type="password"]')!, 'password123');
+    await user.type(screen.getByPlaceholderText('Enter your email'), '1');
+    await user.type(container.querySelector('input[type="password"]')!, '1');
     await user.click(screen.getByRole('button', { name: /let's go/i }));
 
     expect(await screen.findByText('Dashboard Route')).toBeInTheDocument();
@@ -50,15 +50,15 @@ describe('Login', () => {
     const user = userEvent.setup();
     mockedApi.post.mockRejectedValueOnce({
       isAxiosError: true,
-      response: { data: { error: '邮箱或密码错误' } },
+      response: { data: { error: '账号或密码错误' } },
     });
 
     const { container } = renderLogin();
 
-    await user.type(screen.getByPlaceholderText('e.g. fluffy@cat.com'), 'mimi@example.com');
+    await user.type(screen.getByPlaceholderText('Enter your email'), '1');
     await user.type(container.querySelector('input[type="password"]')!, 'wrong-password');
     await user.click(screen.getByRole('button', { name: /let's go/i }));
 
-    expect(await screen.findByText('邮箱或密码错误')).toBeInTheDocument();
+    expect(await screen.findByText('账号或密码错误')).toBeInTheDocument();
   });
 });

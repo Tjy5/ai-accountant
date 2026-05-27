@@ -43,7 +43,7 @@ describe('AiInput', () => {
 
     render(<AiInput />);
 
-    await user.type(screen.getByPlaceholderText(/sushi lunch/i), 'Sushi lunch 45');
+    await user.type(screen.getByPlaceholderText(/spent today/i), 'Sushi lunch 45');
     await user.click(screen.getByRole('button', { name: /analyze/i }));
 
     expect(await screen.findByText('Sushi lunch')).toBeInTheDocument();

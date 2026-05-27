@@ -9,7 +9,6 @@ import com.aiaccountant.backend.security.JwtService;
 import com.aiaccountant.backend.util.Rows;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {
-    private static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -34,10 +32,8 @@ public class AuthService {
     public Map<String, Object> register(RegisterRequest request) {
         String email = request.email() == null ? "" : request.email().trim();
         String password = request.password();
-        if (email.isEmpty() || password == null || password.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "邮箱和密码为必填项");
-        if (!EMAIL.matcher(email).matches()) throw new ApiException(HttpStatus.BAD_REQUEST, "邮箱格式不正确");
-        if (password.length() < 8) throw new ApiException(HttpStatus.BAD_REQUEST, "密码长度至少为 8 位");
-        if (userMapper.findByEmail(email) != null) throw new ApiException(HttpStatus.CONFLICT, "该邮箱已被注册");
+        if (email.isEmpty() || password == null || password.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "账号和密码为必填项");
+        if (userMapper.findByEmail(email) != null) throw new ApiException(HttpStatus.CONFLICT, "该账号已被注册");
 
         User user = new User();
         user.setEmail(email);
@@ -51,11 +47,11 @@ public class AuthService {
 
     public Map<String, Object> login(LoginRequest request) {
         if (request.email() == null || request.email().isBlank() || request.password() == null || request.password().isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "邮箱和密码为必填项");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "账号和密码为必填项");
         }
         User user = userMapper.findByEmail(request.email().trim());
         if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "邮箱或密码错误");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "账号或密码错误");
         }
         return authResponse(user);
     }

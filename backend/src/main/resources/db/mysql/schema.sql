@@ -47,3 +47,22 @@ CREATE TABLE IF NOT EXISTS transactions (
   KEY idx_transactions_user_type_date (user_id, type, date),
   KEY idx_transactions_user_category (user_id, category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS budgets (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  category VARCHAR(120) NOT NULL,
+  amount DECIMAL(18,2) NOT NULL,
+  period_month VARCHAR(7) NOT NULL,
+  color VARCHAR(40),
+  icon VARCHAR(120),
+  notes VARCHAR(500),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME,
+  CONSTRAINT fk_budgets_user FOREIGN KEY (user_id) REFERENCES users(id),
+  CONSTRAINT ck_budgets_amount CHECK (amount > 0),
+  UNIQUE KEY uk_budgets_user_category_month_active (user_id, category, period_month, deleted_at),
+  KEY idx_budgets_user_month_active (user_id, period_month, deleted_at),
+  KEY idx_budgets_user_category (user_id, category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
