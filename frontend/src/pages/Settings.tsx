@@ -275,7 +275,7 @@ export const Settings = () => {
   };
 
   return (
-    <div className="settings-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
+    <div className="settings-page management-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
       <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2">
@@ -311,7 +311,7 @@ export const Settings = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1280px]:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
           <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF0F2]" />
           <p className="relative z-[1] text-[13px] font-black text-[#536073]">Profile</p>
@@ -351,8 +351,8 @@ export const Settings = () => {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_330px]">
-        <div className="min-h-0 overflow-auto pr-1">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
           {loading ? (
             <Card noPadding className="flex min-h-[360px] items-center justify-center rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF2E7] px-4 py-2 text-sm font-black text-[#9D4E2B]">
@@ -373,7 +373,7 @@ export const Settings = () => {
                   </div>
                 </div>
 
-                <div className="grid gap-4 min-[860px]:grid-cols-[minmax(240px,1fr)_minmax(240px,1fr)]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label htmlFor="settings-display-name" className="block">
                     <span className="mb-2 block text-xs font-black uppercase text-[#8B929C]">Display Name</span>
                     <input
@@ -408,7 +408,7 @@ export const Settings = () => {
                   </div>
                 </div>
 
-                <div className="grid gap-4 min-[900px]:grid-cols-[1fr_220px]">
+                <div className="grid gap-4 md:grid-cols-[1fr_220px]">
                   <div>
                     <span className="mb-2 block text-xs font-black uppercase text-[#8B929C]">Default Currency</span>
                     <div className="grid grid-cols-2 gap-2 min-[680px]:grid-cols-3">
@@ -468,7 +468,7 @@ export const Settings = () => {
                   </div>
                 </div>
 
-                <div className="grid gap-3 min-[900px]:grid-cols-2">
+                <div className="grid gap-4 min-[900px]:grid-cols-2">
                   <ToggleRow
                     title="Receipt reminders"
                     body="Nudge quick receipt cleanup after busy days."
@@ -503,8 +503,8 @@ export const Settings = () => {
           )}
         </div>
 
-        <div className="hidden min-h-0 min-[1180px]:block">
-          <Card noPadding className="sticky top-0 rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+        <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-6 flex flex-col gap-4">
+          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
             <div className="rounded-[22px] border border-[#F0DFD0] bg-[#FFF4E8] px-4 py-5 text-center">
               <CuteSticker
                 name="settings-cat"

@@ -581,7 +581,7 @@ export const Goals = () => {
   };
 
   return (
-    <div className="goals-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
+    <div className="goals-page management-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
       <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2">
@@ -616,45 +616,7 @@ export const Goals = () => {
         </div>
       </div>
 
-      <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-        <div className="grid gap-3 min-[880px]:grid-cols-[220px_minmax(260px,1fr)_auto] min-[880px]:items-center">
-          <label htmlFor="goal-status-filter" className="group relative block">
-            <span className="sr-only">Goal status</span>
-            <Filter className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
-            <select
-              id="goal-status-filter"
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as GoalFilter)}
-              className="h-12 w-full appearance-none rounded-[16px] border border-[#EFE2D8] bg-white px-11 pr-9 text-[14px] font-black text-[#4E3629] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
-            >
-              <option value="all">All Goals</option>
-              <option value="active">Active</option>
-              <option value="paused">Paused</option>
-              <option value="completed">Completed</option>
-            </select>
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#8B929C]">⌄</span>
-          </label>
-
-          <label htmlFor="goal-search" className="relative block">
-            <span className="sr-only">Search goals</span>
-            <Search className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
-            <input
-              id="goal-search"
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search goals, notes, status..."
-              className="h-12 w-full rounded-full border border-[#EFE2D8] bg-white pl-11 pr-4 text-[14px] font-bold text-[#4E3629] outline-none transition placeholder:text-[#A7A0A0] focus:ring-4 focus:ring-[#FFD1DC]/40"
-            />
-          </label>
-
-          <div className="rounded-[16px] bg-[#FFF8F2] px-4 py-3 text-sm font-black text-[#9D4E2B]">
-            {loading ? 'Loading goals' : `${goals.length} shown`}
-          </div>
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 min-[1320px]:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
           <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF0F2]" />
           <p className="relative z-[1] text-[13px] font-black text-[#536073]">Total Target</p>
@@ -688,8 +650,46 @@ export const Goals = () => {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
-        <div className="min-h-0 overflow-auto pr-1">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
+          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <label htmlFor="goal-status-filter" className="group relative block w-full md:w-52 shrink-0">
+                <span className="sr-only">Goal status</span>
+                <Filter className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
+                <select
+                  id="goal-status-filter"
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as GoalFilter)}
+                  className="h-12 w-full appearance-none rounded-[16px] border border-[#EFE2D8] bg-white px-11 pr-9 text-[14px] font-black text-[#4E3629] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
+                >
+                  <option value="all">All Goals</option>
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#8B929C]">⌄</span>
+              </label>
+
+              <label htmlFor="goal-search" className="relative block w-full md:flex-grow">
+                <span className="sr-only">Search goals</span>
+                <Search className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
+                <input
+                  id="goal-search"
+                  type="search"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search goals, notes, status..."
+                  className="h-12 w-full rounded-full border border-[#EFE2D8] bg-white pl-11 pr-4 text-[14px] font-bold text-[#4E3629] outline-none transition placeholder:text-[#A7A0A0] focus:ring-4 focus:ring-[#FFD1DC]/40"
+                />
+              </label>
+
+              <div className="w-full md:w-32 shrink-0 rounded-[16px] bg-[#FFF8F2] px-4 py-3 text-center md:text-right text-sm font-black text-[#9D4E2B]">
+                {loading ? 'Loading goals' : `${goals.length} shown`}
+              </div>
+            </div>
+          </Card>
+
           {loading ? (
             <Card noPadding className="flex min-h-[340px] items-center justify-center rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF2E7] px-4 py-2 text-sm font-black text-[#9D4E2B]">
@@ -704,7 +704,7 @@ export const Goals = () => {
               <p className="mt-1 text-sm font-bold text-[#8B929C]">Create a target or adjust the filters.</p>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 gap-4 min-[980px]:grid-cols-2 min-[1640px]:grid-cols-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {goals.map((goal) => (
                 <Card
                   key={goal.id}
@@ -776,8 +776,8 @@ export const Goals = () => {
           )}
         </div>
 
-        <div className="hidden min-h-0 xl:block">
-          <Card noPadding className="sticky top-0 rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+        <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-6 flex flex-col gap-4">
+          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
             <div className="rounded-[20px] border border-[#F0DFD0] bg-[#FFF4E8] px-4 py-4 text-center">
               <CuteSticker
                 name="goals-cat"

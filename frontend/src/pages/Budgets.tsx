@@ -422,7 +422,7 @@ export const Budgets = () => {
 
   return (
     <div className="budgets-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2">
             <span className="text-[11px] font-black uppercase text-[#FF7F96]">Plan</span>
@@ -547,7 +547,7 @@ export const Budgets = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
           <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF2E7]" />
           <p className="relative z-[1] text-[13px] font-black text-[#536073]">Total Budget</p>

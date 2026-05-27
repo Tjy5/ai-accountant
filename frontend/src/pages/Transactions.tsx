@@ -432,7 +432,7 @@ export const Transactions = () => {
 
   return (
     <div className="transactions-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
-      <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2">
             <span className="text-[11px] font-black uppercase text-[#FF7F96]">Pro</span>

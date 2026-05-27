@@ -475,8 +475,8 @@ export const Categories = () => {
   };
 
   return (
-    <div className="categories-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
-      <div className="flex items-start justify-between gap-6">
+    <div className="categories-page management-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
+      <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2">
             <span className="text-[11px] font-black uppercase text-[#FF7F96]">Library</span>
@@ -506,79 +506,31 @@ export const Categories = () => {
         </div>
       </div>
 
-      <div className="relative">
-        <CuteSticker
-          name="categories-cat"
-          className="pointer-events-none absolute right-[7%] top-[-88px] z-10 hidden h-[126px] w-[158px] select-none drop-shadow-[0_10px_14px_rgba(92,65,45,0.14)] xl:block"
-          title="Categories helper cat"
-        />
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF0F2]" />
-            <p className="relative z-[1] text-[13px] font-black text-[#536073]">Total Labels</p>
-            <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.total}</p>
-            <p className="relative z-[1] mt-2 text-[11px] font-black text-[#FF7F96]">{stats.custom} custom categories</p>
-          </Card>
-          <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#EAFBF1]" />
-            <p className="relative z-[1] text-[13px] font-black text-[#536073]">Income Labels</p>
-            <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.income}</p>
-            <p className="relative z-[1] mt-2 text-[11px] font-black text-[#169B61]">{stats.both} shared labels</p>
-          </Card>
-          <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF2E7]" />
-            <p className="relative z-[1] text-[13px] font-black text-[#536073]">Expense Labels</p>
-            <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.expense}</p>
-            <p className="relative z-[1] mt-2 text-[11px] font-black text-[#9D4E2B]">{money.format(stats.trackedSpend)} tracked</p>
-          </Card>
-          <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#EDF5FF]" />
-            <p className="relative z-[1] text-[13px] font-black text-[#536073]">Tagged Entries</p>
-            <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.transactions}</p>
-            <p className="relative z-[1] mt-2 text-[11px] font-black text-[#3575A8]">{stats.default} protected defaults</p>
-          </Card>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_minmax(260px,420px)]">
-          <label className="group relative block">
-            <span className="sr-only">Category type</span>
-            <Filter className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
-            <select
-              value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value as CategoryFilter)}
-              className="h-12 w-full appearance-none rounded-[16px] border border-[#EFE2D8] bg-[#FFFDFB] px-11 pr-9 text-[14px] font-black text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.05)] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
-            >
-              <option value="all">All Types</option>
-              <option value="expense">Expenses</option>
-              <option value="income">Income</option>
-              <option value="both">Shared</option>
-            </select>
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#8B929C]">⌄</span>
-          </label>
-
-          <label className="relative block">
-            <span className="sr-only">Search categories</span>
-            <Search className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Search labels, notes, type..."
-              className="h-12 w-full rounded-full border border-[#EFE2D8] bg-[#FFFDFB] pl-11 pr-4 text-[14px] font-bold text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.05)] outline-none transition placeholder:text-[#A7A0A0] focus:ring-4 focus:ring-[#FFD1DC]/40"
-            />
-          </label>
-        </div>
-
-        <button
-          onClick={openCreateDrawer}
-          className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] px-6 text-[15px] font-black text-white shadow-[0_12px_24px_rgba(255,111,143,0.28)] transition-all hover:translate-y-[-1px] active:translate-y-0 xl:w-auto"
-        >
-          <Plus size={19} strokeWidth={3} />
-          Add Category
-        </button>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF0F2]" />
+          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Total Labels</p>
+          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.total}</p>
+          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#FF7F96]">{stats.custom} custom categories</p>
+        </Card>
+        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#EAFBF1]" />
+          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Income Labels</p>
+          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.income}</p>
+          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#169B61]">{stats.both} shared labels</p>
+        </Card>
+        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF2E7]" />
+          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Expense Labels</p>
+          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.expense}</p>
+          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#9D4E2B]">{money.format(stats.trackedSpend)} tracked</p>
+        </Card>
+        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#EDF5FF]" />
+          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Tagged Entries</p>
+          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.transactions}</p>
+          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#3575A8]">{stats.default} protected defaults</p>
+        </Card>
       </div>
 
       {error && (
@@ -587,8 +539,48 @@ export const Categories = () => {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-h-0 overflow-auto pr-1">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
+          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <label className="group relative block w-full sm:w-48 shrink-0">
+                <span className="sr-only">Category type</span>
+                <Filter className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
+                <select
+                  value={typeFilter}
+                  onChange={(event) => setTypeFilter(event.target.value as CategoryFilter)}
+                  className="h-12 w-full appearance-none rounded-[16px] border border-[#EFE2D8] bg-white px-11 pr-9 text-[14px] font-black text-[#4E3629] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
+                >
+                  <option value="all">All Types</option>
+                  <option value="expense">Expenses</option>
+                  <option value="income">Income</option>
+                  <option value="both">Shared</option>
+                </select>
+                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#8B929C]">⌄</span>
+              </label>
+
+              <label className="relative block w-full sm:flex-grow">
+                <span className="sr-only">Search categories</span>
+                <Search className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
+                <input
+                  type="search"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search labels, notes, type..."
+                  className="h-12 w-full rounded-full border border-[#EFE2D8] bg-white pl-11 pr-4 text-[14px] font-bold text-[#4E3629] outline-none transition placeholder:text-[#A7A0A0] focus:ring-4 focus:ring-[#FFD1DC]/40"
+                />
+              </label>
+
+              <button
+                onClick={openCreateDrawer}
+                className="flex h-12 w-full sm:w-auto shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] px-6 text-[15px] font-black text-white shadow-[0_12px_24px_rgba(255,111,143,0.28)] transition-all hover:translate-y-[-1px] active:translate-y-0"
+              >
+                <Plus size={19} strokeWidth={3} />
+                Add Category
+              </button>
+            </div>
+          </Card>
+
           {loading ? (
             <Card noPadding className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF2E7] px-4 py-2 text-sm font-black text-[#9D4E2B]">
@@ -603,7 +595,7 @@ export const Categories = () => {
               <p className="mt-1 text-sm font-bold text-[#8B929C]">Try a softer filter or add a new label.</p>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 gap-4 min-[1180px]:grid-cols-2 min-[1700px]:grid-cols-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {categories.map((category) => {
                 const barWidth = Math.max(6, Math.round((category.totalAmount / maxAmount) * 100));
                 const amountLabel = category.type === 'income' ? category.incomeTotal : category.type === 'expense' ? category.expenseTotal : category.totalAmount;
@@ -674,8 +666,8 @@ export const Categories = () => {
           )}
         </div>
 
-        <div className="hidden min-h-0 xl:block">
-          <Card noPadding className="sticky top-0 rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+        <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-6 flex flex-col gap-4">
+          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
             <div className="rounded-[20px] border border-[#F0DFD0] bg-[#FFF4E8] px-4 py-4 text-center">
               <CuteSticker
                 name="categories-cat"
