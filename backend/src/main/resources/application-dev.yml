@@ -2,4 +2,4 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/mysql/schema.sql
+      schema-locations: classpath:db/h2/schema.sql

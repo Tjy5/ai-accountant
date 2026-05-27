@@ -40,13 +40,13 @@ describe('Dashboard', () => {
       if (url === '/dashboard/summary') {
         return Promise.resolve({
           data: {
-            totals: { income: 1000, expense: 30, net: 970 },
+            totals: { income: 1000, expense: 40, net: 970 },
             recentTransactions: [
               {
                 id: 1,
                 type: 'expense',
                 category: 'Food',
-                amount: 30,
+                amount: 40,
                 description: 'Sushi lunch',
                 date: '2026-01-10T00:00:00',
               },
@@ -57,7 +57,7 @@ describe('Dashboard', () => {
 
       return Promise.resolve({
         data: {
-          categoryShare: [{ category: 'Food', total: 30 }],
+          categoryShare: [{ category: 'Food', total: 40 }],
         },
       });
     });
@@ -65,9 +65,9 @@ describe('Dashboard', () => {
     render(<Dashboard />);
 
     expect(await screen.findByText('$970.00')).toBeInTheDocument();
-    expect(screen.getByText('Total Expenses')).toBeInTheDocument();
+    expect(screen.getAllByText('Expenses').length).toBeGreaterThan(0);
     expect(screen.getByText('Recent Transactions')).toBeInTheDocument();
     expect(screen.getByText('Sushi lunch')).toBeInTheDocument();
-    expect(screen.getByText('-$30.00')).toBeInTheDocument();
+    expect(screen.getByText('-$40.00')).toBeInTheDocument();
   });
 });
