@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Bar,
@@ -7,7 +7,6 @@ import {
   Cell,
   Pie,
   PieChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -331,7 +330,7 @@ const MetricCard = ({
   }[tone];
 
   return (
-    <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+    <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-black uppercase text-[#8B929C]">{label}</p>
@@ -343,6 +342,49 @@ const MetricCard = ({
         </div>
       </div>
     </Card>
+  );
+};
+
+const MeasuredChart = ({
+  children,
+  className,
+}: {
+  children: (size: { width: number; height: number }) => ReactNode;
+  className: string;
+}) => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect();
+      setSize((current) => {
+        const width = Math.floor(rect.width);
+        const height = Math.floor(rect.height);
+        return current.width === width && current.height === height ? current : { width, height };
+      });
+    };
+
+    updateSize();
+    if (typeof ResizeObserver === 'undefined') {
+      const handle = window.setTimeout(updateSize, 0);
+      return () => window.clearTimeout(handle);
+    }
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const ready = size.width > 0 && size.height > 0;
+
+  return (
+    <div ref={ref} className={className}>
+      {ready ? children(size) : null}
+    </div>
   );
 };
 
@@ -443,8 +485,8 @@ export const Reports = () => {
   };
 
   return (
-    <div className="reports-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
-      <div className="flex flex-col gap-4 min-[1180px]:flex-row min-[1180px]:items-start min-[1180px]:justify-between">
+    <div className="reports-page management-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
+      <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2">
             <span className="text-[11px] font-black uppercase text-[#FF7F96]">Insight</span>
@@ -492,60 +534,7 @@ export const Reports = () => {
         </div>
       </div>
 
-      <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-        <div className="grid gap-3 min-[900px]:grid-cols-[1fr_1fr_1fr_auto] min-[900px]:items-end">
-          <label htmlFor="reports-start-date" className="block">
-            <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
-              <CalendarDays size={14} strokeWidth={3} />
-              Start
-            </span>
-            <input
-              id="reports-start-date"
-              type="date"
-              value={startDate}
-              onChange={(event) => {
-                setStartDate(event.target.value);
-                setPreset('6m');
-              }}
-              className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
-            />
-          </label>
-          <label htmlFor="reports-end-date" className="block">
-            <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
-              <CalendarDays size={14} strokeWidth={3} />
-              End
-            </span>
-            <input
-              id="reports-end-date"
-              type="date"
-              value={endDate}
-              onChange={(event) => {
-                setEndDate(event.target.value);
-                setPreset('6m');
-              }}
-              className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
-            />
-          </label>
-          <label htmlFor="reports-budget-month" className="block">
-            <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
-              <Target size={14} strokeWidth={3} />
-              Budget Month
-            </span>
-            <input
-              id="reports-budget-month"
-              type="month"
-              value={budgetMonth}
-              onChange={(event) => setBudgetMonth(event.target.value)}
-              className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
-            />
-          </label>
-          <div className="rounded-[15px] bg-[#FFF8F2] px-4 py-3 text-sm font-black text-[#9D4E2B]">
-            {loading ? 'Loading report' : `${report.summary.transactionCount} entries`}
-          </div>
-        </div>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           label="Income"
           value={money.format(report.summary.income)}
@@ -576,8 +565,61 @@ export const Reports = () => {
         />
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 min-[1180px]:grid-cols-[1.24fr_0.76fr]">
-        <div className="flex min-h-0 flex-col gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
+          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
+              <label htmlFor="reports-start-date" className="block">
+                <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
+                  <CalendarDays size={14} strokeWidth={3} />
+                  Start
+                </span>
+                <input
+                  id="reports-start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => {
+                    setStartDate(event.target.value);
+                    setPreset('6m');
+                  }}
+                  className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
+                />
+              </label>
+              <label htmlFor="reports-end-date" className="block">
+                <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
+                  <CalendarDays size={14} strokeWidth={3} />
+                  End
+                </span>
+                <input
+                  id="reports-end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(event) => {
+                    setEndDate(event.target.value);
+                    setPreset('6m');
+                  }}
+                  className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
+                />
+              </label>
+              <label htmlFor="reports-budget-month" className="block">
+                <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
+                  <Target size={14} strokeWidth={3} />
+                  Budget Month
+                </span>
+                <input
+                  id="reports-budget-month"
+                  type="month"
+                  value={budgetMonth}
+                  onChange={(event) => setBudgetMonth(event.target.value)}
+                  className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
+                />
+              </label>
+              <div className="rounded-[15px] bg-[#FFF8F2] px-4 py-3 text-sm font-black text-center text-[#9D4E2B] h-11 flex items-center justify-center">
+                {loading ? 'Loading report' : `${report.summary.transactionCount} entries`}
+              </div>
+            </div>
+          </Card>
+
           <Card noPadding className="overflow-hidden rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
             <div className="grid gap-4 p-5 min-[900px]:grid-cols-[1fr_180px] min-[900px]:items-center">
               <div>
@@ -615,9 +657,9 @@ export const Reports = () => {
                 </span>
               )}
             </div>
-            <div className="min-h-[250px] min-w-0 flex-1">
-              <ResponsiveContainer width="100%" height={250} minWidth={0}>
-                <BarChart data={trendChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <MeasuredChart className="h-[250px] min-w-0">
+              {({ width, height }) => (
+                <BarChart width={width} height={height} data={trendChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid stroke="#F0E4DA" vertical={false} />
                   <XAxis dataKey="month" tick={{ fill: '#8B929C', fontSize: 12, fontWeight: 800 }} axisLine={false} tickLine={false} />
                   <YAxis tickFormatter={(value) => compactMoney.format(Number(value))} tick={{ fill: '#8B929C', fontSize: 12, fontWeight: 800 }} axisLine={false} tickLine={false} width={58} />
@@ -625,11 +667,11 @@ export const Reports = () => {
                   <Bar dataKey="Income" fill="#7ACB9C" radius={[10, 10, 0, 0]} />
                   <Bar dataKey="Expenses" fill="#FF8C94" radius={[10, 10, 0, 0]} />
                 </BarChart>
-              </ResponsiveContainer>
-            </div>
+              )}
+            </MeasuredChart>
           </Card>
 
-          <div className="grid gap-4 min-[1180px]:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card noPadding className="rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
               <div className="mb-4 flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#FFF0F4] text-[#FF6F8F]">
@@ -681,8 +723,8 @@ export const Reports = () => {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col gap-4">
-          <Card noPadding className="flex min-h-[360px] flex-[1_1_360px] flex-col overflow-hidden rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)] min-[1180px]:max-h-[390px]">
+        <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-6 flex flex-col gap-4">
+          <Card noPadding className="flex min-h-[360px] flex-col rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
             <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#F0FAF4] text-[#168B5E]">
@@ -725,7 +767,7 @@ export const Reports = () => {
               </div>
             </div>
 
-            <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-auto pr-1">
+            <div className="mt-4 space-y-3 pr-1">
               {report.budgetHealth.categories.length === 0 ? (
                 <div className="rounded-[18px] bg-[#FFF8F2] px-4 py-5 text-center">
                   <p className="text-sm font-black text-[#2F2925]">No budgets for this month</p>
@@ -759,7 +801,7 @@ export const Reports = () => {
             </div>
           </Card>
 
-          <Card noPadding className="flex min-h-[230px] flex-[0_1_260px] flex-col overflow-hidden rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+          <Card noPadding className="flex min-h-[260px] flex-col rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
             <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#F7F1FF] text-[#8957B8]">
@@ -771,10 +813,10 @@ export const Reports = () => {
                 </div>
               </div>
             </div>
-            <div className="grid min-h-0 flex-1 gap-3 min-[1180px]:grid-cols-[150px_1fr] min-[1440px]:grid-cols-[170px_1fr]">
-              <div className="min-h-[132px] min-w-0">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <PieChart>
+            <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
+              <MeasuredChart className="h-[150px] min-w-0">
+                {({ width, height }) => (
+                  <PieChart width={width} height={height}>
                     <Pie data={categoryChart} dataKey="total" nameKey="category" innerRadius={38} outerRadius={58} paddingAngle={3}>
                       {categoryChart.map((entry) => (
                         <Cell key={entry.category} fill={entry.color} />
@@ -782,9 +824,9 @@ export const Reports = () => {
                     </Pie>
                     <Tooltip formatter={(value) => money.format(Number(value))} />
                   </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="min-h-0 space-y-2 overflow-auto pr-1">
+                )}
+              </MeasuredChart>
+              <div className="space-y-2 pr-1">
                 {categoryChart.map((category) => (
                   <div key={category.category} className="flex items-center justify-between gap-3 rounded-[16px] px-2 py-2 hover:bg-[#FFF8F2]">
                     <div className="flex min-w-0 items-center gap-3">

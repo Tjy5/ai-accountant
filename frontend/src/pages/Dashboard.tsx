@@ -137,6 +137,15 @@ const normalizeExpenseData = (raw: unknown): ChartData[] => {
   });
 };
 
+const FINANCIAL_TIPS = [
+  "💡 Tip: Tracking small expenses like coffee can save you up to $150 a month!",
+  "💡 Tip: Try the 50/30/20 rule: 50% for needs, 30% for wants, and 20% for savings.",
+  "💡 Tip: Review your subscriptions regularly to cancel services you no longer use.",
+  "💡 Tip: Building a 3-to-6 month emergency fund provides critical financial peace of mind.",
+  "💡 Tip: Set realistic budgets by categories instead of one general limit.",
+  "💡 Tip: Pay yourself first by setting aside savings immediately when income arrives."
+];
+
 export const Dashboard = () => {
   const user = useAuthStore((state) => state.user);
   const { drafts, addDrafts, updateDraft, removeDraft, clearDrafts } = useDraftStore();
@@ -180,21 +189,26 @@ export const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
-  const handleTextAnalyze = async () => {
-    const text = textInput.trim();
-    if (!text) return;
+  const handleAnalyzeText = async (text: string) => {
+    if (!text.trim()) return;
 
     setDraftError('');
     setLoading(true);
     try {
       addDrafts(await analyzeTextDrafts(text));
       setDraftDrawerDismissed(false);
-      setTextInput('');
     } catch {
       setDraftError('Unable to analyze this entry. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTextAnalyze = async () => {
+    const text = textInput.trim();
+    if (!text) return;
+    await handleAnalyzeText(text);
+    setTextInput('');
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -253,10 +267,11 @@ export const Dashboard = () => {
   const expenseShare = flowTotal > 0 ? 100 - incomeShare : 0;
   const averageEntry = summary.transactionCount > 0 ? flowTotal / summary.transactionCount : 0;
   const entryLabel = `${summary.transactionCount} ${summary.transactionCount === 1 ? 'entry' : 'entries'} this month`;
+  const financialTip = FINANCIAL_TIPS[new Date().getDate() % FINANCIAL_TIPS.length];
 
   return (
-    <div className="dashboard-page flex flex-col gap-4 relative flex-grow min-h-0 h-full">
-      <div className="flex items-start justify-between gap-6">
+    <div className="dashboard-page flex flex-col gap-4 relative flex-grow min-h-0">
+      <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
         <div>
           <h2 className="text-[32px] leading-tight font-black text-[#2F2925] tracking-tight">
             Good morning, {displayName}! ☀️
@@ -349,7 +364,7 @@ export const Dashboard = () => {
       </div>
 
       <div className="dashboard-wide-grid grid gap-4 items-stretch mt-1 flex-1 min-h-[360px] xl:min-h-[386px] min-[1900px]:min-h-[0]">
-        <Card noPadding className="dashboard-chart-card border border-[#EFE2D8] rounded-[22px] p-6 shadow-[0_10px_28px_rgba(92,65,45,0.08)] flex flex-col bg-[#FFFDFB] min-h-[360px] min-[1900px]:min-h-0 h-full overflow-hidden">
+        <Card noPadding className="dashboard-chart-card border border-[#EFE2D8] rounded-[22px] p-6 shadow-[0_10px_28px_rgba(92,65,45,0.08)] flex flex-col bg-[#FFFDFB] min-h-[360px] overflow-hidden">
           <div className="flex items-start justify-between gap-4">
             <h3 className="text-[17px] font-black text-[#2F2925]">Spending Overview</h3>
             <span className="rounded-full bg-[#FFF2E7] px-3 py-1 text-[11px] font-black text-[#FF7F96]">
@@ -381,73 +396,74 @@ export const Dashboard = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 items-center gap-6 mt-3 flex-grow min-h-0">
-            <div className="md:col-span-7 h-full min-h-[292px] min-[1900px]:min-h-[0] w-full relative flex items-center justify-center select-none">
-              {expenseData.length > 0 ? (
-                <>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={expenseData}
-                        cx="50%"
-                        cy="46%"
-                        innerRadius="46%"
-                        outerRadius="68%"
-                        paddingAngle={2}
-                        dataKey="amount"
-                        stroke="#FFFDFB"
-                        strokeWidth={3}
-                        startAngle={90}
-                        endAngle={-270}
-                        isAnimationActive={false}
-                      >
-                        {expenseData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value) => [money.format(toNumber(value)), 'Category Total']}
-                        contentStyle={{
-                          borderRadius: '15px',
-                          border: '1px solid #EFE2D8',
-                          fontFamily: 'Nunito, sans-serif',
-                          fontWeight: 'bold',
-                          color: '#4E3629'
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+          {expenseData.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-12 items-center gap-6 mt-3 flex-grow min-h-0">
+              <div className="md:col-span-7 h-full min-h-[260px] w-full relative flex items-center justify-center select-none">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={expenseData}
+                      cx="50%"
+                      cy="46%"
+                      innerRadius="46%"
+                      outerRadius="68%"
+                      paddingAngle={2}
+                      dataKey="amount"
+                      stroke="#FFFDFB"
+                      strokeWidth={3}
+                      startAngle={90}
+                      endAngle={-270}
+                      isAnimationActive={false}
+                    >
+                      {expenseData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => [money.format(toNumber(value)), 'Category Total']}
+                      contentStyle={{
+                        borderRadius: '15px',
+                        border: '1px solid #EFE2D8',
+                        fontFamily: 'Nunito, sans-serif',
+                        fontWeight: 'bold',
+                        color: '#4E3629'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
 
-                  <div className="absolute -translate-y-[10%] flex flex-col items-center justify-center text-center">
-                    <span className="text-[22px] min-[1900px]:text-[26px] font-black text-[#2F2925]">{money.format(summary.expense)}</span>
-                    <span className="text-[12px] min-[1900px]:text-[13px] text-[#8B929C] font-bold mt-0.5">This month</span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[20px] bg-[#FFF8F2] px-6 text-center">
-                  <p className="text-[16px] font-black text-[#2F2925]">No expense categories yet</p>
-                  <p className="mt-1 max-w-[260px] text-[12px] font-bold leading-relaxed text-[#8B929C]">
-                    Add or confirm expenses to build the spending overview.
-                  </p>
+                <div className="absolute -translate-y-[10%] flex flex-col items-center justify-center text-center">
+                  <span className="text-[22px] min-[1900px]:text-[26px] font-black text-[#2F2925]">{money.format(summary.expense)}</span>
+                  <span className="text-[12px] min-[1900px]:text-[13px] text-[#8B929C] font-bold mt-0.5">This month</span>
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div className="md:col-span-5 flex flex-col gap-2.5">
-              {expenseData.map((item, index) => (
-                <div key={index} className="flex items-center justify-between rounded-[14px] bg-[#FAF6F0] px-3 py-2.5 text-xs font-bold shadow-[inset_0_0_0_1px_rgba(92,65,45,0.04)]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
-                    <span className="text-[#6F7785] font-extrabold truncate max-w-[128px]">{item.name}</span>
+              <div className="md:col-span-5 flex flex-col gap-2.5">
+                {expenseData.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between rounded-[14px] bg-[#FAF6F0] px-3 py-2.5 text-xs font-bold shadow-[inset_0_0_0_1px_rgba(92,65,45,0.04)]">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }}></span>
+                      <span className="text-[#6F7785] font-extrabold truncate max-w-[128px]">{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-right">
+                      <span className="text-[#8B929C] text-[11px] font-bold w-8">{item.percentage}%</span>
+                      <span className="text-[#2F2925] font-black w-[66px]">{money.format(item.amount)}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4 text-right">
-                    <span className="text-[#8B929C] text-[11px] font-bold w-8">{item.percentage}%</span>
-                    <span className="text-[#2F2925] font-black w-[66px]">{money.format(item.amount)}</span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mt-3 flex-grow flex flex-col items-center justify-center min-h-[220px] w-full rounded-[20px] bg-[#FFF8F2] p-6 text-center border border-[#F0DFD0]">
+              <CuteSticker name="categories-cat" className="h-[96px] w-[96px] mb-2 drop-shadow-[0_8px_16px_rgba(92,65,45,0.1)]" title="No expense categories yet" />
+              <div>
+                <p className="text-[16px] font-black text-[#2F2925]">No expense categories yet</p>
+                <p className="mt-1 max-w-[260px] text-[12px] font-bold leading-relaxed text-[#8B929C] mx-auto">
+                  Add or confirm expenses to build the spending overview.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-2 min-[1900px]:grid-cols-4 gap-3">
             <div className="rounded-[16px] bg-[#FFF8F2] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
@@ -469,17 +485,20 @@ export const Dashboard = () => {
           </div>
         </Card>
 
-        <Card noPadding className="dashboard-transactions-card border border-[#EFE2D8] rounded-[22px] p-6 shadow-[0_10px_28px_rgba(92,65,45,0.08)] flex flex-col bg-[#FFFDFB] min-h-[360px] min-[1900px]:min-h-0 h-full overflow-hidden">
+        <Card noPadding className="dashboard-transactions-card border border-[#EFE2D8] rounded-[22px] p-6 shadow-[0_10px_28px_rgba(92,65,45,0.08)] flex flex-col bg-[#FFFDFB] min-h-[360px] overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-[17px] font-black text-[#2F2925]">Recent Transactions</h3>
             <Link to="/transactions" className="text-xs font-black text-[#FF7F96] hover:underline">See all</Link>
           </div>
 
-          <div className="flex flex-col gap-3 min-h-0">
+          <div className="flex flex-col gap-3 min-h-0 flex-grow">
             {recentTransactions.length === 0 ? (
-              <div className="rounded-[18px] bg-[#FFF8F2] px-4 py-6 text-center">
-                <p className="text-sm font-black text-[#2F2925]">No recent transactions</p>
-                <p className="mt-1 text-[12px] font-bold text-[#8B929C]">{entryLabel}</p>
+              <div className="rounded-[18px] bg-[#FFF8F2] border border-[#F0DFD0] px-4 py-8 text-center flex-grow flex flex-col items-center justify-center min-h-[140px] gap-2">
+                <CuteSticker name="transactions-cat" className="h-[96px] w-[96px] mb-1 drop-shadow-[0_8px_16px_rgba(92,65,45,0.1)]" title="No recent transactions" />
+                <div>
+                  <p className="text-sm font-black text-[#2F2925]">No recent transactions</p>
+                  <p className="mt-1 text-[12px] font-bold text-[#8B929C]">{entryLabel}</p>
+                </div>
               </div>
             ) : (
               recentTransactions.map((tx) => (
@@ -535,9 +554,53 @@ export const Dashboard = () => {
               {summary.income > 0 ? 'Net saved from recorded income.' : 'Add income to track savings rate.'}
             </p>
           </div>
+
+          <div className="mt-4 hidden min-[1900px]:block rounded-[18px] border border-[#F0DFD0] bg-[#FFFDFB] px-4 py-3.5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.02)]">
+            <h4 className="text-xs font-black text-[#2F2925] mb-2 flex items-center gap-1.5">
+              <span>⚡</span> Quick Log Shortcuts
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleAnalyzeText("Coffee 5")}
+                disabled={loading || uploading}
+                className="flex items-center justify-between rounded-xl bg-[#FFF8F2] hover:bg-[#FFF2E7] border border-[#EFE2D8] px-3 py-2 text-xs font-bold text-[#4E3629] transition-all cursor-pointer disabled:opacity-50"
+              >
+                <span>☕ Coffee</span>
+                <span className="font-black text-[#FF7F96]">$5</span>
+              </button>
+              <button
+                onClick={() => handleAnalyzeText("Lunch 15")}
+                disabled={loading || uploading}
+                className="flex items-center justify-between rounded-xl bg-[#FFF8F2] hover:bg-[#FFF2E7] border border-[#EFE2D8] px-3 py-2 text-xs font-bold text-[#4E3629] transition-all cursor-pointer disabled:opacity-50"
+              >
+                <span>🍔 Lunch</span>
+                <span className="font-black text-[#FF7F96]">$15</span>
+              </button>
+              <button
+                onClick={() => handleAnalyzeText("Subway 3")}
+                disabled={loading || uploading}
+                className="flex items-center justify-between rounded-xl bg-[#FFF8F2] hover:bg-[#FFF2E7] border border-[#EFE2D8] px-3 py-2 text-xs font-bold text-[#4E3629] transition-all cursor-pointer disabled:opacity-50"
+              >
+                <span>🚇 Subway</span>
+                <span className="font-black text-[#FF7F96]">$3</span>
+              </button>
+              <button
+                onClick={() => handleAnalyzeText("Shopping 50")}
+                disabled={loading || uploading}
+                className="flex items-center justify-between rounded-xl bg-[#FFF8F2] hover:bg-[#FFF2E7] border border-[#EFE2D8] px-3 py-2 text-xs font-bold text-[#4E3629] transition-all cursor-pointer disabled:opacity-50"
+              >
+                <span>🛍️ Shopping</span>
+                <span className="font-black text-[#FF7F96]">$50</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 hidden min-[1900px]:block rounded-[18px] bg-[#FAF6F0] border border-[#EFE2D8] px-4 py-3 text-[11px] font-bold text-[#6F7785] leading-relaxed shadow-[inset_0_0_0_1px_rgba(92,65,45,0.03)]">
+            {financialTip}
+          </div>
         </Card>
 
-        <Card noPadding className="dashboard-helper-card border border-[#EFE2D8] rounded-[22px] p-5 shadow-[0_10px_28px_rgba(92,65,45,0.08)] flex-col bg-[#FFFDFB] min-h-[360px] min-[1900px]:min-h-0 h-full overflow-hidden">
+        <Card noPadding className="dashboard-helper-card border border-[#EFE2D8] rounded-[22px] p-5 shadow-[0_10px_28px_rgba(92,65,45,0.08)] flex flex-col bg-[#FFFDFB] min-h-[360px] overflow-hidden">
           <div className="rounded-[20px] bg-[#FFF4E8] border border-[#F0DFD0] px-4 py-4 text-center">
             <CuteSticker
               name="waving-cat"
