@@ -41,6 +41,8 @@ tmp/
 .codex/
 .claude/
 .ace-tool/
+.agent/
+frontend-design/
 openspec/
 *.code-workspace
 tmpclaude*
