@@ -57,8 +57,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#ECE7DF] p-0 text-[#4E3629] selection:bg-[#FFD1DC]/50 sm:flex sm:items-center sm:justify-center sm:p-2">
-      <div className="flex h-[100svh] min-h-0 w-full flex-col overflow-hidden bg-[#FBF8F3] font-sans antialiased shadow-[0_22px_70px_rgba(92,65,45,0.13)] sm:h-[calc(100vh-16px)] sm:w-[calc(100vw-16px)] sm:rounded-[26px] md:min-h-[720px] md:flex-row">
+    <div className="min-h-screen bg-[#ECE9E4] p-0 text-[#222B3A] selection:bg-[#FFD1DC]/50 sm:flex sm:items-center sm:justify-center sm:p-2">
+      <div className="flex h-[100svh] min-h-0 w-full flex-col overflow-hidden bg-[#FFFCF8] font-sans antialiased shadow-[0_22px_70px_rgba(92,65,45,0.11)] sm:h-[calc(100vh-16px)] sm:w-[calc(100vw-16px)] sm:rounded-[22px] md:min-h-[720px] md:flex-row">
       <header className="shrink-0 border-b border-[#EDE1D5] bg-[#FFFDF8] px-4 py-3 shadow-[0_10px_26px_rgba(92,65,45,0.05)] md:hidden">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5 select-none">
@@ -109,8 +109,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               className={({ isActive }) =>
                 `flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[13px] font-extrabold transition-all ${
                   isActive
-                    ? 'border-[#EDE1D5] bg-[#F4EDE6] text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.06)]'
-                    : 'border-transparent bg-white/70 text-[#7F8794] hover:text-[#4E3629]'
+                    ? 'border-[#FFE7E4] bg-[#FFF1EA] text-[#FF5B6F] shadow-[0_8px_18px_rgba(255,91,111,0.08)]'
+                    : 'border-transparent bg-white/70 text-[#6F7785] hover:text-[#222B3A]'
                 }`
               }
             >
@@ -121,32 +121,25 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </nav>
       </header>
 
-      <aside className="hidden w-[282px] shrink-0 flex-col justify-between border-r border-[#EDE1D5] bg-[#FFFDF8] px-5 py-6 shadow-[12px_0_32px_rgba(92,65,45,0.05)] md:flex md:h-full">
-        <div className="flex flex-col gap-7">
+      <aside className="hidden w-[256px] shrink-0 flex-col justify-between border-r border-[#E8E3DF] bg-[#FFFDF8] px-6 py-7 shadow-[12px_0_32px_rgba(92,65,45,0.04)] md:flex md:h-full">
+        <div className="flex flex-col gap-9">
           <div className="flex items-center gap-3 select-none">
-            <div className="w-12 h-12 rounded-[18px] bg-[#FFF1E2] border border-[#F0D9C7] p-1.5 shadow-[0_8px_18px_rgba(92,65,45,0.08)]">
+            <div className="w-11 h-11 rounded-[16px] bg-[#FFF1E2] border border-[#F0D9C7] p-1.5 shadow-[0_8px_18px_rgba(92,65,45,0.06)]">
               <CuteSticker name="logo-cat" className="w-full h-full" title="AI Accountant Logo" />
             </div>
-            <h1 className="text-[22px] font-black tracking-tight text-[#33251E]">AI Accountant</h1>
+            <h1 className="text-[20px] font-black tracking-tight text-[#1F2633]">AI Accountant</h1>
           </div>
 
-          <button
-            onClick={handleNewEntry}
-            className="w-full py-3.5 bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] text-white font-black rounded-full shadow-[0_12px_24px_rgba(255,111,143,0.28)] hover:translate-y-[-1px] active:translate-y-0 transition-all cursor-pointer text-center text-base flex items-center justify-center gap-2"
-          >
-            <span className="text-lg leading-none">+</span> New Entry
-          </button>
-
-          <nav className="flex flex-col gap-2 mt-1">
+          <nav className="flex flex-col gap-4">
             {menuItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3.5 rounded-[18px] font-extrabold text-[15px] transition-all border border-transparent ${
+                  `flex items-center gap-3 rounded-[18px] border border-transparent px-4 py-3.5 text-[15px] font-extrabold transition-all ${
                     isActive
-                      ? 'bg-[#F4EDE6] text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.06)]'
-                      : 'text-[#7F8794] hover:text-[#4E3629] hover:bg-[#F8F2EC]'
+                      ? 'bg-[#FFF1EA] text-[#FF5B6F] shadow-[0_8px_18px_rgba(255,91,111,0.08)]'
+                      : 'text-[#5F6C7B] hover:bg-[#F8F2EC] hover:text-[#222B3A]'
                   }`
                 }
               >
@@ -172,13 +165,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
           <div
             onClick={() => setProfileOpen(!profileOpen)}
-            className="flex items-center justify-between gap-3 p-3 rounded-[22px] border border-[#EEE3D9] bg-white cursor-pointer hover:bg-[#FFF8F1] transition-all select-none shadow-[0_8px_22px_rgba(92,65,45,0.08)]"
+            className="flex cursor-pointer select-none items-center justify-between gap-3 rounded-[18px] p-2 transition-all hover:bg-[#FFF8F1]"
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-full border border-[#E8D8CB] overflow-hidden shrink-0 bg-[#FFF3EA] p-0.5">
+              <div className="w-11 h-11 rounded-full border border-[#E8D8CB] overflow-hidden shrink-0 bg-[#FFF3EA] p-0.5">
                 <CuteSticker name="avatar" className="w-full h-full" title="User Profile" />
               </div>
-              <span className="font-black text-sm text-[#4E3629] truncate">{profileLabel}</span>
+              <span className="font-black text-sm text-[#222B3A] truncate">{profileLabel}</span>
             </div>
             <ChevronDown size={16} className={`text-gray-500 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
           </div>
@@ -186,7 +179,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-grow flex-col overflow-y-auto">
-        <main className="flex min-h-0 w-full flex-grow flex-col px-4 py-5 sm:px-6 sm:py-6 md:px-7 md:py-7">
+        <main className="flex min-h-0 w-full flex-grow flex-col px-4 py-5 sm:px-6 sm:py-6 md:px-8 md:py-7">
           {children}
         </main>
       </div>

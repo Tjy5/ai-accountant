@@ -5,7 +5,11 @@ import {
   BriefcaseBusiness,
   Bus,
   Check,
-  Filter,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Gamepad2,
   Gift,
   HeartPulse,
@@ -25,14 +29,18 @@ import {
   X,
 } from 'lucide-react';
 import api from '../api/axiosInstance';
-import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
 import { COLORS, fallbackColor, type ColorName } from '../constants/palette';
+import { useAuthStore } from '../store/useAuthStore';
 import { money } from '../utils/formatters';
+import { userLabel } from '../utils/profile';
 import { asRecord, asRecordArray, toNumber, type RawRecord } from '../utils/records';
 
 type CategoryType = 'income' | 'expense' | 'both';
+type CategoryTab = Extract<CategoryType, 'income' | 'expense'>;
 type CategoryFilter = 'all' | CategoryType;
+type CategoryScope = 'all' | 'default' | 'custom';
+type ActivityFilter = 'all' | 'active' | 'unused';
 
 interface CategoryItem {
   id: string;
@@ -47,6 +55,7 @@ interface CategoryItem {
   incomeTotal: number;
   expenseTotal: number;
   totalAmount: number;
+  monthlyBudget: number;
 }
 
 interface CategoryFormState {
@@ -55,17 +64,6 @@ interface CategoryFormState {
   icon: IconName;
   color: ColorName;
   description: string;
-}
-
-interface CategoryStats {
-  total: number;
-  expense: number;
-  income: number;
-  both: number;
-  custom: number;
-  default: number;
-  transactions: number;
-  trackedSpend: number;
 }
 
 interface CategoryFilters {
@@ -105,13 +103,35 @@ const ICON_OPTIONS: IconName[] = [
   'more-horizontal',
 ];
 
+const DEFAULT_CATEGORY_BUDGETS: Record<string, number> = {
+  'Food & Dining': 600,
+  Transport: 300,
+  Shopping: 400,
+  Entertainment: 200,
+  'Bills & Utilities': 600,
+  'Health & Fitness': 200,
+  Others: 100,
+  Salary: 5200,
+  Freelance: 900,
+  Investments: 500,
+  Gifts: 250,
+};
+
+const defaultBudgetFor = (name: string, type: CategoryType, amount: number) => {
+  const knownBudget = DEFAULT_CATEGORY_BUDGETS[name];
+  if (knownBudget) return knownBudget;
+
+  const base = Math.max(100, Math.ceil(Math.max(amount, 1) / 100) * 100);
+  return type === 'income' ? Math.max(base, Math.ceil(base * 1.1)) : base;
+};
+
 const SAMPLE_CATEGORIES: CategoryItem[] = [
   {
     id: 'sample-food',
     name: 'Food & Dining',
     type: 'expense',
     icon: 'utensils',
-    color: '#FF8C94',
+    color: '#FFB87A',
     description: 'Meals, snacks, coffee, and groceries.',
     isDefault: true,
     usageCount: 24,
@@ -119,6 +139,7 @@ const SAMPLE_CATEGORIES: CategoryItem[] = [
     incomeTotal: 0,
     expenseTotal: 465.05,
     totalAmount: 465.05,
+    monthlyBudget: 600,
   },
   {
     id: 'sample-transport',
@@ -133,13 +154,14 @@ const SAMPLE_CATEGORIES: CategoryItem[] = [
     incomeTotal: 0,
     expenseTotal: 216.05,
     totalAmount: 216.05,
+    monthlyBudget: 300,
   },
   {
     id: 'sample-shopping',
     name: 'Shopping',
     type: 'expense',
     icon: 'shopping-bag',
-    color: '#FFD54F',
+    color: '#FFB87A',
     description: 'Clothes, home items, and online orders.',
     isDefault: true,
     usageCount: 18,
@@ -147,20 +169,67 @@ const SAMPLE_CATEGORIES: CategoryItem[] = [
     incomeTotal: 0,
     expenseTotal: 264.08,
     totalAmount: 264.08,
+    monthlyBudget: 400,
   },
   {
     id: 'sample-entertainment',
     name: 'Entertainment',
     type: 'expense',
-    icon: 'gamepad',
-    color: '#BA68C8',
+    icon: 'wallet',
+    color: '#4DB6AC',
     description: 'Movies, games, shows, and little treats.',
-    isDefault: false,
+    isDefault: true,
     usageCount: 8,
     transactionCount: 8,
     incomeTotal: 0,
     expenseTotal: 124.2,
     totalAmount: 124.2,
+    monthlyBudget: 200,
+  },
+  {
+    id: 'sample-bills',
+    name: 'Bills & Utilities',
+    type: 'expense',
+    icon: 'receipt',
+    color: '#8C9EFF',
+    description: 'Rent, utilities, subscriptions, and recurring bills.',
+    isDefault: true,
+    usageCount: 10,
+    transactionCount: 10,
+    incomeTotal: 0,
+    expenseTotal: 410,
+    totalAmount: 410,
+    monthlyBudget: 600,
+  },
+  {
+    id: 'sample-health',
+    name: 'Health & Fitness',
+    type: 'expense',
+    icon: 'heart-pulse',
+    color: '#64B5F6',
+    description: 'Care, medication, gym, and wellness spending.',
+    isDefault: true,
+    usageCount: 6,
+    transactionCount: 6,
+    incomeTotal: 0,
+    expenseTotal: 72.3,
+    totalAmount: 72.3,
+    monthlyBudget: 200,
+  },
+  {
+    id: 'sample-others',
+    name: 'Others',
+    type: 'expense',
+    icon: 'more-horizontal',
+    color: '#A1887F',
+    description: 'Unsorted items that need a tidy home.',
+    isDefault: true,
+    usageCount: 3,
+    transactionCount: 3,
+    incomeTotal: 0,
+    expenseTotal: 16.42,
+    totalAmount: 16.42,
+    monthlyBudget: 100,
   },
   {
     id: 'sample-salary',
@@ -175,6 +244,7 @@ const SAMPLE_CATEGORIES: CategoryItem[] = [
     incomeTotal: 5200,
     expenseTotal: 0,
     totalAmount: 5200,
+    monthlyBudget: 5200,
   },
   {
     id: 'sample-freelance',
@@ -189,20 +259,37 @@ const SAMPLE_CATEGORIES: CategoryItem[] = [
     incomeTotal: 840,
     expenseTotal: 0,
     totalAmount: 840,
+    monthlyBudget: 900,
   },
   {
-    id: 'sample-other',
-    name: 'Other',
-    type: 'both',
-    icon: 'more-horizontal',
-    color: '#A1887F',
-    description: 'Unsorted items that need a cozy home.',
+    id: 'sample-investments',
+    name: 'Investments',
+    type: 'income',
+    icon: 'wallet',
+    color: '#4DB6AC',
+    description: 'Dividends, interest, and portfolio income.',
+    isDefault: false,
+    usageCount: 2,
+    transactionCount: 2,
+    incomeTotal: 320,
+    expenseTotal: 0,
+    totalAmount: 320,
+    monthlyBudget: 500,
+  },
+  {
+    id: 'sample-gifts',
+    name: 'Gifts',
+    type: 'income',
+    icon: 'gift',
+    color: '#BA68C8',
+    description: 'Cash gifts, reimbursements, and one-off inflows.',
     isDefault: true,
-    usageCount: 3,
-    transactionCount: 3,
-    incomeTotal: 30,
-    expenseTotal: 16.42,
-    totalAmount: 46.42,
+    usageCount: 1,
+    transactionCount: 1,
+    incomeTotal: 120,
+    expenseTotal: 0,
+    totalAmount: 120,
+    monthlyBudget: 250,
   },
 ];
 
@@ -215,10 +302,11 @@ const normalizeCategory = (raw: RawRecord, index: number): CategoryItem => {
   const expenseTotal = toNumber(raw.expense_total ?? raw.expenseTotal);
   const totalAmount = toNumber(raw.total_amount ?? raw.totalAmount, incomeTotal + expenseTotal);
   const type = raw.type === 'income' || raw.type === 'both' ? raw.type : 'expense';
+  const name = String(raw.name || 'Untitled Category');
 
   return {
     id: String(raw.id ?? `local-${index}`),
-    name: String(raw.name || 'Untitled Category'),
+    name,
     type,
     icon: fallbackIcon(raw.icon),
     color: fallbackColor(raw.color),
@@ -229,6 +317,10 @@ const normalizeCategory = (raw: RawRecord, index: number): CategoryItem => {
     incomeTotal,
     expenseTotal,
     totalAmount,
+    monthlyBudget: toNumber(
+      raw.monthly_budget ?? raw.monthlyBudget ?? raw.budget ?? raw.budgetAmount ?? raw.limit ?? raw.target ?? raw.targetAmount,
+      defaultBudgetFor(name, type, totalAmount),
+    ),
   };
 };
 
@@ -239,23 +331,6 @@ const categoryParams = (filters: CategoryFilters) => ({
   ...(filters.type !== 'all' ? { type: filters.type } : {}),
   ...(filters.search ? { search: filters.search } : {}),
 });
-
-const computeStats = (categories: CategoryItem[]): CategoryStats =>
-  categories.reduce(
-    (stats, category) => {
-      stats.total += 1;
-      stats[category.type] += 1;
-      if (category.isDefault) {
-        stats.default += 1;
-      } else {
-        stats.custom += 1;
-      }
-      stats.transactions += category.transactionCount;
-      stats.trackedSpend += category.expenseTotal;
-      return stats;
-    },
-    { total: 0, expense: 0, income: 0, both: 0, custom: 0, default: 0, transactions: 0, trackedSpend: 0 },
-  );
 
 const applyLocalFilters = (categories: CategoryItem[], typeFilter: CategoryFilter, search: string) => {
   const query = search.trim().toLowerCase();
@@ -279,43 +354,83 @@ const emptyForm = (): CategoryFormState => ({
   description: '',
 });
 
-const IconBadge = ({ category, size = 'md' }: { category: Pick<CategoryItem, 'icon' | 'color'>; size?: 'sm' | 'md' | 'lg' }) => {
+const getCategoryAmount = (category: CategoryItem, activeTab: CategoryTab) =>
+  activeTab === 'income' ? category.incomeTotal : category.expenseTotal;
+
+const getProgressPercent = (amount: number, budget: number) => {
+  if (!budget) return 0;
+  return Math.round((amount / budget) * 100);
+};
+
+const firstNameFrom = (label: string) => label.trim().split(/[\s@]+/)[0] || 'Sarah';
+
+const IconBadge = ({ category }: { category: Pick<CategoryItem, 'icon' | 'color'> }) => {
   const Icon = ICONS[category.icon] || Tag;
-  const dims = size === 'lg' ? 'h-14 w-14 rounded-[20px]' : size === 'sm' ? 'h-9 w-9 rounded-[14px]' : 'h-11 w-11 rounded-[16px]';
-  const iconSize = size === 'lg' ? 24 : size === 'sm' ? 17 : 20;
 
   return (
     <span
-      className={`flex shrink-0 items-center justify-center ${dims} shadow-[inset_0_0_0_1px_rgba(92,65,45,0.08)]`}
-      style={{ backgroundColor: `${category.color}26`, color: category.color }}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] shadow-[inset_0_0_0_1px_rgba(34,45,66,0.06)]"
+      style={{ backgroundColor: `${category.color}28`, color: category.color }}
     >
-      <Icon size={iconSize} strokeWidth={2.7} />
+      <Icon size={18} strokeWidth={2.5} />
     </span>
   );
 };
 
 const TypePill = ({ type }: { type: CategoryType }) => {
   const styles = {
-    expense: 'bg-[#FFF0F2] text-[#F27C8B]',
+    expense: 'bg-[#FFF0EF] text-[#FF5B6F]',
     income: 'bg-[#EAFBF1] text-[#169B61]',
     both: 'bg-[#FFF2E7] text-[#9D4E2B]',
   };
 
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black uppercase ${styles[type]}`}>
-      {type === 'both' ? 'Shared' : type}
+    <span className={`inline-flex rounded-[9px] px-3 py-1 text-[13px] font-extrabold leading-none ${styles[type]}`}>
+      {type === 'both' ? 'Shared' : type === 'income' ? 'Income' : 'Expense'}
     </span>
   );
 };
 
+const SelectField = ({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) => (
+  <label className="relative block w-full sm:w-[204px]">
+    <span className="sr-only">{label}</span>
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="h-11 w-full appearance-none rounded-[12px] border border-[#E5E2DF] bg-white px-4 pr-10 text-[15px] font-extrabold text-[#222B3A] outline-none transition focus:border-[#FF7D8F] focus:ring-4 focus:ring-[#FFE4E9]"
+    >
+      {children}
+    </select>
+    <ChevronDown
+      size={16}
+      strokeWidth={2.7}
+      className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#6F7785]"
+    />
+  </label>
+);
+
 export const Categories = () => {
+  const user = useAuthStore((state) => state.user);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [offlineRows, setOfflineRows] = useState<CategoryItem[]>(SAMPLE_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [offlineMode, setOfflineMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [typeFilter, setTypeFilter] = useState<CategoryFilter>('all');
+  const [activeTab, setActiveTab] = useState<CategoryTab>('expense');
+  const [categoryScope, setCategoryScope] = useState<CategoryScope>('all');
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
 
@@ -324,7 +439,8 @@ export const Categories = () => {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState<CategoryFormState>(emptyForm);
-  const filters = useMemo<CategoryFilters>(() => ({ type: typeFilter, search }), [search, typeFilter]);
+  const filters = useMemo<CategoryFilters>(() => ({ type: activeTab, search }), [activeTab, search]);
+  const displayName = firstNameFrom(userLabel(user, 'Sarah'));
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -364,11 +480,20 @@ export const Categories = () => {
     };
   }, [filters, offlineRows]);
 
-  const stats = useMemo(() => computeStats(categories), [categories]);
-  const maxAmount = useMemo(() => Math.max(1, ...categories.map((category) => category.totalAmount)), [categories]);
-  const topCategory = useMemo(
-    () => [...categories].sort((a, b) => b.transactionCount - a.transactionCount || b.totalAmount - a.totalAmount)[0],
-    [categories],
+  const visibleCategories = useMemo(
+    () =>
+      categories
+        .filter((category) => {
+          if (categoryScope === 'default') return category.isDefault;
+          if (categoryScope === 'custom') return !category.isDefault;
+          return true;
+        })
+        .filter((category) => {
+          if (activityFilter === 'active') return category.transactionCount > 0;
+          if (activityFilter === 'unused') return category.transactionCount === 0;
+          return true;
+        }),
+    [activityFilter, categories, categoryScope],
   );
 
   const refreshLocal = (nextRows: CategoryItem[]) => {
@@ -377,7 +502,7 @@ export const Categories = () => {
 
   const openCreateDrawer = () => {
     setEditing(null);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), type: activeTab });
     setFormError(null);
     setDrawerOpen(true);
   };
@@ -414,7 +539,15 @@ export const Categories = () => {
     try {
       if (offlineMode) {
         const nextRows = editing
-          ? offlineRows.map((category) => (category.id === editing.id ? { ...category, ...payload } : category))
+          ? offlineRows.map((category) =>
+              category.id === editing.id
+                ? {
+                    ...category,
+                    ...payload,
+                    monthlyBudget: category.monthlyBudget || defaultBudgetFor(payload.name, payload.type, category.totalAmount),
+                  }
+                : category,
+            )
           : [
               {
                 ...payload,
@@ -425,6 +558,7 @@ export const Categories = () => {
                 incomeTotal: 0,
                 expenseTotal: 0,
                 totalAmount: 0,
+                monthlyBudget: defaultBudgetFor(payload.name, payload.type, 0),
               },
               ...offlineRows,
             ];
@@ -474,242 +608,251 @@ export const Categories = () => {
     }
   };
 
+  const rangeStart = visibleCategories.length ? 1 : 0;
+  const rangeEnd = visibleCategories.length;
+  const metricHeaders =
+    activeTab === 'income'
+      ? { planned: 'Target', actual: 'Received' }
+      : { planned: 'Budget', actual: 'Spent' };
+
   return (
-    <div className="categories-page management-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
-      <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2">
-            <span className="text-[11px] font-black uppercase text-[#FF7F96]">Library</span>
+    <div className="categories-page flex h-full min-h-0 flex-col text-[#222B3A]">
+      <div className="relative flex min-h-[182px] flex-col border-b border-[#E8E3DF] pb-0">
+        <div className="flex items-start justify-between gap-6">
+          <div className="min-w-0">
+            <p className="text-[12px] font-black leading-none text-[#FF5B6F]">Hi</p>
+            <h2 className="mt-2 text-[32px] font-black leading-tight text-[#1F2633]">
+              Good morning, {displayName}!
+            </h2>
+            <p className="mt-3 text-[16px] font-bold text-[#3C4656]">Manage your income and expense categories.</p>
             {offlineMode && (
-              <span className="rounded-full bg-[#FFF2E7] px-2.5 py-0.5 text-[11px] font-black text-[#9D4E2B]">
+              <span className="mt-3 inline-flex rounded-full bg-[#FFF2E7] px-3 py-1 text-[12px] font-black text-[#9D4E2B]">
                 Local Preview
               </span>
             )}
           </div>
-          <h2 className="text-[32px] font-black leading-tight text-[#2F2925]">Categories</h2>
-          <p className="mt-1 text-[15px] font-bold text-[#6F7785]">Shape the labels that keep every entry tidy.</p>
-        </div>
 
-        <div className="flex items-center gap-3 pt-1">
-          <button
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white shadow-[0_8px_18px_rgba(92,65,45,0.08)] transition-colors hover:bg-[#FFF8F2]"
-            aria-label="Search categories"
-          >
-            <Search size={19} strokeWidth={2.5} className="text-[#2F2925]" />
-          </button>
-          <button
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white shadow-[0_8px_18px_rgba(92,65,45,0.08)] transition-colors hover:bg-[#FFF8F2]"
-            aria-label="Notifications"
-          >
-            <Bell size={19} strokeWidth={2.5} className="text-[#2F2925]" />
-          </button>
-        </div>
-      </div>
+          <CuteSticker
+            name="categories-cat"
+            className="pointer-events-none hidden h-[86px] w-[150px] shrink-0 select-none transition-transform duration-200 lg:block max-[1180px]:-translate-x-8 max-[1080px]:hidden"
+            title="Categories mascot"
+          />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF0F2]" />
-          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Total Labels</p>
-          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.total}</p>
-          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#FF7F96]">{stats.custom} custom categories</p>
-        </Card>
-        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#EAFBF1]" />
-          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Income Labels</p>
-          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.income}</p>
-          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#169B61]">{stats.both} shared labels</p>
-        </Card>
-        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF2E7]" />
-          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Expense Labels</p>
-          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.expense}</p>
-          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#9D4E2B]">{money.format(stats.trackedSpend)} tracked</p>
-        </Card>
-        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#EDF5FF]" />
-          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Tagged Entries</p>
-          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{stats.transactions}</p>
-          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#3575A8]">{stats.default} protected defaults</p>
-        </Card>
-      </div>
+          <div className="relative flex shrink-0 items-center gap-6 pt-3">
+            <button
+              type="button"
+              onClick={() => setSearchOpen((current) => !current)}
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-[#3C4656] transition hover:bg-white"
+              aria-label="Search categories"
+            >
+              <Search size={23} strokeWidth={2.4} />
+            </button>
+            <button
+              type="button"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-[#3C4656] transition hover:bg-white"
+              aria-label="Notifications"
+            >
+              <Bell size={22} strokeWidth={2.4} />
+            </button>
 
-      {error && (
-        <div className="rounded-[16px] border border-[#F8C7CE] bg-[#FFF0F2] px-4 py-3 text-sm font-black text-[#C44B61]">
-          {error}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
-          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <label className="group relative block w-full sm:w-48 shrink-0">
-                <span className="sr-only">Category type</span>
-                <Filter className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
-                <select
-                  value={typeFilter}
-                  onChange={(event) => setTypeFilter(event.target.value as CategoryFilter)}
-                  className="h-12 w-full appearance-none rounded-[16px] border border-[#EFE2D8] bg-white px-11 pr-9 text-[14px] font-black text-[#4E3629] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
-                >
-                  <option value="all">All Types</option>
-                  <option value="expense">Expenses</option>
-                  <option value="income">Income</option>
-                  <option value="both">Shared</option>
-                </select>
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#8B929C]">⌄</span>
-              </label>
-
-              <label className="relative block w-full sm:flex-grow">
+            {searchOpen && (
+              <label className="absolute right-0 top-14 z-20 block w-[320px] max-w-[calc(100vw-48px)]">
                 <span className="sr-only">Search categories</span>
-                <Search className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
+                <Search
+                  size={17}
+                  strokeWidth={2.5}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#8992A1]"
+                />
                 <input
                   type="search"
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Search labels, notes, type..."
-                  className="h-12 w-full rounded-full border border-[#EFE2D8] bg-white pl-11 pr-4 text-[14px] font-bold text-[#4E3629] outline-none transition placeholder:text-[#A7A0A0] focus:ring-4 focus:ring-[#FFD1DC]/40"
+                  placeholder="Search categories"
+                  className="h-12 w-full rounded-[16px] border border-[#E5E2DF] bg-white pl-11 pr-11 text-[14px] font-bold text-[#222B3A] shadow-[0_16px_32px_rgba(34,43,58,0.08)] outline-none focus:border-[#FF7D8F] focus:ring-4 focus:ring-[#FFE4E9]"
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('');
+                    setSearchOpen(false);
+                  }}
+                  className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-[#8992A1] hover:bg-[#F8F2EC]"
+                  aria-label="Close search"
+                >
+                  <X size={15} strokeWidth={2.7} />
+                </button>
               </label>
+            )}
+          </div>
+        </div>
 
+        <div className="mt-auto flex flex-col gap-4 pt-8 min-[880px]:flex-row min-[880px]:items-end min-[880px]:justify-between">
+          <div className="flex gap-8 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] min-[880px]:overflow-visible [&::-webkit-scrollbar]:hidden">
+            {(['expense', 'income'] as CategoryTab[]).map((tab) => (
               <button
-                onClick={openCreateDrawer}
-                className="flex h-12 w-full sm:w-auto shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] px-6 text-[15px] font-black text-white shadow-[0_12px_24px_rgba(255,111,143,0.28)] transition-all hover:translate-y-[-1px] active:translate-y-0"
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`relative h-12 shrink-0 cursor-pointer px-1 text-[15px] font-black transition ${
+                  activeTab === tab ? 'text-[#FF5B6F]' : 'text-[#222B3A] hover:text-[#FF5B6F]'
+                }`}
               >
-                <Plus size={19} strokeWidth={3} />
-                Add Category
+                {tab === 'expense' ? 'Expense Categories' : 'Income Categories'}
+                {activeTab === tab && <span className="absolute inset-x-0 bottom-[-1px] h-[3px] rounded-full bg-[#FF6B7B]" />}
               </button>
-            </div>
-          </Card>
+            ))}
+          </div>
 
-          {loading ? (
-            <Card noPadding className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-              <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF2E7] px-4 py-2 text-sm font-black text-[#9D4E2B]">
-                <LoaderCircle className="animate-spin" size={16} />
-                Loading category shelf
-              </div>
-            </Card>
-          ) : categories.length === 0 ? (
-            <Card noPadding className="flex min-h-[320px] flex-col items-center justify-center rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-8 text-center shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-              <CuteSticker name="categories-cat" className="h-[116px] w-[146px]" title="Empty categories cat" />
-              <p className="mt-2 text-lg font-black text-[#2F2925]">No categories found</p>
-              <p className="mt-1 text-sm font-bold text-[#8B929C]">Try a softer filter or add a new label.</p>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {categories.map((category) => {
-                const barWidth = Math.max(6, Math.round((category.totalAmount / maxAmount) * 100));
-                const amountLabel = category.type === 'income' ? category.incomeTotal : category.type === 'expense' ? category.expenseTotal : category.totalAmount;
-                return (
-                  <Card
-                    key={category.id}
-                    noPadding
-                    className="min-h-[216px] rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <IconBadge category={category} size="lg" />
-                        <div className="min-w-0">
-                          <h3 className="truncate text-[17px] font-black leading-tight text-[#2F2925]">{category.name}</h3>
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <TypePill type={category.type} />
-                            {category.isDefault && (
-                              <span className="rounded-full bg-[#F7EFE8] px-2.5 py-1 text-[11px] font-black uppercase text-[#7B8491]">
-                                Default
-                              </span>
-                            )}
+          <button
+            onClick={openCreateDrawer}
+            className="flex h-11 w-full shrink-0 cursor-pointer items-center justify-center gap-2 rounded-[14px] bg-gradient-to-r from-[#FF697F] to-[#FF8292] px-5 text-[15px] font-black text-white shadow-[0_12px_24px_rgba(255,105,127,0.24)] transition hover:translate-y-[-1px] active:translate-y-0 min-[880px]:mb-3 min-[880px]:w-auto"
+          >
+            <Plus size={18} strokeWidth={3} />
+            Add Category
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mt-5 rounded-[14px] border border-[#F8C7CE] bg-[#FFF0F2] px-4 py-3 text-sm font-black text-[#C44B61]">
+          {error}
+        </div>
+      )}
+
+      <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+        <SelectField
+          label="Category scope"
+          value={categoryScope}
+          onChange={(value) => setCategoryScope(value as CategoryScope)}
+        >
+          <option value="all">All Categories</option>
+          <option value="default">Default Categories</option>
+          <option value="custom">Custom Categories</option>
+        </SelectField>
+
+        <SelectField
+          label="Activity filter"
+          value={activityFilter}
+          onChange={(value) => setActivityFilter(value as ActivityFilter)}
+        >
+          <option value="all">All Types</option>
+          <option value="active">In Use</option>
+          <option value="unused">Unused</option>
+        </SelectField>
+      </div>
+
+      <div className="mt-7 flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] border border-[#E8E3DF] bg-white shadow-[0_18px_36px_rgba(34,43,58,0.04)]">
+        {loading ? (
+          <div className="flex h-full min-h-[260px] items-center justify-center">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF2E7] px-4 py-2 text-sm font-black text-[#9D4E2B]">
+              <LoaderCircle className="animate-spin" size={16} />
+              Loading categories
+            </div>
+          </div>
+        ) : visibleCategories.length === 0 ? (
+          <div className="flex h-full min-h-[260px] flex-col items-center justify-center px-6 text-center">
+            <CuteSticker name="categories-cat" className="h-[108px] w-[148px]" title="Empty categories" />
+            <p className="mt-4 text-lg font-black text-[#1F2633]">No categories found</p>
+            <p className="mt-1 text-sm font-bold text-[#7C8491]">Try a softer filter or add a new category.</p>
+          </div>
+        ) : (
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="min-h-0 flex-1 overflow-auto">
+              <table className="w-full min-w-[700px] border-collapse">
+                <thead className="sticky top-0 z-10 bg-white">
+                  <tr className="border-b border-[#E8E3DF]">
+                    <th className="w-[22%] px-5 py-5 text-left text-[15px] font-black text-[#2B3443]">Category</th>
+                    <th className="w-[14%] px-5 py-5 text-left text-[15px] font-black text-[#2B3443]">Type</th>
+                    <th className="w-[13%] px-5 py-5 text-left text-[15px] font-black text-[#2B3443]">{metricHeaders.planned}</th>
+                    <th className="w-[29%] px-5 py-5 text-left text-[15px] font-black text-[#2B3443]">{metricHeaders.actual}</th>
+                    <th className="w-[13%] px-5 py-5 text-center text-[15px] font-black text-[#2B3443]">Transactions</th>
+                    <th className="w-[9%] px-5 py-5 text-center text-[15px] font-black text-[#2B3443]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleCategories.map((category) => {
+                    const amount = getCategoryAmount(category, activeTab);
+                    const progress = getProgressPercent(amount, category.monthlyBudget);
+                    const barWidth = Math.min(100, Math.max(amount > 0 ? 4 : 0, progress));
+
+                    return (
+                      <tr key={category.id} className="border-b border-[#ECE8E3] last:border-b-0">
+                        <td className="px-5 py-[21px]">
+                          <div className="flex min-w-0 items-center gap-4">
+                            <IconBadge category={category} />
+                            <span className="truncate text-[15px] font-black text-[#202836]">{category.name}</span>
                           </div>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button
-                          onClick={() => openEditDrawer(category)}
-                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#536073] transition hover:bg-[#FFF8F2] hover:text-[#2F2925]"
-                          aria-label={`Edit ${category.name}`}
-                          title="Edit"
-                        >
-                          <Pencil size={14} strokeWidth={2.5} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(category)}
-                          disabled={category.isDefault}
-                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#F4D5DA] bg-white text-[#F27C8B] transition hover:bg-[#FFF0F2] disabled:cursor-not-allowed disabled:opacity-35"
-                          aria-label={`Delete ${category.name}`}
-                          title={category.isDefault ? 'Protected default' : 'Delete'}
-                        >
-                          <Trash2 size={14} strokeWidth={2.5} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <p className="mt-4 min-h-[40px] text-[13px] font-bold leading-relaxed text-[#6F7785]">{category.description}</p>
-
-                    <div className="mt-5 grid grid-cols-2 gap-3">
-                      <div className="rounded-[16px] bg-[#FAF6F0] px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
-                        <p className="text-[11px] font-black uppercase text-[#8B929C]">Amount</p>
-                        <p className="mt-1 truncate text-[16px] font-black text-[#2F2925]">{money.format(amountLabel)}</p>
-                      </div>
-                      <div className="rounded-[16px] bg-[#FAF6F0] px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
-                        <p className="text-[11px] font-black uppercase text-[#8B929C]">Entries</p>
-                        <p className="mt-1 text-[16px] font-black text-[#2F2925]">{category.transactionCount}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <div className="h-2 overflow-hidden rounded-full bg-[#EFE4DA]">
-                        <div className="h-full rounded-full" style={{ width: `${barWidth}%`, backgroundColor: category.color }} />
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-6 flex flex-col gap-4">
-          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="rounded-[20px] border border-[#F0DFD0] bg-[#FFF4E8] px-4 py-4 text-center">
-              <CuteSticker
-                name="categories-cat"
-                className="mx-auto h-[100px] w-[132px] drop-shadow-[0_10px_16px_rgba(92,65,45,0.12)]"
-                title="Category organizer"
-              />
-              <h3 className="mt-1 text-[17px] font-black text-[#2F2925]">Label Library</h3>
-              <p className="mt-1 text-[11px] font-bold leading-snug text-[#7B8491]">A tidy set of labels makes AI drafts easier to confirm.</p>
+                        </td>
+                        <td className="px-5 py-[21px]">
+                          <TypePill type={category.type} />
+                        </td>
+                        <td className="px-5 py-[21px] text-[15px] font-black text-[#202836]">
+                          {money.format(category.monthlyBudget)}
+                        </td>
+                        <td className="px-5 py-[21px]">
+                          <div className="flex items-center gap-3">
+                            <span className="w-[72px] shrink-0 text-[15px] font-black text-[#202836]">{money.format(amount)}</span>
+                            <div className="h-2 w-[clamp(42px,7vw,118px)] shrink-0 overflow-hidden rounded-full bg-[#EEEDEB]">
+                              <div className="h-full rounded-full bg-[#5FC47E]" style={{ width: `${barWidth}%` }} />
+                            </div>
+                            <span className="text-[14px] font-extrabold text-[#6F7785]">{progress}%</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-[21px] text-center text-[15px] font-black text-[#202836]">
+                          {category.transactionCount}
+                        </td>
+                        <td className="px-5 py-[21px]">
+                          <div className="flex items-center justify-center gap-6">
+                            <button
+                              onClick={() => openEditDrawer(category)}
+                              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#3C4656] transition hover:bg-[#F8F2EC]"
+                              aria-label={`Edit ${category.name}`}
+                              title="Edit"
+                            >
+                              <Pencil size={18} strokeWidth={2.4} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(category)}
+                              disabled={category.isDefault}
+                              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-[#FF4F61] transition hover:bg-[#FFF0F2] disabled:cursor-not-allowed disabled:opacity-45"
+                              aria-label={`Delete ${category.name}`}
+                              title={category.isDefault ? 'Protected default' : 'Delete'}
+                            >
+                              <Trash2 size={18} strokeWidth={2.4} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
-            <div className="mt-3 grid gap-2.5">
-              <div className="rounded-[18px] bg-[#FAF6F0] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-[#7B8491]">Most used</span>
-                  <span className="rounded-full bg-[#FFD1DC] px-2 py-0.5 text-xs font-black text-[#4E3629]">{topCategory?.transactionCount || 0}</span>
-                </div>
-                <p className="mt-1.5 truncate text-lg font-black text-[#2F2925]">{topCategory?.name || 'No labels yet'}</p>
-              </div>
-
-              <div className="rounded-[18px] bg-[#FAF6F0] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-[#7B8491]">Protected</span>
-                  <span className="text-xs font-black text-[#55B978]">{stats.default}</span>
-                </div>
-                <p className="mt-1.5 text-lg font-black text-[#2F2925]">{stats.default === 1 ? '1 default' : `${stats.default} defaults`}</p>
-              </div>
-
-              <div className="rounded-[18px] border border-[#F0DFD0] bg-[#FFF9F2] px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-black text-[#2F2925]">Expense coverage</p>
-                  <p className="text-[11px] font-black text-[#F27C8B]">{stats.expense}</p>
-                </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#EFE4DA]">
-                  <div
-                    className="h-full rounded-full bg-[#FF8C94]"
-                    style={{ width: `${stats.total ? Math.round((stats.expense / stats.total) * 100) : 0}%` }}
-                  />
-                </div>
+            <div className="flex shrink-0 flex-col gap-4 border-t border-[#E8E3DF] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[15px] font-bold text-[#5C6675]">
+                Showing {rangeStart} to {rangeEnd} of {visibleCategories.length} categories
+              </p>
+              <div className="flex items-center gap-2">
+                <button className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-[9px] text-[#4A5565] opacity-65" aria-label="First page" disabled>
+                  <ChevronsLeft size={17} strokeWidth={2.4} />
+                </button>
+                <button className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-[9px] text-[#4A5565] opacity-65" aria-label="Previous page" disabled>
+                  <ChevronLeft size={17} strokeWidth={2.4} />
+                </button>
+                <button className="flex h-9 w-9 items-center justify-center rounded-[9px] bg-[#FFF0EF] text-[15px] font-black text-[#FF5B6F]" aria-current="page">
+                  1
+                </button>
+                <button className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-[9px] text-[#4A5565] opacity-65" aria-label="Next page" disabled>
+                  <ChevronRight size={17} strokeWidth={2.4} />
+                </button>
+                <button className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-[9px] text-[#4A5565] opacity-65" aria-label="Last page" disabled>
+                  <ChevronsRight size={17} strokeWidth={2.4} />
+                </button>
               </div>
             </div>
-          </Card>
-        </div>
+          </div>
+        )}
       </div>
 
       {drawerOpen && (
@@ -727,10 +870,10 @@ export const Categories = () => {
                 <div>
                   <div className="flex items-center gap-2 text-[11px] font-black uppercase text-[#FF7F96]">
                     <Sparkles size={13} strokeWidth={3} />
-                    {editing ? 'Update Label' : 'New Label'}
+                    {editing ? 'Update Category' : 'New Category'}
                   </div>
                   <h3 className="mt-0.5 text-xl font-black text-[#2F2925]">
-                    {editing ? 'Polish this category' : 'Add a category'}
+                    {editing ? 'Edit this category' : 'Add a category'}
                   </h3>
                 </div>
               </div>
@@ -778,7 +921,7 @@ export const Categories = () => {
                   value={form.name}
                   onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                   disabled={Boolean(editing?.isDefault)}
-                  placeholder="Subscriptions, Pets, Travel..."
+                  placeholder="Subscriptions, Travel, Payroll..."
                   className="h-12 w-full rounded-[16px] border border-[#EFE2D8] bg-white px-4 text-sm font-bold text-[#4E3629] outline-none transition placeholder:text-[#A7A0A0] disabled:bg-[#F7EFE8] disabled:text-[#8B929C] focus:ring-4 focus:ring-[#FFD1DC]/40"
                 />
               </label>
@@ -788,7 +931,7 @@ export const Categories = () => {
                 <input
                   value={form.description}
                   onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="What belongs in this label?"
+                  placeholder="What belongs in this category?"
                   className="h-12 w-full rounded-[16px] border border-[#EFE2D8] bg-white px-4 text-sm font-bold text-[#4E3629] outline-none transition placeholder:text-[#A7A0A0] focus:ring-4 focus:ring-[#FFD1DC]/40"
                 />
               </label>
