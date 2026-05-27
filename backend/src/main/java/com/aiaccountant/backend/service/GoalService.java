@@ -15,7 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -26,30 +25,6 @@ import org.springframework.util.MultiValueMap;
 public class GoalService {
     private static final String ACTIVE_KEY = "ACTIVE";
     private static final Set<String> STATUSES = Set.of("active", "paused", "completed");
-    private static final Set<String> ICONS = Set.of(
-        "plane",
-        "home",
-        "graduation-cap",
-        "sparkles",
-        "piggy-bank",
-        "gift",
-        "wallet",
-        "target",
-        "heart-handshake",
-        "more-horizontal"
-    );
-    private static final Set<String> COLORS = Set.of(
-        "#FF8C94",
-        "#64B5F6",
-        "#FFD54F",
-        "#BA68C8",
-        "#7ACB9C",
-        "#FFB87A",
-        "#A1887F",
-        "#4DB6AC",
-        "#F27C8B",
-        "#8C9EFF"
-    );
 
     private final GoalMapper goalMapper;
 
@@ -58,8 +33,8 @@ public class GoalService {
     }
 
     public Map<String, Object> list(Long userId, MultiValueMap<String, String> query) {
-        String status = parseStatus(firstQuery(query, "status"), true);
-        String search = RequestValues.trimToNull(firstQuery(query, "search", "q", "keyword"));
+        String status = parseStatus(RequestValues.firstQuery(query, "status"), true);
+        String search = RequestValues.trimToNull(RequestValues.firstQuery(query, "search", "q", "keyword"));
 
         List<Map<String, Object>> rows = goalMapper.findActiveByUser(userId).stream()
             .filter(goal -> status == null || status.equals(goal.getStatus()))
@@ -140,14 +115,14 @@ public class GoalService {
         }
         goal.setActiveKey(ACTIVE_KEY);
 
-        if (!partial || hasAny(body, "title", "name")) {
+        if (!partial || RequestValues.hasAny(body, "title", "name")) {
             String title = RequestValues.trimToNull(RequestValues.first(body, "title", "name"));
             if (title == null) throw new ApiException(HttpStatus.BAD_REQUEST, "goal title is required");
             if (title.length() > 120) throw new ApiException(HttpStatus.BAD_REQUEST, "goal title is too long");
             goal.setTitle(title);
         }
 
-        if (!partial || hasAny(body, "targetAmount", "target_amount", "amount")) {
+        if (!partial || RequestValues.hasAny(body, "targetAmount", "target_amount", "amount")) {
             BigDecimal targetAmount = RequestValues.decimal(RequestValues.first(body, "targetAmount", "target_amount", "amount"));
             if (targetAmount == null || targetAmount.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "target amount must be greater than 0");
@@ -155,7 +130,7 @@ public class GoalService {
             goal.setTargetAmount(targetAmount);
         }
 
-        if (!partial || hasAny(body, "savedAmount", "saved_amount", "currentAmount", "current_amount")) {
+        if (!partial || RequestValues.hasAny(body, "savedAmount", "saved_amount", "currentAmount", "current_amount")) {
             BigDecimal savedAmount = RequestValues.decimal(RequestValues.first(body, "savedAmount", "saved_amount", "currentAmount", "current_amount"));
             if (savedAmount == null) savedAmount = BigDecimal.ZERO;
             if (savedAmount.compareTo(BigDecimal.ZERO) < 0) {
@@ -164,28 +139,28 @@ public class GoalService {
             goal.setSavedAmount(savedAmount);
         }
 
-        if (!partial || hasAny(body, "targetDate", "target_date", "deadline")) {
+        if (!partial || RequestValues.hasAny(body, "targetDate", "target_date", "deadline")) {
             Object rawTargetDate = RequestValues.first(body, "targetDate", "target_date", "deadline");
             LocalDateTime targetDate = parseTargetDate(rawTargetDate);
             goal.setTargetDate(targetDate);
         }
 
-        if (!partial || hasAny(body, "status")) {
+        if (!partial || RequestValues.hasAny(body, "status")) {
             String status = parseStatus(RequestValues.trimToNull(RequestValues.first(body, "status")), false);
             goal.setStatus(status == null ? "active" : status);
         }
 
-        if (!partial || hasAny(body, "icon")) {
+        if (!partial || RequestValues.hasAny(body, "icon")) {
             String icon = RequestValues.trimToNull(RequestValues.first(body, "icon"));
-            goal.setIcon(icon == null || !ICONS.contains(icon) ? "target" : icon);
+            goal.setIcon(icon == null || !PresentationOptions.GOAL_ICONS.contains(icon) ? "target" : icon);
         }
 
-        if (!partial || hasAny(body, "color")) {
+        if (!partial || RequestValues.hasAny(body, "color")) {
             String color = RequestValues.trimToNull(RequestValues.first(body, "color"));
-            goal.setColor(color == null || !COLORS.contains(color) ? "#FF8C94" : color);
+            goal.setColor(color == null || !PresentationOptions.COLORS.contains(color) ? "#FF8C94" : color);
         }
 
-        if (!partial || hasAny(body, "notes", "description")) {
+        if (!partial || RequestValues.hasAny(body, "notes", "description")) {
             String notes = RequestValues.trimToNull(RequestValues.first(body, "notes", "description"));
             if (notes != null && notes.length() > 500) throw new ApiException(HttpStatus.BAD_REQUEST, "goal notes are too long");
             goal.setNotes(notes);
@@ -297,20 +272,6 @@ public class GoalService {
         if (search == null) return true;
         String haystack = (goal.getTitle() + " " + goal.getStatus() + " " + String.valueOf(goal.getNotes())).toLowerCase();
         return haystack.contains(search.toLowerCase());
-    }
-
-    private String firstQuery(MultiValueMap<String, String> query, String... keys) {
-        if (query == null) return null;
-        for (String key : keys) {
-            String value = query.getFirst(key);
-            if (value != null) return value;
-        }
-        return null;
-    }
-
-    private boolean hasAny(Map<String, Object> body, String... keys) {
-        if (body == null) return false;
-        return Stream.of(keys).anyMatch(body::containsKey);
     }
 
     private ApiException duplicateGoalException() {

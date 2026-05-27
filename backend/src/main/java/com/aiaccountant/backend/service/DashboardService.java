@@ -3,8 +3,10 @@ package com.aiaccountant.backend.service;
 import com.aiaccountant.backend.entity.Transaction;
 import com.aiaccountant.backend.exception.ApiException;
 import com.aiaccountant.backend.mapper.TransactionMapper;
+import com.aiaccountant.backend.util.RequestValues;
 import com.aiaccountant.backend.util.Rows;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Comparator;
@@ -59,8 +61,7 @@ public class DashboardService {
 
     public Map<String, Object> charts(Long userId, MultiValueMap<String, String> query) {
         DateRange range = range(query);
-        int topN = positiveInt(query == null ? null : query.getFirst("topN"), 10);
-        topN = Math.min(topN, 50);
+        int topN = Math.min(positiveInt(query == null ? null : query.getFirst("topN"), 10), 50);
         List<Transaction> transactions = transactionMapper.findByDateRange(userId, range.start().atStartOfDay(), range.end().plusDays(1).atStartOfDay());
 
         Map<YearMonth, List<Transaction>> byMonth = transactions.stream().collect(Collectors.groupingBy(t -> YearMonth.from(t.getDate().toLocalDate())));
@@ -88,7 +89,9 @@ public class DashboardService {
                 Map<String, Object> item = new LinkedHashMap<>();
                 item.put("category", entry.getKey());
                 item.put("total", entry.getValue());
-                double pct = totalExpense.compareTo(BigDecimal.ZERO) > 0 ? entry.getValue().divide(totalExpense, 4, java.math.RoundingMode.HALF_UP).doubleValue() : 0;
+                double pct = totalExpense.compareTo(BigDecimal.ZERO) > 0
+                    ? entry.getValue().divide(totalExpense, 4, RoundingMode.HALF_UP).doubleValue()
+                    : 0;
                 item.put("percentage", pct);
                 return item;
             }).toList();
@@ -103,7 +106,10 @@ public class DashboardService {
     }
 
     private BigDecimal sum(List<Transaction> transactions, String type) {
-        return transactions.stream().filter(t -> type.equals(t.getType())).map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return transactions.stream()
+            .filter(t -> type.equals(t.getType()))
+            .map(Transaction::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private DateRange range(MultiValueMap<String, String> query) {
@@ -115,21 +121,18 @@ public class DashboardService {
     }
 
     private LocalDate parseDate(String raw, LocalDate fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        String value = RequestValues.trimToNull(raw);
+        if (value == null) return fallback;
         try {
-            return LocalDate.parse(raw.substring(0, Math.min(10, raw.length())));
+            return LocalDate.parse(value.substring(0, Math.min(10, value.length())));
         } catch (Exception ex) {
-            return fallback;
+            throw new ApiException(HttpStatus.BAD_REQUEST, "date is invalid");
         }
     }
 
     private int positiveInt(String raw, int fallback) {
-        try {
-            int n = Integer.parseInt(String.valueOf(raw));
-            return n > 0 ? n : fallback;
-        } catch (Exception ex) {
-            return fallback;
-        }
+        Integer value = RequestValues.integer(raw);
+        return value == null || value <= 0 ? fallback : value;
     }
 
     private record DateRange(LocalDate start, LocalDate end) {

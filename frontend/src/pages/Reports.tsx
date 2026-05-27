@@ -30,6 +30,8 @@ import {
 import api from '../api/axiosInstance';
 import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
+import { compactMoney, currentMonthInput, money, readableMonth, shortDate, shortMonth, toInputDate } from '../utils/formatters';
+import { asRecord, asRecordArray, toNumber } from '../utils/records';
 
 interface ReportRange {
   startDate: string;
@@ -117,31 +119,8 @@ interface ReportData {
 }
 
 type PresetKey = '3m' | '6m' | 'ytd';
-type RawRecord = Record<string, unknown>;
 
 const CHART_COLORS = ['#FF8C94', '#64B5F6', '#FFD54F', '#BA68C8', '#7ACB9C', '#FFB87A', '#8C9EFF', '#4DB6AC'];
-
-const money = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const compactMoney = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  notation: 'compact',
-  maximumFractionDigits: 1,
-});
-
-const toInputDate = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
-const currentMonthInput = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-};
 
 const defaultStartDate = () => {
   const now = new Date();
@@ -151,42 +130,6 @@ const defaultStartDate = () => {
 const defaultEndDate = () => {
   const now = new Date();
   return toInputDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-};
-
-const toNumber = (value: unknown, fallback = 0) => {
-  const next = Number(value);
-  return Number.isFinite(next) ? next : fallback;
-};
-
-const isRecord = (value: unknown): value is RawRecord =>
-  typeof value === 'object' && value !== null;
-
-const asRecord = (value: unknown): RawRecord => (isRecord(value) ? value : {});
-
-const asRecordArray = (value: unknown): RawRecord[] =>
-  Array.isArray(value) ? value.filter(isRecord) : [];
-
-const readableMonth = (month: string) => {
-  const match = month.match(/^(\d{4})-(\d{2})$/);
-  if (!match) return month;
-  return new Date(Number(match[1]), Number(match[2]) - 1, 1).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
-};
-
-const shortMonth = (month: string) => {
-  const match = month.match(/^(\d{4})-(\d{2})$/);
-  if (!match) return month;
-  return new Date(Number(match[1]), Number(match[2]) - 1, 1).toLocaleDateString('en-US', {
-    month: 'short',
-  });
-};
-
-const formatDate = (value: string) => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 const monthsBetween = (startDate: string, endDate: string) => {
@@ -726,7 +669,7 @@ export const Reports = () => {
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black text-[#2F2925]">{expense.description}</p>
                         <p className="mt-0.5 text-[11px] font-bold text-[#8B929C]">
-                          {expense.category} - {formatDate(expense.date)}
+                          {expense.category} - {shortDate(expense.date)}
                         </p>
                       </div>
                       <p className="shrink-0 text-sm font-black text-[#C44B61]">-{money.format(expense.amount)}</p>

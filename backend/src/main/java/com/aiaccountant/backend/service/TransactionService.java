@@ -128,7 +128,7 @@ public class TransactionService {
             tx.setType(type);
         }
 
-        if (hasAny(body, "category", "categoryName")) {
+        if (RequestValues.hasAny(body, "category", "categoryName")) {
             String category = RequestValues.trimToNull(RequestValues.first(body, "category", "categoryName"));
             if (category == null) throw new ApiException(HttpStatus.BAD_REQUEST, "category is required");
             tx.setCategory(category);
@@ -140,13 +140,13 @@ public class TransactionService {
             tx.setAmount(amount);
         }
 
-        if (hasAny(body, "date", "transactionDate")) {
+        if (RequestValues.hasAny(body, "date", "transactionDate")) {
             LocalDateTime date = RequestValues.dateTime(RequestValues.first(body, "date", "transactionDate"));
             if (date == null) throw new ApiException(HttpStatus.BAD_REQUEST, "date is invalid");
             tx.setDate(date);
         }
 
-        if (hasAny(body, "description", "memo", "note")) {
+        if (RequestValues.hasAny(body, "description", "memo", "note")) {
             tx.setDescription(RequestValues.trimToNull(RequestValues.first(body, "description", "memo", "note")));
         }
 
@@ -227,36 +227,27 @@ public class TransactionService {
     }
 
     private QueryFilters parseFilters(MultiValueMap<String, String> query) {
-        int page = positiveInt(firstQuery(query, "page"), 1, Integer.MAX_VALUE);
-        int pageSize = positiveInt(firstQuery(query, "pageSize", "limit"), DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+        int page = positiveInt(RequestValues.firstQuery(query, "page"), 1, Integer.MAX_VALUE);
+        int pageSize = positiveInt(RequestValues.firstQuery(query, "pageSize", "limit"), DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
 
-        String type = RequestValues.trimToNull(firstQuery(query, "type"));
+        String type = RequestValues.trimToNull(RequestValues.firstQuery(query, "type"));
         if (type != null && !"all".equalsIgnoreCase(type)) {
             if (!VALID_TYPES.contains(type)) throw new ApiException(HttpStatus.BAD_REQUEST, "invalid transaction type");
         } else {
             type = null;
         }
 
-        String category = RequestValues.trimToNull(firstQuery(query, "category", "categoryName"));
+        String category = RequestValues.trimToNull(RequestValues.firstQuery(query, "category", "categoryName"));
         if (category != null && "all".equalsIgnoreCase(category)) category = null;
 
-        String search = RequestValues.trimToNull(firstQuery(query, "search", "q", "keyword"));
-        LocalDate startDate = parseDate(firstQuery(query, "startDate", "from"));
-        LocalDate endDate = parseDate(firstQuery(query, "endDate", "to"));
+        String search = RequestValues.trimToNull(RequestValues.firstQuery(query, "search", "q", "keyword"));
+        LocalDate startDate = parseDate(RequestValues.firstQuery(query, "startDate", "from"));
+        LocalDate endDate = parseDate(RequestValues.firstQuery(query, "endDate", "to"));
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "endDate 不能早于 startDate");
         }
 
         return new QueryFilters(page, pageSize, type, category, search, startDate, endDate);
-    }
-
-    private String firstQuery(MultiValueMap<String, String> query, String... keys) {
-        if (query == null) return null;
-        for (String key : keys) {
-            String value = query.getFirst(key);
-            if (value != null) return value;
-        }
-        return null;
     }
 
     private int positiveInt(String raw, int fallback, int max) {
@@ -284,14 +275,6 @@ public class TransactionService {
             .filter(t -> type.equals(t.getType()))
             .map(Transaction::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private boolean hasAny(Map<String, Object> body, String... keys) {
-        if (body == null) return false;
-        for (String key : keys) {
-            if (body.containsKey(key)) return true;
-        }
-        return false;
     }
 
     private record QueryFilters(

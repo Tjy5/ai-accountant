@@ -7,7 +7,6 @@ dns.setDefaultResultOrder('ipv4first')
 
 const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3002'
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {

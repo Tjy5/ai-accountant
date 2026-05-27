@@ -14,8 +14,6 @@ import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Stream;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,32 +23,6 @@ import org.springframework.util.MultiValueMap;
 @Service
 public class BudgetService {
     private static final String ACTIVE_KEY = "ACTIVE";
-    private static final Set<String> ICONS = Set.of(
-        "utensils",
-        "bus",
-        "shopping-bag",
-        "gamepad",
-        "receipt",
-        "heart-pulse",
-        "wallet",
-        "briefcase",
-        "gift",
-        "sparkles",
-        "tag",
-        "more-horizontal"
-    );
-    private static final Set<String> COLORS = Set.of(
-        "#FF8C94",
-        "#64B5F6",
-        "#FFD54F",
-        "#BA68C8",
-        "#7ACB9C",
-        "#FFB87A",
-        "#A1887F",
-        "#4DB6AC",
-        "#F27C8B",
-        "#8C9EFF"
-    );
 
     private final BudgetMapper budgetMapper;
     private final TransactionMapper transactionMapper;
@@ -61,7 +33,7 @@ public class BudgetService {
     }
 
     public Map<String, Object> list(Long userId, MultiValueMap<String, String> query) {
-        YearMonth month = parseMonth(firstQuery(query, "month", "periodMonth", "period_month"), true);
+        YearMonth month = parseMonth(RequestValues.firstQuery(query, "month", "periodMonth", "period_month"), true);
         Map<String, BigDecimal> spentByCategory = spentByCategory(userId, month);
         List<Map<String, Object>> rows = budgetMapper.findActiveByUserAndMonth(userId, month.toString()).stream()
             .map(budget -> budgetRow(budget, spentByCategory.getOrDefault(budget.getCategory(), BigDecimal.ZERO)))
@@ -138,14 +110,14 @@ public class BudgetService {
         }
         budget.setActiveKey(ACTIVE_KEY);
 
-        if (!partial || hasAny(body, "category", "categoryName", "name")) {
+        if (!partial || RequestValues.hasAny(body, "category", "categoryName", "name")) {
             String category = RequestValues.trimToNull(RequestValues.first(body, "category", "categoryName", "name"));
             if (category == null) throw new ApiException(HttpStatus.BAD_REQUEST, "category is required");
             if (category.length() > 120) throw new ApiException(HttpStatus.BAD_REQUEST, "category is too long");
             budget.setCategory(category);
         }
 
-        if (!partial || hasAny(body, "amount", "budget", "budgetAmount")) {
+        if (!partial || RequestValues.hasAny(body, "amount", "budget", "budgetAmount")) {
             BigDecimal amount = RequestValues.decimal(RequestValues.first(body, "amount", "budget", "budgetAmount"));
             if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "amount must be greater than 0");
@@ -153,22 +125,22 @@ public class BudgetService {
             budget.setAmount(amount);
         }
 
-        if (!partial || hasAny(body, "month", "periodMonth", "period_month")) {
+        if (!partial || RequestValues.hasAny(body, "month", "periodMonth", "period_month")) {
             YearMonth month = parseMonth(RequestValues.trimToNull(RequestValues.first(body, "month", "periodMonth", "period_month")), false);
             budget.setPeriodMonth(month.toString());
         }
 
-        if (!partial || hasAny(body, "icon")) {
+        if (!partial || RequestValues.hasAny(body, "icon")) {
             String icon = RequestValues.trimToNull(RequestValues.first(body, "icon"));
-            budget.setIcon(icon == null || !ICONS.contains(icon) ? "tag" : icon);
+            budget.setIcon(icon == null || !PresentationOptions.FINANCE_ICONS.contains(icon) ? "tag" : icon);
         }
 
-        if (!partial || hasAny(body, "color")) {
+        if (!partial || RequestValues.hasAny(body, "color")) {
             String color = RequestValues.trimToNull(RequestValues.first(body, "color"));
-            budget.setColor(color == null || !COLORS.contains(color) ? "#FF8C94" : color);
+            budget.setColor(color == null || !PresentationOptions.COLORS.contains(color) ? "#FF8C94" : color);
         }
 
-        if (!partial || hasAny(body, "notes", "description")) {
+        if (!partial || RequestValues.hasAny(body, "notes", "description")) {
             String notes = RequestValues.trimToNull(RequestValues.first(body, "notes", "description"));
             if (notes != null && notes.length() > 500) throw new ApiException(HttpStatus.BAD_REQUEST, "budget notes are too long");
             budget.setNotes(notes);
@@ -251,17 +223,4 @@ public class BudgetService {
         }
     }
 
-    private String firstQuery(MultiValueMap<String, String> query, String... keys) {
-        if (query == null) return null;
-        for (String key : keys) {
-            String value = query.getFirst(key);
-            if (value != null) return value;
-        }
-        return null;
-    }
-
-    private boolean hasAny(Map<String, Object> body, String... keys) {
-        if (body == null) return false;
-        return Stream.of(keys).anyMatch(body::containsKey);
-    }
 }
