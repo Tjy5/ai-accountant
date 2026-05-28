@@ -36,25 +36,49 @@ const settingsResponse = {
   },
 };
 
+const aiSettingsResponse = {
+  data: {
+    aiAssistEnabled: true,
+    apiKeyConfigured: false,
+    apiKeyPreview: null,
+    usesUserApiKey: false,
+    usesSystemFallback: false,
+    baseUrl: null,
+    model: null,
+    effectiveBaseUrl: 'https://api.openai.com/v1',
+    effectiveModel: 'gpt-4o-mini',
+    encryptionConfigured: false,
+    timestamp: 0,
+  },
+};
+
+const resolveGetByUrl = (url: string) => {
+  if (url === '/settings/ai') return Promise.resolve(aiSettingsResponse);
+  return Promise.resolve(settingsResponse);
+};
+
 describe('Settings', () => {
   beforeEach(() => {
     mockedApi.get.mockReset();
     mockedApi.patch.mockReset();
-    mockedApi.get.mockResolvedValue(settingsResponse);
-    mockedApi.patch.mockResolvedValue({
-      data: {
-        user: { id: 1, email: 'mimi@example.com', name: 'Mimi Ledger' },
-        settings: {
-          id: 1,
-          user_id: 1,
-          default_currency: 'CNY',
-          month_start_day: 5,
-          receipt_reminders: false,
-          budget_alerts: true,
-          weekly_report: false,
-          ai_assist_enabled: true,
+    mockedApi.get.mockImplementation(resolveGetByUrl);
+    mockedApi.patch.mockImplementation((url: string) => {
+      if (url === '/settings/ai') return Promise.resolve(aiSettingsResponse);
+      return Promise.resolve({
+        data: {
+          user: { id: 1, email: 'mimi@example.com', name: 'Mimi Ledger' },
+          settings: {
+            id: 1,
+            user_id: 1,
+            default_currency: 'CNY',
+            month_start_day: 5,
+            receipt_reminders: false,
+            budget_alerts: true,
+            weekly_report: false,
+            ai_assist_enabled: true,
+          },
         },
-      },
+      });
     });
     useAuthStore.setState({
       user: { id: '1', email: 'mimi@example.com', name: 'Mimi' },
@@ -102,7 +126,6 @@ describe('Settings', () => {
         receiptReminders: true,
         budgetAlerts: true,
         weeklyReport: false,
-        aiAssistEnabled: true,
       });
     });
 
@@ -126,13 +149,15 @@ describe('Settings', () => {
         receiptReminders: false,
         budgetAlerts: true,
         weeklyReport: false,
-        aiAssistEnabled: true,
       });
     });
   });
 
   it('falls back to a local preview if settings cannot be loaded', async () => {
-    mockedApi.get.mockRejectedValueOnce(new Error('backend down'));
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/ai') return Promise.resolve(aiSettingsResponse);
+      return Promise.reject(new Error('backend down'));
+    });
     render(<Settings />);
 
     expect(await screen.findByText('Local Preview')).toBeInTheDocument();

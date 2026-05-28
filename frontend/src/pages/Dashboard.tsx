@@ -12,6 +12,7 @@ import { money } from '../utils/formatters';
 import { asRecord, asRecordArray, toNumber, type RawRecord } from '../utils/records';
 import { userLabel } from '../utils/profile';
 import { Link } from 'react-router-dom';
+import type { AiDraftResponse } from '../types/ai';
 import {
   PieChart,
   Pie,
@@ -189,16 +190,28 @@ export const Dashboard = () => {
     fetchDashboardData();
   }, []);
 
+  const errorMessage = (error: unknown, fallback: string) => {
+    const maybe = error as { response?: { data?: { error?: string } } };
+    return maybe.response?.data?.error || fallback;
+  };
+
+  const applyAiResponse = (response: AiDraftResponse) => {
+    const nextDrafts = response.drafts || [];
+    if (nextDrafts.length > 0) {
+      addDrafts(nextDrafts);
+      setDraftDrawerDismissed(false);
+    }
+  };
+
   const handleAnalyzeText = async (text: string) => {
     if (!text.trim()) return;
 
     setDraftError('');
     setLoading(true);
     try {
-      addDrafts(await analyzeTextDrafts(text));
-      setDraftDrawerDismissed(false);
-    } catch {
-      setDraftError('Unable to analyze this entry. Please try again.');
+      applyAiResponse(await analyzeTextDrafts(text));
+    } catch (error) {
+      setDraftError(errorMessage(error, 'Unable to analyze this entry. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -220,10 +233,9 @@ export const Dashboard = () => {
     setUploading(true);
     try {
       const image = await readFileAsDataUrl(file);
-      addDrafts(await analyzeImageDrafts(image, file.name));
-      setDraftDrawerDismissed(false);
-    } catch {
-      setDraftError('Unable to scan this receipt. Please try again.');
+      applyAiResponse(await analyzeImageDrafts(image, { filename: file.name }));
+    } catch (error) {
+      setDraftError(errorMessage(error, 'Unable to scan this receipt. Please try again.'));
     } finally {
       input.value = '';
       setUploading(false);

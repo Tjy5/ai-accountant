@@ -24,6 +24,14 @@ public class UserSettings {
     private Boolean weeklyReport;
     @TableField("ai_assist_enabled")
     private Boolean aiAssistEnabled;
+    @TableField("ai_api_key_encrypted")
+    private String aiApiKeyEncrypted;
+    @TableField("ai_api_key_last4")
+    private String aiApiKeyLast4;
+    @TableField("ai_base_url")
+    private String aiBaseUrl;
+    @TableField("ai_model")
+    private String aiModel;
     @TableField("created_at")
     private LocalDateTime createdAt;
     @TableField("updated_at")
@@ -47,6 +55,14 @@ public class UserSettings {
     public void setWeeklyReport(Boolean weeklyReport) { this.weeklyReport = weeklyReport; }
     public Boolean getAiAssistEnabled() { return aiAssistEnabled; }
     public void setAiAssistEnabled(Boolean aiAssistEnabled) { this.aiAssistEnabled = aiAssistEnabled; }
+    public String getAiApiKeyEncrypted() { return aiApiKeyEncrypted; }
+    public void setAiApiKeyEncrypted(String aiApiKeyEncrypted) { this.aiApiKeyEncrypted = aiApiKeyEncrypted; }
+    public String getAiApiKeyLast4() { return aiApiKeyLast4; }
+    public void setAiApiKeyLast4(String aiApiKeyLast4) { this.aiApiKeyLast4 = aiApiKeyLast4; }
+    public String getAiBaseUrl() { return aiBaseUrl; }
+    public void setAiBaseUrl(String aiBaseUrl) { this.aiBaseUrl = aiBaseUrl; }
+    public String getAiModel() { return aiModel; }
+    public void setAiModel(String aiModel) { this.aiModel = aiModel; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

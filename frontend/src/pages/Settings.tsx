@@ -18,7 +18,6 @@ import {
   Search,
   Shield,
   ShieldCheck,
-  Sparkles,
   Sliders,
   FileText,
   Sun,
@@ -33,6 +32,8 @@ import {
 } from 'lucide-react';
 import api from '../api/axiosInstance';
 import { CuteSticker } from '../components/CuteStickers';
+import { ToggleSwitch } from '../components/ToggleSwitch';
+import { AiProviderSettingsCard } from '../components/settings/AiProviderSettingsCard';
 import { useAuthStore } from '../store/useAuthStore';
 import sarahAvatar from '../assets/sarah_avatar.png';
 
@@ -79,13 +80,6 @@ type RawUser = {
   id?: string | number;
   email?: string;
   name?: string | null;
-};
-
-type ToggleSwitchProps = {
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  onClick: () => void | Promise<void>;
 };
 
 const CURRENCY_OPTIONS = [
@@ -147,28 +141,6 @@ const fallbackUser = (current: RawUser | null): RawUser => ({
   email: current?.email || 'sarah@example.com',
   name: current?.name || 'Sarah',
 });
-
-const ToggleSwitch = ({ label, checked, disabled = false, onClick }: ToggleSwitchProps) => (
-  <button
-    type="button"
-    aria-label={label}
-    aria-pressed={checked}
-    disabled={disabled}
-    onClick={() => {
-      void onClick();
-    }}
-    className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors duration-200 ease-out cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
-      checked ? 'border-[#FF6F8F] bg-[#FF6F8F]' : 'border-[#D6C8BE] bg-[#E9DED5]'
-    }`}
-  >
-    <span
-      className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow-[0_3px_8px_rgba(92,65,45,0.18)] transition-transform duration-200 ease-out ${
-        checked ? 'translate-x-5' : 'translate-x-0'
-      }`}
-      aria-hidden="true"
-    />
-  </button>
-);
 
 export const Settings = () => {
   const authUser = useAuthStore((state) => state.user);
@@ -240,7 +212,6 @@ export const Settings = () => {
       receiptReminders: updatedForm.receiptReminders,
       budgetAlerts: updatedForm.budgetAlerts,
       weeklyReport: updatedForm.weeklyReport,
-      aiAssistEnabled: updatedForm.aiAssistEnabled,
     };
 
     try {
@@ -254,7 +225,7 @@ export const Settings = () => {
           receiptReminders: payload.receiptReminders,
           budgetAlerts: payload.budgetAlerts,
           weeklyReport: payload.weeklyReport,
-          aiAssistEnabled: payload.aiAssistEnabled,
+          aiAssistEnabled: updatedForm.aiAssistEnabled,
         });
         setUser(nextUser);
         setSettings(nextSettings);
@@ -302,7 +273,7 @@ export const Settings = () => {
   };
 
   // Toggle backend boolean switches
-  const toggleBackendSwitch = async (key: 'receiptReminders' | 'budgetAlerts' | 'weeklyReport' | 'aiAssistEnabled') => {
+  const toggleBackendSwitch = async (key: 'receiptReminders' | 'budgetAlerts' | 'weeklyReport') => {
     if (savingSettings) return;
     const previousForm = form;
     const nextForm = { ...form, [key]: !form[key] };
@@ -797,25 +768,6 @@ export const Settings = () => {
                   onClick={() => toggleBackendSwitch('weeklyReport')}
                 />
               </div>
-
-              {/* Row 5: AI Insights */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-start gap-2.5">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] bg-[#FFF2E7] text-[#FF7F96]">
-                    <Sparkles size={14} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-[#2F2925]">AI Insights</h4>
-                    <p className="text-[10px] text-[#8B929C] font-semibold mt-0.5">Receive AI insights and tips</p>
-                  </div>
-                </div>
-                <ToggleSwitch
-                  label="AI Insights"
-                  checked={form.aiAssistEnabled}
-                  disabled={savingSettings}
-                  onClick={() => toggleBackendSwitch('aiAssistEnabled')}
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -1120,6 +1072,12 @@ export const Settings = () => {
             </div>
           </div>
         </div>
+
+        <AiProviderSettingsCard
+          onAiAssistChange={(enabled) =>
+            setForm((current) => (current.aiAssistEnabled === enabled ? current : { ...current, aiAssistEnabled: enabled }))
+          }
+        />
       </div>
 
       {/* Bottom Full Width Card: Need Help? */}
