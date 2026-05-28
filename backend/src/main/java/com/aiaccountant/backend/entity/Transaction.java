@@ -16,7 +16,11 @@ public class Transaction {
     private String type;
     private String category;
     private BigDecimal amount;
+    private String currency;
     private String description;
+    private String merchant;
+    @TableField("source_text")
+    private String sourceText;
     private LocalDateTime date;
     @TableField("created_at")
     private LocalDateTime createdAt;
@@ -35,8 +39,14 @@ public class Transaction {
     public void setCategory(String category) { this.category = category; }
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public String getCurrency() { return currency; }
+    public void setCurrency(String currency) { this.currency = currency; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public String getMerchant() { return merchant; }
+    public void setMerchant(String merchant) { this.merchant = merchant; }
+    public String getSourceText() { return sourceText; }
+    public void setSourceText(String sourceText) { this.sourceText = sourceText; }
     public LocalDateTime getDate() { return date; }
     public void setDate(LocalDateTime date) { this.date = date; }
     public LocalDateTime getCreatedAt() { return createdAt; }

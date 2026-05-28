@@ -5,8 +5,11 @@ export interface DraftTransaction {
   _draftId?: string;
   date: string;
   amount: number;
+  currency?: string | null;
   category: string;
   description: string;
+  merchant?: string | null;
+  sourceText?: string | null;
   type: 'expense' | 'income';
   confidence?: number;
   confirmed?: boolean;
@@ -33,8 +36,11 @@ const normalizeDraft = (draft: DraftInput, index: number): DraftTransaction => (
   _draftId: draft._draftId,
   date: draft.date || new Date().toISOString().split('T')[0],
   amount: Number(draft.amount || 0),
+  currency: draft.currency ?? null,
   category: draft.category || 'Uncategorized',
   description: draft.description || 'Untitled transaction',
+  merchant: draft.merchant ?? null,
+  sourceText: draft.sourceText ?? null,
   type: draft.type === 'income' ? 'income' : 'expense',
 });
 

@@ -45,7 +45,11 @@ public final class Rows {
         out.put("type", t.getType());
         out.put("category", t.getCategory());
         out.put("amount", t.getAmount());
+        out.put("currency", t.getCurrency());
         out.put("description", t.getDescription());
+        out.put("merchant", t.getMerchant());
+        out.put("sourceText", t.getSourceText());
+        out.put("source_text", t.getSourceText());
         out.put("date", t.getDate());
         return out;
     }

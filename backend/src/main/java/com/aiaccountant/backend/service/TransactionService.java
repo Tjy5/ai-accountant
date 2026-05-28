@@ -190,6 +190,7 @@ public class TransactionService {
         String category = RequestValues.trimToNull(RequestValues.first(body, "category", "categoryName"));
         BigDecimal amount = RequestValues.decimal(RequestValues.first(body, "amount"));
         LocalDateTime date = RequestValues.dateTime(RequestValues.first(body, "date", "transactionDate"));
+        String currency = RequestValues.trimToNull(RequestValues.first(body, "currency"));
 
         if (type == null || !VALID_TYPES.contains(type)) throw new ApiException(HttpStatus.BAD_REQUEST, "invalid transaction type");
         if (category == null) throw new ApiException(HttpStatus.BAD_REQUEST, "category is required");
@@ -201,7 +202,10 @@ public class TransactionService {
         tx.setType(type);
         tx.setCategory(resolveCategory ? categoryService.resolveCategoryName(userId, category, type) : category);
         tx.setAmount(amount);
+        tx.setCurrency(currency);
         tx.setDescription(RequestValues.trimToNull(RequestValues.first(body, "description", "memo", "note")));
+        tx.setMerchant(RequestValues.trimToNull(RequestValues.first(body, "merchant")));
+        tx.setSourceText(RequestValues.trimToNull(RequestValues.first(body, "sourceText", "source_text")));
         tx.setDate(date);
         return tx;
     }
