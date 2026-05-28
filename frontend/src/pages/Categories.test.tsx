@@ -93,7 +93,7 @@ describe('Categories', () => {
     expect(screen.getByText('Salary')).toBeInTheDocument();
     expect(screen.getByText('$18.75')).toBeInTheDocument();
     expect(screen.getByText('$5,200.00')).toBeInTheDocument();
-    expect(screen.getByText(/custom categories/i)).toHaveTextContent('0 custom categories');
+    expect(screen.getByTestId('categories-stat-custom')).toHaveTextContent('0 custom categories');
   });
 
   it('opens the category drawer and posts a new category', async () => {

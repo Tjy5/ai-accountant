@@ -58,6 +58,15 @@ interface CategoryItem {
   monthlyBudget: number;
 }
 
+interface CategoryStats {
+  total: number;
+  default: number;
+  custom: number;
+  expense: number;
+  income: number;
+  both: number;
+}
+
 interface CategoryFormState {
   name: string;
   type: CategoryType;
@@ -324,8 +333,44 @@ const normalizeCategory = (raw: RawRecord, index: number): CategoryItem => {
   };
 };
 
-const normalizeCategoryResponse = (data: unknown) =>
-  asRecordArray(asRecord(data).categories).map(normalizeCategory);
+const computeCategoryStats = (rows: CategoryItem[]): CategoryStats => {
+  const defaultCount = rows.reduce((count, category) => (category.isDefault ? count + 1 : count), 0);
+  const byType = rows.reduce(
+    (acc, category) => {
+      acc[category.type] += 1;
+      return acc;
+    },
+    { expense: 0, income: 0, both: 0 } as Record<CategoryType, number>,
+  );
+
+  return {
+    total: rows.length,
+    default: defaultCount,
+    custom: rows.length - defaultCount,
+    expense: byType.expense,
+    income: byType.income,
+    both: byType.both,
+  };
+};
+
+const normalizeCategoryResponse = (data: unknown): { rows: CategoryItem[]; stats: CategoryStats } => {
+  const source = asRecord(data);
+  const rows = asRecordArray(source.categories).map(normalizeCategory);
+  const fallback = computeCategoryStats(rows);
+  const stats = asRecord(source.stats);
+
+  return {
+    rows,
+    stats: {
+      total: toNumber(stats.total, fallback.total),
+      default: toNumber(stats.default, fallback.default),
+      custom: toNumber(stats.custom, fallback.custom),
+      expense: toNumber(stats.expense, fallback.expense),
+      income: toNumber(stats.income, fallback.income),
+      both: toNumber(stats.both, fallback.both),
+    },
+  };
+};
 
 const categoryParams = (filters: CategoryFilters) => ({
   ...(filters.type !== 'all' ? { type: filters.type } : {}),
@@ -422,6 +467,7 @@ const SelectField = ({
 export const Categories = () => {
   const user = useAuthStore((state) => state.user);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categoryStats, setCategoryStats] = useState<CategoryStats>(() => computeCategoryStats([]));
   const [offlineRows, setOfflineRows] = useState<CategoryItem[]>(SAMPLE_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [offlineMode, setOfflineMode] = useState(false);
@@ -462,11 +508,15 @@ export const Categories = () => {
           params: categoryParams(filters),
         });
         if (!alive) return;
-        setCategories(normalizeCategoryResponse(response.data));
+        const next = normalizeCategoryResponse(response.data);
+        setCategories(next.rows);
+        setCategoryStats(next.stats);
         setOfflineMode(false);
       } catch {
         if (!alive) return;
-        setCategories(applyLocalFilters(offlineRows, filters.type, filters.search));
+        const nextRows = applyLocalFilters(offlineRows, filters.type, filters.search);
+        setCategories(nextRows);
+        setCategoryStats(computeCategoryStats(nextRows));
         setOfflineMode(true);
         setError(null);
       } finally {
@@ -497,7 +547,9 @@ export const Categories = () => {
   );
 
   const refreshLocal = (nextRows: CategoryItem[]) => {
-    setCategories(applyLocalFilters(nextRows, filters.type, filters.search));
+    const filteredRows = applyLocalFilters(nextRows, filters.type, filters.search);
+    setCategories(filteredRows);
+    setCategoryStats(computeCategoryStats(filteredRows));
   };
 
   const openCreateDrawer = () => {
@@ -576,7 +628,9 @@ export const Categories = () => {
         const response = await api.get('/categories', {
           params: categoryParams(filters),
         });
-        setCategories(normalizeCategoryResponse(response.data));
+        const next = normalizeCategoryResponse(response.data);
+        setCategories(next.rows);
+        setCategoryStats(next.stats);
       }
     } catch {
       setFormError('Could not save this category.');
@@ -602,7 +656,9 @@ export const Categories = () => {
 
     try {
       await api.delete(`/categories/${category.id}`);
-      setCategories((current) => current.filter((row) => row.id !== category.id));
+      const remaining = categories.filter((row) => row.id !== category.id);
+      setCategories(remaining);
+      setCategoryStats(computeCategoryStats(remaining));
     } catch {
       setError('Could not delete this category.');
     }
@@ -625,6 +681,13 @@ export const Categories = () => {
               Good morning, {displayName}!
             </h2>
             <p className="mt-3 text-[16px] font-bold text-[#3C4656]">Manage your income and expense categories.</p>
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-bold text-[#5C6675]">
+              <span>{categoryStats.total} total</span>
+              <span aria-hidden="true" className="text-[#C7C2BD]">·</span>
+              <span>{categoryStats.default} default</span>
+              <span aria-hidden="true" className="text-[#C7C2BD]">·</span>
+              <span data-testid="categories-stat-custom">{categoryStats.custom} custom categories</span>
+            </p>
             {offlineMode && (
               <span className="mt-3 inline-flex rounded-full bg-[#FFF2E7] px-3 py-1 text-[12px] font-black text-[#9D4E2B]">
                 Local Preview
