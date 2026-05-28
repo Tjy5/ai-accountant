@@ -130,6 +130,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <h1 className="text-[20px] font-black tracking-tight text-[#1F2633]">AI Accountant</h1>
           </div>
 
+          <button
+            onClick={handleNewEntry}
+            className="flex h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] w-full text-[15px] font-black text-white shadow-[0_12px_24px_rgba(255,111,143,0.24)] transition hover:translate-y-[-1px] active:translate-y-0 cursor-pointer"
+          >
+            <span className="text-lg leading-none">+</span>
+            New Entry
+          </button>
+
           <nav className="flex flex-col gap-4">
             {menuItems.map((item) => (
               <NavLink

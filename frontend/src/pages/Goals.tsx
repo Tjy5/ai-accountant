@@ -3,18 +3,15 @@ import type { LucideIcon } from 'lucide-react';
 import {
   CalendarDays,
   Check,
-  Filter,
   Gift,
   GraduationCap,
   HeartHandshake,
   Home,
   LoaderCircle,
   MoreHorizontal,
-  Pencil,
   PiggyBank,
   Plane,
   Plus,
-  RefreshCw,
   Save,
   Search,
   Sparkles,
@@ -22,16 +19,25 @@ import {
   Trash2,
   Wallet,
   X,
+  Car,
+  Shield,
+  PieChart,
+  Trophy,
+  TrendingUp,
+  Bell,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import api from '../api/axiosInstance';
 import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
 import { COLORS, fallbackColor, type ColorName } from '../constants/palette';
-import { compactMoney, money, readableDate } from '../utils/formatters';
+import { money } from '../utils/formatters';
 import { asRecord, asRecordArray, toNumber, type RawRecord } from '../utils/records';
 
 type GoalStatus = 'active' | 'paused' | 'completed';
 type GoalFilter = 'all' | GoalStatus;
+type GoalSort = 'progress-desc' | 'progress-asc' | 'target-desc' | 'saved-desc' | 'default';
 type Pace = 'complete' | 'open' | 'overdue' | 'due_soon' | 'steady';
 
 interface GoalItem {
@@ -93,6 +99,8 @@ const ICONS = {
   target: TargetIcon,
   'heart-handshake': HeartHandshake,
   'more-horizontal': MoreHorizontal,
+  car: Car,
+  shield: Shield,
 } satisfies Record<string, LucideIcon>;
 
 type IconName = keyof typeof ICONS;
@@ -108,6 +116,8 @@ const ICON_OPTIONS: IconName[] = [
   'wallet',
   'heart-handshake',
   'more-horizontal',
+  'car',
+  'shield',
 ];
 
 const SAMPLE_GOALS: GoalItem[] = [
@@ -194,25 +204,10 @@ const paceFrom = (remaining: number, daysLeft: number | null): Pace => {
   return 'steady';
 };
 
-const dueLabel = (goal: GoalItem) => {
-  if (goal.remaining <= 0 || goal.status === 'completed') return 'Funded';
-  if (goal.daysLeft === null) return 'Open timeline';
-  if (goal.daysLeft < 0) return `${Math.abs(goal.daysLeft)} days overdue`;
-  if (goal.daysLeft === 0) return 'Due today';
-  if (goal.daysLeft === 1) return '1 day left';
-  return `${goal.daysLeft} days left`;
-};
-
 const statusLabel = (status: GoalStatus) => {
   if (status === 'completed') return 'Completed';
   if (status === 'paused') return 'Paused';
   return 'Active';
-};
-
-const statusClass = (status: GoalStatus) => {
-  if (status === 'completed') return 'bg-[#EAFBF1] text-[#168B5E]';
-  if (status === 'paused') return 'bg-[#FFF2E7] text-[#9D4E2B]';
-  return 'bg-[#FFF0F2] text-[#F27C8B]';
 };
 
 const emptyForm = (): GoalFormState => ({
@@ -344,57 +339,47 @@ const visualForTitle = (title: string): Pick<GoalItem, 'icon' | 'color'> => {
   if (text.includes('home') || text.includes('house')) return { icon: 'home', color: '#FFD54F' };
   if (text.includes('course') || text.includes('school') || text.includes('learn')) return { icon: 'graduation-cap', color: '#BA68C8' };
   if (text.includes('gift') || text.includes('holiday')) return { icon: 'gift', color: '#FFB87A' };
-  if (text.includes('emergency') || text.includes('fund')) return { icon: 'piggy-bank', color: '#7ACB9C' };
+  if (text.includes('car') || text.includes('vehicle') || text.includes('drive')) return { icon: 'car', color: '#FF8C94' };
+  if (text.includes('emergency') || text.includes('shield') || text.includes('protect') || text.includes('secure')) return { icon: 'shield', color: '#7ACB9C' };
+  if (text.includes('fund') || text.includes('saving') || text.includes('bank')) return { icon: 'piggy-bank', color: '#7ACB9C' };
   return { icon: 'target', color: '#FF8C94' };
 };
 
-const IconBadge = ({ goal, size = 'md' }: { goal: Pick<GoalItem, 'icon' | 'color'>; size?: 'sm' | 'md' | 'lg' }) => {
-  const Icon = ICONS[goal.icon] || TargetIcon;
-  const dims = size === 'lg' ? 'h-14 w-14 rounded-[20px]' : size === 'sm' ? 'h-9 w-9 rounded-[14px]' : 'h-11 w-11 rounded-[16px]';
-  const iconSize = size === 'lg' ? 24 : size === 'sm' ? 17 : 20;
-
-  return (
-    <span
-      className={`flex shrink-0 items-center justify-center ${dims} shadow-[inset_0_0_0_1px_rgba(92,65,45,0.08)]`}
-      style={{ backgroundColor: `${goal.color}26`, color: goal.color }}
-    >
-      <Icon size={iconSize} strokeWidth={2.7} />
-    </span>
-  );
+const goalEmoji = (goal: Pick<GoalItem, 'icon' | 'title'>) => {
+  const title = goal.title.toLowerCase();
+  if (goal.icon === 'car' || title.includes('car') || title.includes('vehicle')) return '🚗';
+  if (goal.icon === 'plane' || title.includes('trip') || title.includes('travel')) return '✈️';
+  if (goal.icon === 'home' || title.includes('home') || title.includes('house')) return '🏠';
+  if (goal.icon === 'graduation-cap' || title.includes('education') || title.includes('course')) return '🎓';
+  if (goal.icon === 'shield' || title.includes('emergency') || title.includes('protect')) return '🛡️';
+  if (goal.icon === 'gift') return '🎁';
+  if (goal.icon === 'piggy-bank') return '💰';
+  return '🎯';
 };
 
-const ProgressBar = ({ goal }: { goal: Pick<GoalItem, 'progress' | 'color' | 'status'> }) => {
-  const color = goal.status === 'completed' || goal.progress >= 100 ? '#168B5E' : goal.color;
-  return (
-    <div className="flex items-center gap-3">
-      <div className="h-3 flex-1 overflow-hidden rounded-full bg-[#EFE4DA]">
-        <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${Math.min(goal.progress, 100)}%`, backgroundColor: color }}
-        />
-      </div>
-      <span className="w-12 text-right text-[13px] font-black text-[#536073]">{goal.progress}%</span>
-    </div>
-  );
-};
+const progressColor = (goal: GoalItem) => (goal.status === 'completed' || goal.progress >= 100 ? '#35B96F' : goal.color);
+
 
 export const Goals = () => {
   const [goals, setGoals] = useState<GoalItem[]>([]);
   const [offlineRows, setOfflineRows] = useState<GoalItem[]>(normalizeSamples);
   const [summary, setSummary] = useState<GoalSummary>(() => computeSummary([]));
-  const [statusFilter, setStatusFilter] = useState<GoalFilter>('all');
+  const [statusFilter] = useState<GoalFilter>('all');
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [offlineMode, setOfflineMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<GoalItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState<GoalFormState>(emptyForm);
+
+  const [sortBy, setSortBy] = useState<GoalSort>('progress-desc');
+  const [showSearch, setShowSearch] = useState(false);
+
   const filters = useMemo<GoalFilters>(() => ({ status: statusFilter, search }), [search, statusFilter]);
   const applyGoalState = useCallback((state: GoalListState) => {
     setGoals(state.rows);
@@ -436,20 +421,29 @@ export const Goals = () => {
     return () => {
       alive = false;
     };
-  }, [applyGoalState, filters, offlineRows, reloadKey]);
+  }, [applyGoalState, filters, offlineRows]);
 
-  const topGoal = useMemo(
-    () => [...goals].sort((a, b) => b.progress - a.progress || b.savedAmount - a.savedAmount)[0],
-    [goals],
-  );
-
-  const closestGoal = useMemo(
-    () =>
-      goals
-        .filter((goal) => goal.status !== 'completed' && goal.daysLeft !== null)
-        .sort((a, b) => (a.daysLeft ?? Number.MAX_SAFE_INTEGER) - (b.daysLeft ?? Number.MAX_SAFE_INTEGER))[0],
-    [goals],
-  );
+  const sortedGoals = useMemo(() => {
+    const list = [...goals];
+    if (sortBy === 'progress-desc') {
+      return list.sort((a, b) => b.progress - a.progress);
+    }
+    if (sortBy === 'progress-asc') {
+      return list.sort((a, b) => a.progress - b.progress);
+    }
+    if (sortBy === 'target-desc') {
+      return list.sort((a, b) => b.targetAmount - a.targetAmount);
+    }
+    if (sortBy === 'saved-desc') {
+      return list.sort((a, b) => b.savedAmount - a.savedAmount);
+    }
+    return list.sort((a, b) => {
+      const activeRank = (goal: GoalItem) => (goal.status === 'active' ? 0 : goal.status === 'paused' ? 1 : 2);
+      return activeRank(a) - activeRank(b)
+        || (a.daysLeft ?? Number.MAX_SAFE_INTEGER) - (b.daysLeft ?? Number.MAX_SAFE_INTEGER)
+        || a.title.localeCompare(b.title);
+    });
+  }, [goals, sortBy]);
 
   const refreshRemoteRows = async () => {
     const response = await api.get('/goals', {
@@ -569,263 +563,294 @@ export const Goals = () => {
       const nextRows = offlineRows.filter((row) => row.id !== goal.id);
       setOfflineRows(nextRows);
       refreshLocalRows(nextRows);
+      setDrawerOpen(false);
+      setEditing(null);
       return;
     }
 
     try {
       await api.delete(`/goals/${goal.id}`);
       await refreshRemoteRows();
+      setDrawerOpen(false);
+      setEditing(null);
     } catch {
       setError('Could not delete this goal.');
     }
   };
 
+  const CircularProgress = ({ progress, color }: { progress: number; color: string }) => {
+    const radius = 30;
+    const strokeWidth = 7;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (Math.min(progress, 100) / 100) * circumference;
+
+    return (
+      <div className="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center">
+        <svg className="h-full w-full -rotate-90">
+          <circle
+            cx="38"
+            cy="38"
+            r={radius}
+            className="stroke-[#F6EDE7]"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          <circle
+            cx="38"
+            cy="38"
+            r={radius}
+            className="transition-all duration-300"
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+          />
+        </svg>
+        <span className="absolute text-[18px] font-black text-[#1F2430]">{progress}%</span>
+      </div>
+    );
+  };
+
   return (
     <div className="goals-page management-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
-      <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
+      <div className="relative flex shrink-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="mb-1 flex items-center gap-2">
-            <span className="text-[11px] font-black uppercase text-[#FF7F96]">Growth</span>
-            {offlineMode && (
-              <span className="rounded-full bg-[#FFF2E7] px-2.5 py-0.5 text-[11px] font-black text-[#9D4E2B]">
-                Local Preview
-              </span>
-            )}
-          </div>
-          <h2 className="text-[32px] font-black leading-tight tracking-tight text-[#2F2925]">Goals</h2>
-          <p className="mt-1 text-[15px] font-bold text-[#6F7785]">Track savings targets with clear milestones.</p>
+          <h2 className="text-[32px] font-black leading-tight tracking-tight text-[#2F2925] flex items-center gap-2">
+            Goals <span className="text-[28px]">🎯</span>
+          </h2>
+          <p className="mt-1 text-[15px] font-bold text-[#6F7785]">
+            Set goals, track progress, and achieve financial freedom! ✨
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 items-center justify-end gap-4 text-[#1F2430]">
+          <div className={`grid transition-all duration-300 ${showSearch ? 'w-44 opacity-100' : 'w-0 opacity-0'}`}>
+            <div className="overflow-hidden">
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search goals..."
+                aria-label="Search goals"
+                className="h-10 w-full rounded-full border border-[#EFE2D8] bg-white px-4 text-sm font-bold text-[#4E3629] outline-none placeholder:text-[#A7A0A0] focus:ring-4 focus:ring-[#FFD1DC]/40"
+              />
+            </div>
+          </div>
+
           <button
             type="button"
-            onClick={() => setReloadKey((key) => key + 1)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#2F2925] shadow-[0_8px_18px_rgba(92,65,45,0.08)] transition-colors hover:bg-[#FFF8F2]"
-            aria-label="Refresh goals"
+            onClick={() => setShowSearch(!showSearch)}
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-[#111827] transition hover:bg-[#FFF0F2] hover:text-[#FF6F8F]"
+            aria-label="Toggle search"
           >
-            <RefreshCw size={18} strokeWidth={2.5} />
+            <Search size={27} strokeWidth={2.4} />
           </button>
+
           <button
             type="button"
-            onClick={openCreateDrawer}
-            className="flex h-10 items-center gap-2 rounded-full bg-gradient-to-r from-[#FF6F8F] to-[#FF8A9B] px-5 text-sm font-black text-white shadow-[0_12px_24px_rgba(255,111,143,0.28)] transition hover:translate-y-[-1px] active:translate-y-0"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-[#111827] transition hover:bg-[#FFF0F2] hover:text-[#FF6F8F]"
+            aria-label="Notifications"
           >
-            <Plus size={18} strokeWidth={3} />
-            New Goal
+            <Bell size={27} strokeWidth={2.3} />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF0F2]" />
-          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Total Target</p>
-          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{money.format(summary.totalTarget)}</p>
-          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#FF7F96]">{summary.count} savings goals</p>
-        </Card>
-        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#EAFBF1]" />
-          <p className="relative z-[1] text-[13px] font-black text-[#168B5E]">Saved</p>
-          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{money.format(summary.totalSaved)}</p>
-          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#55B978]">{summary.completed} completed</p>
-        </Card>
-        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#FFF2E7]" />
-          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Remaining</p>
-          <p className="relative z-[1] mt-3 text-[29px] font-black leading-tight text-[#2F2925]">{money.format(summary.remaining)}</p>
-          <p className="relative z-[1] mt-2 text-[11px] font-black text-[#9D4E2B]">{summary.active} active</p>
-        </Card>
-        <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-          <div className="absolute -bottom-8 -right-8 h-[112px] w-[112px] rounded-full bg-[#EDF5FF]" />
-          <p className="relative z-[1] text-[13px] font-black text-[#536073]">Overall Progress</p>
-          <div className="relative z-[1] mt-6">
-            <ProgressBar goal={{ progress: summary.progress, color: '#64B5F6', status: summary.progress >= 100 ? 'completed' : 'active' }} />
+      <section className="relative shrink-0 rounded-[24px] border border-[#EFE2D8] bg-white/95 p-5 shadow-[0_16px_34px_rgba(92,65,45,0.06)]">
+        <div className="pointer-events-none absolute -top-[74px] right-[clamp(68px,13vw,260px)] z-10 hidden h-[104px] w-[178px] select-none min-[900px]:block">
+          <CuteSticker name="hanging-cat" className="h-full w-full" title="Goals overview cat" />
+        </div>
+
+        <h3 className="mb-4 text-[21px] font-black leading-none text-[#1F2430]">Goals Overview</h3>
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="flex min-h-[116px] items-center gap-4 rounded-[18px] border border-[#DDEDD0] bg-[#FBFFF4] p-5 shadow-[0_10px_22px_rgba(92,65,45,0.035)]">
+            <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[18px] bg-[#EDFBEF] text-[#23A35A] shadow-[inset_0_0_0_1px_rgba(35,163,90,0.08)]">
+              <TargetIcon size={32} strokeWidth={2.5} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[16px] font-extrabold text-[#1F2430]">Total Goals</p>
+              <p className="mt-1 text-[28px] font-black leading-none text-[#1F2430]">{summary.count}</p>
+              <p className="mt-1.5 text-[13px] font-black text-[#169B61]">{summary.active} active goals</p>
+            </div>
           </div>
-        </Card>
-      </div>
+
+          <div className="flex min-h-[116px] items-center gap-3 rounded-[18px] border border-[#D3E4F9] bg-[#F7FBFF] p-4 shadow-[0_10px_22px_rgba(92,65,45,0.035)]">
+            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[#E7F3FF] text-[#3198E8] shadow-[inset_0_0_0_1px_rgba(49,152,232,0.08)]">
+              <PieChart size={31} strokeWidth={2.4} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[16px] font-extrabold text-[#1F2430]">Total Saved</p>
+              <p className="mt-2 whitespace-nowrap text-[22px] font-black leading-none text-[#1F2430] min-[1400px]:text-[26px]">{money.format(summary.totalSaved)}</p>
+            </div>
+          </div>
+
+          <div className="flex min-h-[116px] items-center gap-3 rounded-[18px] border border-[#F3D6BC] bg-[#FFF9F0] p-4 shadow-[0_10px_22px_rgba(92,65,45,0.035)]">
+            <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] bg-[#FFF0D6] text-[#F5A623] shadow-[inset_0_0_0_1px_rgba(245,166,35,0.1)]">
+              <Trophy size={31} strokeWidth={2.4} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[16px] font-extrabold text-[#1F2430]">Total Target</p>
+              <p className="mt-2 whitespace-nowrap text-[22px] font-black leading-none text-[#1F2430] min-[1400px]:text-[26px]">{money.format(summary.totalTarget)}</p>
+            </div>
+          </div>
+
+          <div className="flex min-h-[116px] flex-col justify-between gap-3 rounded-[18px] border border-[#EAD8F6] bg-[#FFF9FF] p-4 shadow-[0_10px_22px_rgba(92,65,45,0.035)]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[18px] bg-[#F3E8FF] text-[#9B5BEA] shadow-[inset_0_0_0_1px_rgba(155,91,234,0.08)]">
+                <TrendingUp size={31} strokeWidth={2.4} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[15px] font-extrabold leading-tight text-[#1F2430] min-[1400px]:text-[16px]">Overall Progress</p>
+                <p className="mt-1 text-[28px] font-black leading-none text-[#8E55D9]">{summary.progress}%</p>
+              </div>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full bg-[#EFE6F6]">
+              <div
+                className="h-full rounded-full bg-[#A363EC] transition-all"
+                style={{ width: `${Math.min(summary.progress, 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
 
       {error && (
-        <div className="rounded-[16px] border border-[#F8C7CE] bg-[#FFF0F2] px-4 py-3 text-sm font-black text-[#C44B61]">
+        <div className="shrink-0 rounded-[16px] border border-[#F8C7CE] bg-[#FFF0F2] px-4 py-3 text-sm font-black text-[#C44B61]">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
-          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <label htmlFor="goal-status-filter" className="group relative block w-full md:w-52 shrink-0">
-                <span className="sr-only">Goal status</span>
-                <Filter className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
-                <select
-                  id="goal-status-filter"
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value as GoalFilter)}
-                  className="h-12 w-full appearance-none rounded-[16px] border border-[#EFE2D8] bg-white px-11 pr-9 text-[14px] font-black text-[#4E3629] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
-                >
-                  <option value="all">All Goals</option>
-                  <option value="active">Active</option>
-                  <option value="paused">Paused</option>
-                  <option value="completed">Completed</option>
-                </select>
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#8B929C]">⌄</span>
-              </label>
+      <Card noPadding className="relative flex min-h-[360px] flex-1 flex-col overflow-hidden rounded-[24px] border border-[#EFE2D8] bg-white/95 p-5 shadow-[0_16px_34px_rgba(92,65,45,0.06)]">
+        <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-[22px] font-black text-[#1F2430]">My Goals</h3>
 
-              <label htmlFor="goal-search" className="relative block w-full md:flex-grow">
-                <span className="sr-only">Search goals</span>
-                <Search className="pointer-events-none absolute left-4 top-1/2 z-[1] -translate-y-1/2 text-[#8B929C]" size={17} strokeWidth={2.5} />
-                <input
-                  id="goal-search"
-                  type="search"
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Search goals, notes, status..."
-                  className="h-12 w-full rounded-full border border-[#EFE2D8] bg-white pl-11 pr-4 text-[14px] font-bold text-[#4E3629] outline-none transition placeholder:text-[#A7A0A0] focus:ring-4 focus:ring-[#FFD1DC]/40"
-                />
-              </label>
+          <label htmlFor="goal-sort" className="relative block w-full sm:w-auto">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[14px] font-bold text-[#7C6E65]">Sort by:</span>
+            <select
+              id="goal-sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as GoalSort)}
+              className="h-11 w-full appearance-none rounded-full border border-[#EFE2D8] bg-white pl-[88px] pr-11 text-[14px] font-bold text-[#1F2430] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40 sm:min-w-[284px]"
+            >
+              <option value="progress-desc">Progress (High to Low)</option>
+              <option value="progress-asc">Progress (Low to High)</option>
+              <option value="target-desc">Target (High to Low)</option>
+              <option value="saved-desc">Saved (High to Low)</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#4E3629]" size={18} strokeWidth={2.6} />
+          </label>
+        </div>
 
-              <div className="w-full md:w-32 shrink-0 rounded-[16px] bg-[#FFF8F2] px-4 py-3 text-center md:text-right text-sm font-black text-[#9D4E2B]">
-                {loading ? 'Loading goals' : `${goals.length} shown`}
-              </div>
-            </div>
-          </Card>
-
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
           {loading ? (
-            <Card noPadding className="flex min-h-[340px] items-center justify-center rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
+            <div className="flex h-full min-h-[260px] items-center justify-center">
               <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF2E7] px-4 py-2 text-sm font-black text-[#9D4E2B]">
                 <LoaderCircle className="animate-spin" size={16} />
-                Loading goal shelf
+                Loading savings shelf...
               </div>
-            </Card>
-          ) : goals.length === 0 ? (
-            <Card noPadding className="flex min-h-[340px] flex-col items-center justify-center rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-8 text-center shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-              <CuteSticker name="goals-cat" className="h-[142px] w-[162px]" title="Empty goals helper" />
-              <p className="mt-2 text-lg font-black text-[#2F2925]">No goals found</p>
-              <p className="mt-1 text-sm font-bold text-[#8B929C]">Create a target or adjust the filters.</p>
-            </Card>
+            </div>
+          ) : sortedGoals.length === 0 ? (
+            <div className="flex h-full min-h-[260px] flex-col items-center justify-center p-8 text-center">
+              <CuteSticker name="goals-cat" className="h-32 w-36" title="Empty goals helper" />
+              <p className="mt-3 text-lg font-black text-[#2F2925]">No goals found</p>
+              <p className="mt-1 text-sm font-bold text-[#8B929C]">Try adding a new target or adjusting filters!</p>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {goals.map((goal) => (
-                <Card
-                  key={goal.id}
-                  noPadding
-                  className="min-h-[268px] rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <IconBadge goal={goal} size="lg" />
+            <div className="flex flex-col gap-2.5">
+              {sortedGoals.map((goal) => {
+                const Icon = ICONS[goal.icon] || TargetIcon;
+                const tone = progressColor(goal);
+                return (
+                  <div
+                    key={goal.id}
+                    onClick={() => openEditDrawer(goal)}
+                    className="grid cursor-pointer gap-4 rounded-[20px] border border-[#F0E4D8] bg-white px-3.5 py-3 transition hover:border-[#FFB87A]/45 hover:shadow-[0_10px_24px_rgba(92,65,45,0.06)] md:grid-cols-[minmax(0,1.1fr)_minmax(230px,0.9fr)_76px_24px] md:items-center"
+                  >
+                    <div className="flex min-w-0 items-center gap-4">
+                      <div
+                        className="flex h-[78px] w-[78px] shrink-0 items-center justify-center rounded-[18px] shadow-[inset_0_0_0_1px_rgba(92,65,45,0.06)]"
+                        style={{ backgroundColor: `${goal.color}22`, color: goal.color }}
+                      >
+                        <Icon size={40} strokeWidth={2.2} />
+                      </div>
                       <div className="min-w-0">
-                        <h3 className="truncate text-[18px] font-black leading-tight text-[#2F2925]">{goal.title}</h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-black uppercase ${statusClass(goal.status)}`}>
-                            {statusLabel(goal.status)}
-                          </span>
-                          <span className="rounded-full bg-[#F7EFE8] px-2.5 py-1 text-[11px] font-black text-[#7B8491]">
-                            {dueLabel(goal)}
-                          </span>
-                        </div>
+                        <h4 className="flex min-w-0 flex-wrap items-center gap-2 text-[21px] font-black leading-tight text-[#1F2430]">
+                          <span className="truncate">{goal.title}</span>
+                          <span className="text-[18px] leading-none">{goalEmoji(goal)}</span>
+                          {goal.status === 'paused' && (
+                            <span className="rounded-full bg-[#FFF2E7] px-2 py-0.5 text-[10px] font-black uppercase text-[#9D4E2B]">
+                              Paused
+                            </span>
+                          )}
+                          {goal.status === 'completed' && (
+                            <span className="rounded-full bg-[#EAFBF1] px-2 py-0.5 text-[10px] font-black uppercase text-[#168B5E]">
+                              Completed
+                            </span>
+                          )}
+                        </h4>
+                        <p className="mt-1 truncate text-[14px] font-bold text-[#5F6570]">
+                          {goal.notes || 'No description yet.'}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => openEditDrawer(goal)}
-                        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#536073] transition hover:bg-[#FFF8F2] hover:text-[#2F2925]"
-                        aria-label={`Edit ${goal.title}`}
-                        title="Edit"
-                      >
-                        <Pencil size={14} strokeWidth={2.5} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(goal)}
-                        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#F4D5DA] bg-white text-[#F27C8B] transition hover:bg-[#FFF0F2]"
-                        aria-label={`Delete ${goal.title}`}
-                        title="Delete"
-                      >
-                        <Trash2 size={14} strokeWidth={2.5} />
-                      </button>
+                    <div className="flex min-w-0 flex-col gap-3">
+                      <div className="flex min-w-0 items-baseline gap-1.5">
+                        <span className="truncate text-[22px] font-black leading-none text-[#1F2430]">
+                          {money.format(goal.savedAmount)}
+                        </span>
+                        <span className="shrink-0 text-[16px] font-bold text-[#4F5866]">
+                          / {money.format(goal.targetAmount)}
+                        </span>
+                      </div>
+                      <div className="h-3 w-full overflow-hidden rounded-full bg-[#F3EAE3]">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(goal.progress, 100)}%`,
+                            backgroundColor: tone,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <CircularProgress
+                      progress={goal.progress}
+                      color={tone}
+                    />
+
+                    <div className="flex items-center justify-end text-[#343A46]">
+                      <ChevronRight size={26} strokeWidth={2.8} />
                     </div>
                   </div>
-
-                  <p className="mt-4 min-h-[40px] text-[13px] font-bold leading-relaxed text-[#6F7785]">{goal.notes || 'No notes yet.'}</p>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-[16px] bg-[#FAF6F0] px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
-                      <p className="text-[11px] font-black uppercase text-[#8B929C]">Saved</p>
-                      <p className="mt-1 truncate text-[16px] font-black text-[#2F2925]">{money.format(goal.savedAmount)}</p>
-                    </div>
-                    <div className="rounded-[16px] bg-[#FAF6F0] px-3 py-2.5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
-                      <p className="text-[11px] font-black uppercase text-[#8B929C]">Target</p>
-                      <p className="mt-1 truncate text-[16px] font-black text-[#2F2925]">{money.format(goal.targetAmount)}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <ProgressBar goal={goal} />
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-3 text-[12px] font-black text-[#8B929C]">
-                    <span className="truncate">{readableDate(goal.targetDate)}</span>
-                    <span className="shrink-0 text-[#FF7F96]">{money.format(goal.remaining)} left</span>
-                  </div>
-                </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-6 flex flex-col gap-4">
-          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="rounded-[20px] border border-[#F0DFD0] bg-[#FFF4E8] px-4 py-4 text-center">
-              <CuteSticker
-                name="goals-cat"
-                className="mx-auto h-[132px] w-[150px] drop-shadow-[0_10px_16px_rgba(92,65,45,0.12)]"
-                title="Goals helper"
-              />
-              <h3 className="mt-1 text-[17px] font-black text-[#2F2925]">Goal Buddy</h3>
-              <p className="mt-1 text-[11px] font-bold leading-snug text-[#7B8491]">A tidy shelf for savings targets and deadlines.</p>
-            </div>
+        <div className="relative mt-5 shrink-0 pr-[78px] sm:pr-[96px]">
+          <div className="pointer-events-none absolute -left-1 bottom-[-6px] z-[1] hidden h-[72px] w-[88px] select-none sm:block">
+            <CuteSticker name="goals-cat" className="h-full w-full" title="Goals Cat" />
+          </div>
+          <div className="min-h-[56px] rounded-full border border-[#F5E7D8] bg-[#FFF9F1] px-6 py-4 text-[15px] font-bold text-[#7A6B61] shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] sm:ml-[86px]">
+            <span className="font-black text-[#8C5B3D]">Tip:</span> Consistent saving today builds your better tomorrow! 💗
+          </div>
 
-            <div className="mt-3 grid gap-2.5">
-              <div className="rounded-[18px] bg-[#FAF6F0] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-[#7B8491]">Closest date</span>
-                  <span className="rounded-full bg-[#FFD1DC] px-2 py-0.5 text-xs font-black text-[#4E3629]">{summary.dueSoon}</span>
-                </div>
-                <p className="mt-1.5 truncate text-lg font-black text-[#2F2925]">{closestGoal?.title || 'No deadlines'}</p>
-                <p className="mt-1 text-[11px] font-bold text-[#8B929C]">{closestGoal ? dueLabel(closestGoal) : 'Add a target date'}</p>
-              </div>
-
-              <div className="rounded-[18px] bg-[#FAF6F0] px-4 py-3 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.05)]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-[#7B8491]">Top progress</span>
-                  <span className="text-xs font-black text-[#55B978]">{topGoal?.progress || 0}%</span>
-                </div>
-                <p className="mt-1.5 truncate text-lg font-black text-[#2F2925]">{topGoal?.title || 'No goals yet'}</p>
-              </div>
-
-              <div className="rounded-[18px] border border-[#F0DFD0] bg-[#FFF9F2] px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-black text-[#2F2925]">Saved coverage</p>
-                  <p className="text-[11px] font-black text-[#F27C8B]">{summary.progress}%</p>
-                </div>
-                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#EFE4DA]">
-                  <div
-                    className="h-full rounded-full bg-[#FF8C94]"
-                    style={{ width: `${Math.min(summary.progress, 100)}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-[11px] font-bold text-[#8B929C]">
-                  {compactMoney.format(summary.totalSaved)} of {compactMoney.format(summary.totalTarget)}
-                </p>
-              </div>
-            </div>
-          </Card>
+          <button
+            type="button"
+            onClick={openCreateDrawer}
+            className="absolute bottom-0 right-0 flex h-[72px] w-[72px] cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-[#FF6F8F] to-[#FF7E95] text-white shadow-[0_16px_28px_rgba(255,111,143,0.34)] transition hover:scale-105 active:scale-95"
+            aria-label="Add new goal"
+          >
+            <Plus size={36} strokeWidth={3} />
+          </button>
         </div>
-      </div>
+      </Card>
 
+      {/* Edit / Add Drawer Modal */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#4E3629]/20 backdrop-blur-xs">
           <div
@@ -848,14 +873,26 @@ export const Goals = () => {
                   </h3>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setDrawerOpen(false)}
-                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#536073] hover:bg-[#FFF8F2]"
-                aria-label="Close goal form"
-              >
-                <X size={16} strokeWidth={3} />
-              </button>
+              <div className="flex items-center gap-2">
+                {editing && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(editing)}
+                    className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-[#F4D5DA] bg-white text-[#F27C8B] transition hover:bg-[#FFF0F2] mr-1"
+                    title="Delete Goal"
+                  >
+                    <Trash2 size={16} strokeWidth={2.5} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(false)}
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#536073] hover:bg-[#FFF8F2]"
+                  aria-label="Close goal form"
+                >
+                  <X size={16} strokeWidth={3} />
+                </button>
+              </div>
             </div>
 
             <div className="grid gap-4 py-5 md:grid-cols-2">
@@ -867,7 +904,7 @@ export const Goals = () => {
                       key={status}
                       type="button"
                       onClick={() => setForm((current) => ({ ...current, status }))}
-                      className={`h-10 rounded-full text-sm font-black transition ${
+                      className={`h-10 rounded-full text-sm font-black transition cursor-pointer ${
                         form.status === status
                           ? status === 'completed'
                             ? 'bg-[#EAFBF1] text-[#168B5E] shadow-[0_6px_14px_rgba(22,155,97,0.12)]'
@@ -953,9 +990,9 @@ export const Goals = () => {
 
               <div>
                 <span className="mb-2 block text-xs font-black uppercase text-[#8B929C]">Icon</span>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-6 gap-2">
                   {ICON_OPTIONS.map((icon) => {
-                    const Icon = ICONS[icon];
+                    const Icon = ICONS[icon] || TargetIcon;
                     return (
                       <button
                         key={icon}
@@ -986,7 +1023,7 @@ export const Goals = () => {
                       aria-label={`Use ${color} color`}
                       title={color}
                     >
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ backgroundColor: color }}>
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full cursor-pointer" style={{ backgroundColor: color }}>
                         {form.color === color && <Check size={15} strokeWidth={3} className="text-white drop-shadow" />}
                       </span>
                     </button>

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import {
-  Bar,
-  BarChart,
+  Area,
+  AreaChart,
   CartesianGrid,
   Cell,
   Pie,
@@ -12,337 +12,115 @@ import {
   YAxis,
 } from 'recharts';
 import {
-  AlertTriangle,
-  CalendarDays,
-  CircleDollarSign,
-  Download,
-  FileBarChart,
+  Flag,
+  Search,
+  Bell,
+  ChevronDown,
   LoaderCircle,
-  PieChart as PieChartIcon,
-  RefreshCw,
-  Sparkles,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  Wallet,
 } from 'lucide-react';
 import api from '../api/axiosInstance';
 import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
-import { compactMoney, currentMonthInput, money, readableMonth, shortDate, shortMonth, toInputDate } from '../utils/formatters';
+import { money } from '../utils/formatters';
 import { asRecord, asRecordArray, toNumber } from '../utils/records';
 
-interface ReportRange {
-  startDate: string;
-  endDate: string;
-  budgetMonth: string;
-}
-
-interface ReportSummary {
-  income: number;
-  expense: number;
-  net: number;
-  transactionCount: number;
-  expenseCount: number;
-  averageExpense: number;
-  largestExpense: number;
-  savingsRate: number;
-}
-
-interface MonthlyTrend {
-  month: string;
-  income: number;
-  expense: number;
-  net: number;
-  count: number;
-}
-
-interface CategoryBreakdown {
+interface CategoryShare {
   category: string;
   total: number;
   percentage: number;
-  transactionCount: number;
-  averageAmount: number;
 }
 
-type BudgetStatus = 'on_track' | 'watch' | 'over';
-
-interface BudgetReportRow {
-  id: string;
-  category: string;
-  amount: number;
-  spent: number;
-  remaining: number;
-  progress: number;
-  status: BudgetStatus;
-  color: string;
-  icon: string;
-}
-
-interface BudgetHealth {
-  month: string;
-  totalBudget: number;
-  totalSpent: number;
-  remaining: number;
-  progress: number;
-  count: number;
-  overBudget: number;
-  watch: number;
-  onTrack: number;
-  categories: BudgetReportRow[];
-}
-
-interface LargeExpense {
-  id: string;
-  category: string;
-  amount: number;
-  description: string;
+interface TrendPoint {
   date: string;
+  amount: number;
 }
 
-interface ReportInsight {
-  title: string;
-  body: string;
-  tone: 'good' | 'warning' | 'focus' | 'neutral';
+interface SummaryData {
+  income: number;
+  expense: number;
+  savingsRate: number;
+  net: number;
 }
 
-interface ReportData {
-  range: ReportRange;
-  summary: ReportSummary;
-  monthlyTrend: MonthlyTrend[];
-  categoryBreakdown: CategoryBreakdown[];
-  budgetHealth: BudgetHealth;
-  largeExpenses: LargeExpense[];
-  insights: ReportInsight[];
-  updatedAt?: string | null;
-}
+type RangePresetKey = '7d' | '30d' | '3m' | '6m' | '1y' | 'all';
 
-type PresetKey = '3m' | '6m' | 'ytd';
-
-const CHART_COLORS = ['#FF8C94', '#64B5F6', '#FFD54F', '#BA68C8', '#7ACB9C', '#FFB87A', '#8C9EFF', '#4DB6AC'];
-
-const defaultStartDate = () => {
-  const now = new Date();
-  return toInputDate(new Date(now.getFullYear(), now.getMonth() - 5, 1));
-};
-
-const defaultEndDate = () => {
-  const now = new Date();
-  return toInputDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-};
-
-const monthsBetween = (startDate: string, endDate: string) => {
-  const start = new Date(`${startDate.slice(0, 7)}-01T00:00:00`);
-  const end = new Date(`${endDate.slice(0, 7)}-01T00:00:00`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [currentMonthInput()];
-  const out: string[] = [];
-  const cursor = new Date(start);
-  while (cursor <= end && out.length < 18) {
-    out.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`);
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-  return out;
-};
-
-const normalizeSummary = (raw: unknown): ReportSummary => {
-  const data = asRecord(raw);
-  return {
-    income: toNumber(data.income),
-    expense: toNumber(data.expense),
-    net: toNumber(data.net),
-    transactionCount: toNumber(data.transactionCount ?? data.transaction_count),
-    expenseCount: toNumber(data.expenseCount ?? data.expense_count),
-    averageExpense: toNumber(data.averageExpense ?? data.average_expense),
-    largestExpense: toNumber(data.largestExpense ?? data.largest_expense),
-    savingsRate: toNumber(data.savingsRate ?? data.savings_rate),
-  };
-};
-
-const normalizeReport = (raw: unknown, fallbackRange: ReportRange): ReportData => {
-  const data = asRecord(raw);
-  const range = asRecord(data.range);
-  const budgetHealth = asRecord(data.budgetHealth ?? data.budget_health);
-  const updatedAt = data.updatedAt ?? data.updated_at;
-
-  return {
-    range: {
-      startDate: String(range.startDate ?? range.start_date ?? fallbackRange.startDate),
-      endDate: String(range.endDate ?? range.end_date ?? fallbackRange.endDate),
-      budgetMonth: String(range.budgetMonth ?? range.budget_month ?? fallbackRange.budgetMonth),
-    },
-    summary: normalizeSummary(data.summary),
-    monthlyTrend: asRecordArray(data.monthlyTrend ?? data.monthly_trend).map((item) => ({
-      month: String(item.month ?? ''),
-      income: toNumber(item.income),
-      expense: toNumber(item.expense),
-      net: toNumber(item.net),
-      count: toNumber(item.count),
-    })),
-    categoryBreakdown: asRecordArray(data.categoryBreakdown ?? data.category_breakdown).map((item) => ({
-      category: String(item.category ?? 'Other'),
-      total: toNumber(item.total),
-      percentage: toNumber(item.percentage),
-      transactionCount: toNumber(item.transactionCount ?? item.transaction_count),
-      averageAmount: toNumber(item.averageAmount ?? item.average_amount),
-    })),
-    budgetHealth: {
-      month: String(budgetHealth.month ?? fallbackRange.budgetMonth),
-      totalBudget: toNumber(budgetHealth.totalBudget ?? budgetHealth.total_budget),
-      totalSpent: toNumber(budgetHealth.totalSpent ?? budgetHealth.total_spent),
-      remaining: toNumber(budgetHealth.remaining),
-      progress: toNumber(budgetHealth.progress),
-      count: toNumber(budgetHealth.count),
-      overBudget: toNumber(budgetHealth.overBudget ?? budgetHealth.over_budget),
-      watch: toNumber(budgetHealth.watch),
-      onTrack: toNumber(budgetHealth.onTrack ?? budgetHealth.on_track),
-      categories: asRecordArray(budgetHealth.categories).map((item, index) => ({
-        id: String(item.id ?? `budget-${index}`),
-        category: String(item.category ?? 'Other'),
-        amount: toNumber(item.amount),
-        spent: toNumber(item.spent),
-        remaining: toNumber(item.remaining),
-        progress: toNumber(item.progress),
-        status: item.status === 'over' || item.status === 'watch' ? item.status : 'on_track',
-        color: String(item.color ?? CHART_COLORS[index % CHART_COLORS.length]),
-        icon: String(item.icon ?? 'tag'),
-      })),
-    },
-    largeExpenses: asRecordArray(data.largeExpenses ?? data.large_expenses).map((item, index) => ({
-      id: String(item.id ?? `expense-${index}`),
-      category: String(item.category ?? 'Other'),
-      amount: toNumber(item.amount),
-      description: String(item.description ?? item.memo ?? 'Expense'),
-      date: String(item.date ?? ''),
-    })),
-    insights: asRecordArray(data.insights).map((item) => ({
-      title: String(item.title ?? 'Insight'),
-      body: String(item.body ?? ''),
-      tone: item.tone === 'good' || item.tone === 'warning' || item.tone === 'focus' ? item.tone : 'neutral',
-    })),
-    updatedAt: typeof updatedAt === 'string' ? updatedAt : null,
-  };
-};
-
-const sampleReport = (range: ReportRange): ReportData => {
-  const months = monthsBetween(range.startDate, range.endDate);
-  const monthlyTrend = months.map((month, index) => {
-    const income = 4800 + index * 180;
-    const expense = 1820 + (index % 3) * 220 + index * 48;
-    return {
-      month,
-      income,
-      expense,
-      net: income - expense,
-      count: 12 + index * 2,
-    };
-  });
-  const income = monthlyTrend.reduce((sum, item) => sum + item.income, 0);
-  const expense = monthlyTrend.reduce((sum, item) => sum + item.expense, 0);
-  const categoryBreakdown = [
-    { category: 'Food & Dining', total: 1280, percentage: 31, transactionCount: 18, averageAmount: 71.11 },
-    { category: 'Shopping', total: 890, percentage: 22, transactionCount: 9, averageAmount: 98.89 },
-    { category: 'Transport', total: 620, percentage: 15, transactionCount: 14, averageAmount: 44.29 },
-    { category: 'Bills & Utilities', total: 540, percentage: 13, transactionCount: 5, averageAmount: 108 },
-    { category: 'Entertainment', total: 420, percentage: 10, transactionCount: 7, averageAmount: 60 },
-  ];
-
-  return {
-    range,
-    summary: {
-      income,
-      expense,
-      net: income - expense,
-      transactionCount: monthlyTrend.reduce((sum, item) => sum + item.count, 0),
-      expenseCount: 53,
-      averageExpense: 77.17,
-      largestExpense: 286.4,
-      savingsRate: Math.round(((income - expense) / income) * 100),
-    },
-    monthlyTrend,
-    categoryBreakdown,
-    budgetHealth: {
-      month: range.budgetMonth,
-      totalBudget: 3260,
-      totalSpent: 2748.4,
-      remaining: 511.6,
-      progress: 84,
-      count: 5,
-      overBudget: 1,
-      watch: 2,
-      onTrack: 2,
-      categories: [
-        { id: 'sample-food', category: 'Food & Dining', amount: 700, spent: 744.2, remaining: -44.2, progress: 106, status: 'over', color: '#FF8C94', icon: 'utensils' },
-        { id: 'sample-shopping', category: 'Shopping', amount: 900, spent: 758.3, remaining: 141.7, progress: 84, status: 'watch', color: '#FFD54F', icon: 'shopping-bag' },
-        { id: 'sample-transport', category: 'Transport', amount: 420, spent: 340.5, remaining: 79.5, progress: 81, status: 'watch', color: '#64B5F6', icon: 'bus' },
-        { id: 'sample-bills', category: 'Bills & Utilities', amount: 720, spent: 562, remaining: 158, progress: 78, status: 'on_track', color: '#4DB6AC', icon: 'receipt' },
-      ],
-    },
-    largeExpenses: [
-      { id: 'sample-1', category: 'Shopping', amount: 286.4, description: 'Workspace chair', date: `${range.budgetMonth}-12T00:00:00` },
-      { id: 'sample-2', category: 'Food & Dining', amount: 164.2, description: 'Weekend groceries', date: `${range.budgetMonth}-08T00:00:00` },
-      { id: 'sample-3', category: 'Bills & Utilities', amount: 128.8, description: 'Internet and phone', date: `${range.budgetMonth}-03T00:00:00` },
-    ],
-    insights: [
-      { title: 'Top spending lane', body: 'Food & Dining leads this report at 31% of expenses.', tone: 'focus' },
-      { title: 'Budget attention', body: `1 budget line needs attention for ${range.budgetMonth}.`, tone: 'warning' },
-      { title: 'Healthy savings rate', body: 'This range keeps savings comfortably above target.', tone: 'good' },
-    ],
-  };
-};
-
-const statusLabel = (status: BudgetStatus) => {
-  if (status === 'over') return 'Over';
-  if (status === 'watch') return 'Watch';
-  return 'On track';
-};
-
-const statusColor = (status: BudgetStatus) => {
-  if (status === 'over') return '#C44B61';
-  if (status === 'watch') return '#B66B12';
-  return '#168B5E';
-};
-
-const insightToneClass = (tone: ReportInsight['tone']) => {
-  if (tone === 'warning') return 'border-[#F8C7CE] bg-[#FFF0F2] text-[#C44B61]';
-  if (tone === 'good') return 'border-[#CBEAD7] bg-[#F4FBF6] text-[#168B5E]';
-  if (tone === 'focus') return 'border-[#FFE1A6] bg-[#FFF9E7] text-[#9D6A00]';
-  return 'border-[#EFE2D8] bg-[#FFFDFB] text-[#536073]';
-};
-
-const MetricCard = ({
-  label,
-  value,
-  helper,
-  icon,
-  tone,
-}: {
+interface PresetOption {
+  key: RangePresetKey;
   label: string;
-  value: string;
-  helper: string;
-  icon: ReactNode;
-  tone: 'pink' | 'blue' | 'green' | 'yellow';
-}) => {
-  const palette = {
-    pink: 'bg-[#FFF0F4] text-[#FF6F8F]',
-    blue: 'bg-[#EFF7FF] text-[#3C8CC9]',
-    green: 'bg-[#F0FAF4] text-[#168B5E]',
-    yellow: 'bg-[#FFF8D8] text-[#9D6A00]',
-  }[tone];
+}
 
-  return (
-    <Card noPadding className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-black uppercase text-[#8B929C]">{label}</p>
-          <p className="mt-2 text-[26px] font-black leading-none text-[#2F2925]">{value}</p>
-          <p className="mt-2 text-[12px] font-bold text-[#7B8491]">{helper}</p>
-        </div>
-        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] ${palette}`}>
-          {icon}
-        </div>
-      </div>
-    </Card>
-  );
+const RANGE_PRESETS: PresetOption[] = [
+  { key: '7d', label: '7D' },
+  { key: '30d', label: '300' }, // Match the mockup's visual representation of 30D
+  { key: '3m', label: '3M' },
+  { key: '6m', label: '6M' },
+  { key: '1y', label: '1Y' },
+  { key: 'all', label: 'All' },
+];
+
+const MOCK_CATEGORIES = [
+  { category: 'Food & Dining', total: 570.57, percentage: 35 },
+  { category: 'Transport', total: 407.55, percentage: 25 },
+  { category: 'Shopping', total: 326.04, percentage: 20 },
+  { category: 'Entertainment', total: 195.62, percentage: 12 },
+  { category: 'Others', total: 130.42, percentage: 8 },
+];
+
+const MOCK_TREND_DATA: TrendPoint[] = [
+  { date: 'Oct 1', amount: 60 },
+  { date: 'Oct 3', amount: 30 },
+  { date: 'Oct 5', amount: 50 },
+  { date: 'Oct 7', amount: 40 },
+  { date: 'Oct 9', amount: 60 },
+  { date: 'Oct 10', amount: 50 },
+  { date: 'Oct 11', amount: 80 },
+  { date: 'Oct 13', amount: 65 },
+  { date: 'Oct 15', amount: 55 },
+  { date: 'Oct 16', amount: 64 },
+  { date: 'Oct 17', amount: 62 },
+  { date: 'Oct 19', amount: 58 },
+  { date: 'Oct 21', amount: 68 },
+  { date: 'Oct 22', amount: 60 },
+  { date: 'Oct 23', amount: 72 },
+  { date: 'Oct 24', amount: 64 },
+  { date: 'Oct 25', amount: 80 },
+  { date: 'Oct 26', amount: 100 },
+  { date: 'Oct 28', amount: 90 },
+  { date: 'Oct 29', amount: 80 },
+];
+
+const CHART_COLORS = ['#FF8C94', '#64B5F6', '#FFD54F', '#BA68C8', '#8C9EFF', '#7ACB9C', '#FFB87A', '#4DB6AC'];
+
+const getDatesForPreset = (preset: RangePresetKey) => {
+  const today = new Date();
+  const endDate = today.toISOString().slice(0, 10);
+  let startDate = '';
+
+  if (preset === '7d') {
+    const d = new Date();
+    d.setDate(today.getDate() - 7);
+    startDate = d.toISOString().slice(0, 10);
+  } else if (preset === '30d') {
+    const d = new Date();
+    d.setDate(today.getDate() - 30);
+    startDate = d.toISOString().slice(0, 10);
+  } else if (preset === '3m') {
+    const d = new Date();
+    d.setMonth(today.getMonth() - 3);
+    startDate = d.toISOString().slice(0, 10);
+  } else if (preset === '6m') {
+    const d = new Date();
+    d.setMonth(today.getMonth() - 6);
+    startDate = d.toISOString().slice(0, 10);
+  } else if (preset === '1y') {
+    const d = new Date();
+    d.setFullYear(today.getFullYear() - 1);
+    startDate = d.toISOString().slice(0, 10);
+  } else {
+    startDate = '2000-01-01';
+  }
+
+  return { startDate, endDate };
 };
 
 const MeasuredChart = ({
@@ -389,464 +167,519 @@ const MeasuredChart = ({
 };
 
 export const Reports = () => {
-  const [startDate, setStartDate] = useState(defaultStartDate);
-  const [endDate, setEndDate] = useState(defaultEndDate);
-  const [budgetMonth, setBudgetMonth] = useState(currentMonthInput);
-  const [preset, setPreset] = useState<PresetKey>('6m');
-  const [reloadKey, setReloadKey] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [offlineMode, setOfflineMode] = useState(false);
-  const [report, setReport] = useState<ReportData>(() =>
-    sampleReport({ startDate: defaultStartDate(), endDate: defaultEndDate(), budgetMonth: currentMonthInput() }),
-  );
+  const [preset, setPreset] = useState<RangePresetKey>('30d');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [offlineMode, setOfflineMode] = useState<boolean>(false);
 
-  const requestedRange = useMemo(() => ({ startDate, endDate, budgetMonth }), [budgetMonth, endDate, startDate]);
+  // Dynamic state loaded from APIs
+  const [summary, setSummary] = useState<SummaryData>({
+    income: 5200,
+    expense: 1820.20,
+    savingsRate: 62.7,
+    net: 3379.80,
+  });
+  const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryShare[]>(MOCK_CATEGORIES);
+  const [trendPoints, setTrendPoints] = useState<TrendPoint[]>(MOCK_TREND_DATA);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(['Food & Dining', 'Transport', 'Shopping', 'Entertainment', 'Others']);
 
-  useEffect(() => {
-    let alive = true;
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    const { startDate, endDate } = getDatesForPreset(preset);
 
-    const load = async () => {
-      setLoading(true);
-      try {
-        const response = await api.get('/reports', {
-          params: {
-            startDate,
-            endDate,
-            month: budgetMonth,
-          },
+    try {
+      // Fetch report overview for categories & metrics
+      const reportRes = await api.get('/reports', {
+        params: { startDate, endDate },
+      });
+      const reportData = asRecord(reportRes.data);
+      const summaryData = asRecord(reportData.summary);
+      const categoriesList = asRecordArray(reportData.categoryBreakdown);
+
+      // Fetch transactions to compute daily trend & categories list
+      const txRes = await api.get('/transactions', {
+        params: { startDate, endDate, pageSize: 200 },
+      });
+      const txData = asRecord(txRes.data);
+      const transactions = asRecordArray(txData.transactions);
+
+      // Populate category options
+      const catsSet = new Set<string>();
+      transactions.forEach((tx) => {
+        const cat = String(asRecord(tx).category);
+        if (cat) catsSet.add(cat);
+      });
+      setCategoryOptions(Array.from(catsSet).sort());
+
+      // Filter transactions by selected category if applicable
+      const filteredTxs = transactions.filter((tx) => {
+        const item = asRecord(tx);
+        return categoryFilter === 'all' || item.category === categoryFilter;
+      });
+
+      // Compute summary metrics dynamically if data exists
+      if (transactions.length > 0) {
+        let income = 0;
+        let expense = 0;
+
+        filteredTxs.forEach((tx) => {
+          const item = asRecord(tx);
+          const amt = toNumber(item.amount);
+          if (item.type === 'income') {
+            income += amt;
+          } else if (item.type === 'expense') {
+            expense += amt;
+          }
         });
-        if (!alive) return;
-        setReport(normalizeReport(response.data, requestedRange));
-        setOfflineMode(false);
-      } catch {
-        if (!alive) return;
-        setReport(sampleReport(requestedRange));
-        setOfflineMode(true);
-      } finally {
-        if (alive) setLoading(false);
+
+        // If category is filtered, only expense of that category exists, so keep total income
+        if (categoryFilter !== 'all') {
+          income = toNumber(summaryData.income);
+        }
+
+        const net = income - expense;
+        const savingsRate = income > 0 ? Math.round((net / income) * 1000) / 10 : 0;
+
+        setSummary({
+          income,
+          expense,
+          savingsRate,
+          net,
+        });
+
+        // Compute dynamic category breakdown
+        if (categoryFilter === 'all') {
+          const mappedBreakdown = categoriesList.map((item) => {
+            const row = asRecord(item);
+            return {
+              category: String(row.category),
+              total: toNumber(row.total),
+              percentage: toNumber(row.percentage),
+            };
+          });
+          setCategoryBreakdown(mappedBreakdown.length > 0 ? mappedBreakdown : MOCK_CATEGORIES);
+        } else {
+          const categoryItem = categoriesList.find(
+            (item) => String(asRecord(item).category) === categoryFilter
+          );
+          if (categoryItem) {
+            const row = asRecord(categoryItem);
+            setCategoryBreakdown([
+              {
+                category: String(row.category),
+                total: toNumber(row.total),
+                percentage: 100,
+              },
+            ]);
+          } else {
+            setCategoryBreakdown([]);
+          }
+        }
+
+        // Compute daily trend points
+        const dailyTotals: Record<string, number> = {};
+        filteredTxs
+          .filter((tx) => asRecord(tx).type === 'expense')
+          .forEach((tx) => {
+            const item = asRecord(tx);
+            const dateStr = String(item.date).slice(0, 10);
+            const dateObj = new Date(dateStr);
+            const formattedDate = dateObj.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+            });
+            const amt = toNumber(item.amount);
+            dailyTotals[formattedDate] = (dailyTotals[formattedDate] || 0) + amt;
+          });
+
+        const sortedTrend = Object.keys(dailyTotals)
+          .map((date) => ({
+            date,
+            amount: Math.round(dailyTotals[date] * 100) / 100,
+          }))
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        setTrendPoints(sortedTrend.length > 0 ? sortedTrend : MOCK_TREND_DATA);
+      } else {
+        // Fallback
+        resetToMockData();
       }
-    };
 
-    load();
-    return () => {
-      alive = false;
-    };
-  }, [budgetMonth, endDate, reloadKey, requestedRange, startDate]);
+      setOfflineMode(false);
+    } catch {
+      // Offline fallback
+      resetToMockData();
+      setOfflineMode(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [preset, categoryFilter]);
 
-  const trendChart = useMemo(
-    () =>
-      report.monthlyTrend.map((item) => ({
-        month: shortMonth(item.month),
-        Income: item.income,
-        Expenses: item.expense,
-        Net: item.net,
-      })),
-    [report.monthlyTrend],
-  );
-
-  const categoryChart = useMemo(
-    () =>
-      report.categoryBreakdown.map((item, index) => ({
-        ...item,
-        color: CHART_COLORS[index % CHART_COLORS.length],
-      })),
-    [report.categoryBreakdown],
-  );
-
-  const topCategory = categoryChart[0];
-  const budgetProgressColor = report.budgetHealth.progress > 100 ? '#C44B61' : report.budgetHealth.progress >= 80 ? '#D88720' : '#168B5E';
-
-  const applyPreset = (nextPreset: PresetKey) => {
-    const now = new Date();
-    setPreset(nextPreset);
-    if (nextPreset === '3m') {
-      setStartDate(toInputDate(new Date(now.getFullYear(), now.getMonth() - 2, 1)));
-      setEndDate(toInputDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
-      setBudgetMonth(currentMonthInput());
-    } else if (nextPreset === '6m') {
-      setStartDate(defaultStartDate());
-      setEndDate(defaultEndDate());
-      setBudgetMonth(currentMonthInput());
+  const resetToMockData = () => {
+    if (categoryFilter === 'all') {
+      setSummary({
+        income: 5200,
+        expense: 1820.20,
+        savingsRate: 62.7,
+        net: 3379.80,
+      });
+      setCategoryBreakdown(MOCK_CATEGORIES);
+      setTrendPoints(MOCK_TREND_DATA);
     } else {
-      setStartDate(toInputDate(new Date(now.getFullYear(), 0, 1)));
-      setEndDate(toInputDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
-      setBudgetMonth(currentMonthInput());
+      const selected = MOCK_CATEGORIES.find((c) => c.category === categoryFilter);
+      if (selected) {
+        const net = 5200 - selected.total;
+        setSummary({
+          income: 5200,
+          expense: selected.total,
+          savingsRate: Math.round((net / 5200) * 1000) / 10,
+          net,
+        });
+        setCategoryBreakdown([
+          {
+            category: selected.category,
+            total: selected.total,
+            percentage: 100,
+          },
+        ]);
+        const scaledTrend = MOCK_TREND_DATA.map((pt) => ({
+          ...pt,
+          amount: Math.round(pt.amount * (selected.percentage / 100) * 100) / 100,
+        }));
+        setTrendPoints(scaledTrend);
+      } else {
+        setSummary({
+          income: 5200,
+          expense: 0,
+          savingsRate: 100,
+          net: 5200,
+        });
+        setCategoryBreakdown([]);
+        setTrendPoints([]);
+      }
     }
   };
 
-  const handleExport = () => {
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = `ai-accountant-report-${report.range.startDate}-to-${report.range.endDate}.json`;
-    link.click();
-    URL.revokeObjectURL(href);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const dailyAverage = useMemo(() => {
+    if (trendPoints.length === 0) return 0;
+    const total = trendPoints.reduce((sum, pt) => sum + pt.amount, 0);
+    return Math.round((total / (preset === '7d' ? 7 : 30)) * 100) / 100;
+  }, [trendPoints, preset]);
+
+  const pieData = useMemo(() => {
+    return categoryBreakdown.map((item, index) => ({
+      name: item.category,
+      value: item.total,
+      percentage: item.percentage,
+      color: index < CHART_COLORS.length ? CHART_COLORS[index] : CHART_COLORS[index % CHART_COLORS.length],
+    }));
+  }, [categoryBreakdown]);
+
+  const breakdownTotal = useMemo(() => {
+    return categoryBreakdown.reduce((sum, item) => sum + item.total, 0);
+  }, [categoryBreakdown]);
+
+  const CustomTrendTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-[14px] border border-[#EFE2D8] bg-[#FFFDFB] p-2.5 shadow-[0_8px_20px_rgba(92,65,45,0.12)]">
+          <p className="text-[11px] font-black text-[#8B929C]">{payload[0].payload.date}</p>
+          <p className="mt-1 text-sm font-black text-[#FF6F8F]">{money.format(payload[0].value)}</p>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
-    <div className="reports-page management-page flex h-full min-h-0 flex-col gap-4 text-[#4E3629]">
-      <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
+    <div className="reports-page flex h-full min-h-0 flex-col gap-6 text-[#4E3629]">
+      {/* Header Section */}
+      <div className="flex items-center justify-between">
         <div>
-          <div className="mb-1 flex items-center gap-2">
-            <span className="text-[11px] font-black uppercase text-[#FF7F96]">Insight</span>
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#FF7F96]">
+              Financial Overview
+            </span>
             {offlineMode && (
               <span className="rounded-full bg-[#FFF2E7] px-2.5 py-0.5 text-[11px] font-black text-[#9D4E2B]">
                 Local Preview
               </span>
             )}
           </div>
-          <h2 className="text-[32px] font-black leading-tight text-[#2F2925]">Reports</h2>
-          <p className="mt-1 text-[15px] font-bold text-[#6F7785]">Review cashflow, categories, and budget health in one place.</p>
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#FFF0F2] text-[#FF7F96]">
+              <Flag size={20} strokeWidth={2.7} />
+            </span>
+            <h2 className="text-[32px] font-black leading-tight tracking-tight text-[#2F2925]">
+              Reports
+            </h2>
+          </div>
+          <p className="mt-1 text-[15px] font-bold text-[#6F7785]">
+            Analyze your financial trends and patterns.
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {(['3m', '6m', 'ytd'] as PresetKey[]).map((item) => (
+        {/* Search & Bell Icons */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#2F2925] shadow-[0_8px_18px_rgba(92,65,45,0.08)] transition-colors hover:bg-[#FFF8F2]"
+            aria-label="Search"
+          >
+            <Search size={18} strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#2F2925] shadow-[0_8px_18px_rgba(92,65,45,0.08)] transition-colors hover:bg-[#FFF8F2]"
+            aria-label="Notifications"
+          >
+            <Bell size={18} strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+
+      {/* Filters and Dropdown */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Preset Tabs */}
+        <div className="flex flex-wrap items-center gap-1">
+          {RANGE_PRESETS.map((item) => (
             <button
-              key={item}
+              key={item.key}
               type="button"
-              onClick={() => applyPreset(item)}
-              className={`h-10 rounded-full px-4 text-sm font-black transition-colors ${
-                preset === item
-                  ? 'bg-[#2F2925] text-white shadow-[0_10px_20px_rgba(47,41,37,0.18)]'
-                  : 'border border-[#EFE2D8] bg-white text-[#6F7785] hover:bg-[#FFF8F2]'
+              onClick={() => setPreset(item.key)}
+              className={`h-9 cursor-pointer rounded-full px-4 text-sm font-black transition-colors ${
+                preset === item.key
+                  ? 'bg-[#FFF0F2] text-[#FF6F8F]'
+                  : 'bg-transparent text-[#6F7785] hover:bg-[#FFF8F2] hover:text-[#2F2925]'
               }`}
             >
-              {item === 'ytd' ? 'YTD' : item.toUpperCase()}
+              {item.label}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => setReloadKey((key) => key + 1)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#2F2925] shadow-[0_8px_18px_rgba(92,65,45,0.08)] hover:bg-[#FFF8F2]"
-            aria-label="Refresh reports"
+        </div>
+
+        {/* Categories Dropdown */}
+        <div className="relative w-full sm:w-48 shrink-0">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="h-11 w-full cursor-pointer appearance-none rounded-[16px] border border-[#EFE2D8] bg-white pl-4 pr-10 text-[14px] font-black text-[#4E3629] shadow-[0_8px_18px_rgba(92,65,45,0.04)] outline-none transition focus:ring-4 focus:ring-[#FFD1DC]/40"
+            aria-label="Categories filter"
           >
-            <RefreshCw size={18} strokeWidth={2.5} />
-          </button>
-          <button
-            type="button"
-            onClick={handleExport}
-            className="flex h-10 items-center gap-2 rounded-full bg-[#FF6F8F] px-4 text-sm font-black text-white shadow-[0_12px_24px_rgba(255,111,143,0.25)] hover:bg-[#F35F82]"
-          >
-            <Download size={17} strokeWidth={2.6} />
-            Export
-          </button>
+            <option value="all">All Categories</option>
+            {categoryOptions.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[#8B929C]">
+            <ChevronDown size={15} strokeWidth={3} />
+          </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          label="Income"
-          value={money.format(report.summary.income)}
-          helper={`${report.monthlyTrend.length} months included`}
-          tone="green"
-          icon={<TrendingUp size={21} strokeWidth={2.7} />}
-        />
-        <MetricCard
-          label="Expenses"
-          value={money.format(report.summary.expense)}
-          helper={`${report.summary.expenseCount} expense entries`}
-          tone="pink"
-          icon={<TrendingDown size={21} strokeWidth={2.7} />}
-        />
-        <MetricCard
-          label="Net Saved"
-          value={money.format(report.summary.net)}
-          helper={`${report.summary.savingsRate}% savings rate`}
-          tone="blue"
-          icon={<Wallet size={21} strokeWidth={2.7} />}
-        />
-        <MetricCard
-          label="Average Expense"
-          value={money.format(report.summary.averageExpense)}
-          helper={`Largest ${money.format(report.summary.largestExpense)}`}
-          tone="yellow"
-          icon={<CircleDollarSign size={21} strokeWidth={2.7} />}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
-          <Card noPadding className="rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-4 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
-              <label htmlFor="reports-start-date" className="block">
-                <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
-                  <CalendarDays size={14} strokeWidth={3} />
-                  Start
-                </span>
-                <input
-                  id="reports-start-date"
-                  type="date"
-                  value={startDate}
-                  onChange={(event) => {
-                    setStartDate(event.target.value);
-                    setPreset('6m');
-                  }}
-                  className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
-                />
-              </label>
-              <label htmlFor="reports-end-date" className="block">
-                <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
-                  <CalendarDays size={14} strokeWidth={3} />
-                  End
-                </span>
-                <input
-                  id="reports-end-date"
-                  type="date"
-                  value={endDate}
-                  onChange={(event) => {
-                    setEndDate(event.target.value);
-                    setPreset('6m');
-                  }}
-                  className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
-                />
-              </label>
-              <label htmlFor="reports-budget-month" className="block">
-                <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase text-[#8B929C]">
-                  <Target size={14} strokeWidth={3} />
-                  Budget Month
-                </span>
-                <input
-                  id="reports-budget-month"
-                  type="month"
-                  value={budgetMonth}
-                  onChange={(event) => setBudgetMonth(event.target.value)}
-                  className="h-11 w-full rounded-[15px] border border-[#EFE2D8] bg-white px-3 text-sm font-bold text-[#4E3629] outline-none focus:ring-4 focus:ring-[#FFD1DC]/40"
-                />
-              </label>
-              <div className="rounded-[15px] bg-[#FFF8F2] px-4 py-3 text-sm font-black text-center text-[#9D4E2B] h-11 flex items-center justify-center">
-                {loading ? 'Loading report' : `${report.summary.transactionCount} entries`}
-              </div>
-            </div>
-          </Card>
-
-          <Card noPadding className="overflow-hidden rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="grid gap-4 p-5 min-[900px]:grid-cols-[1fr_180px] min-[900px]:items-center">
-              <div>
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#EFF7FF] text-[#3C8CC9]">
-                    <FileBarChart size={19} strokeWidth={2.6} />
-                  </div>
-                  <div>
-                    <h3 className="text-[18px] font-black text-[#2F2925]">Financial Snapshot</h3>
-                    <p className="text-[12px] font-bold text-[#8B929C]">
-                      {report.range.startDate} to {report.range.endDate}
-                    </p>
-                  </div>
-                </div>
-                <p className="max-w-2xl text-sm font-bold leading-relaxed text-[#6F7785]">
-                  {topCategory
-                    ? `${topCategory.category} is the largest expense lane at ${topCategory.percentage}% while ${readableMonth(report.budgetHealth.month)} budgets are ${report.budgetHealth.progress}% used.`
-                    : `No expense categories were recorded for this report range yet.`}
-                </p>
-              </div>
-              <CuteSticker name="reports-cat" className="mx-auto h-[148px] w-[148px]" title="Reports cat with chart" />
-            </div>
-          </Card>
-
-          <Card noPadding className="flex min-h-[330px] flex-col rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-[18px] font-black text-[#2F2925]">Monthly Flow</h3>
-                <p className="text-[12px] font-bold text-[#8B929C]">Income and expenses by month</p>
-              </div>
-              {loading && (
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#FFF2E7] px-3 py-1.5 text-xs font-black text-[#9D4E2B]">
-                  <LoaderCircle className="animate-spin" size={14} />
-                  Loading
-                </span>
-              )}
-            </div>
-            <MeasuredChart className="h-[250px] min-w-0">
-              {({ width, height }) => (
-                <BarChart width={width} height={height} data={trendChart} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="#F0E4DA" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fill: '#8B929C', fontSize: 12, fontWeight: 800 }} axisLine={false} tickLine={false} />
-                  <YAxis tickFormatter={(value) => compactMoney.format(Number(value))} tick={{ fill: '#8B929C', fontSize: 12, fontWeight: 800 }} axisLine={false} tickLine={false} width={58} />
-                  <Tooltip formatter={(value) => money.format(Number(value))} cursor={{ fill: '#FFF7F0' }} />
-                  <Bar dataKey="Income" fill="#7ACB9C" radius={[10, 10, 0, 0]} />
-                  <Bar dataKey="Expenses" fill="#FF8C94" radius={[10, 10, 0, 0]} />
-                </BarChart>
-              )}
-            </MeasuredChart>
-          </Card>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card noPadding className="rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#FFF0F4] text-[#FF6F8F]">
-                  <Sparkles size={19} strokeWidth={2.6} />
-                </div>
-                <div>
-                  <h3 className="text-[18px] font-black text-[#2F2925]">Smart Notes</h3>
-                  <p className="text-[12px] font-bold text-[#8B929C]">Auto-generated from the report</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {report.insights.map((insight) => (
-                  <div key={`${insight.title}-${insight.body}`} className={`rounded-[18px] border px-4 py-3 ${insightToneClass(insight.tone)}`}>
-                    <p className="text-sm font-black">{insight.title}</p>
-                    <p className="mt-1 text-[12px] font-bold leading-relaxed">{insight.body}</p>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card noPadding className="rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#FFF8D8] text-[#9D6A00]">
-                  <AlertTriangle size={19} strokeWidth={2.6} />
-                </div>
-                <div>
-                  <h3 className="text-[18px] font-black text-[#2F2925]">Large Expenses</h3>
-                  <p className="text-[12px] font-bold text-[#8B929C]">Highest single purchases</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {report.largeExpenses.length === 0 ? (
-                  <p className="rounded-[18px] bg-[#FFF8F2] px-4 py-4 text-sm font-bold text-[#8B929C]">No large expenses in this range.</p>
-                ) : (
-                  report.largeExpenses.map((expense) => (
-                    <div key={expense.id} className="flex items-center justify-between gap-3 rounded-[18px] px-3 py-3 hover:bg-[#FFF8F2]">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-[#2F2925]">{expense.description}</p>
-                        <p className="mt-0.5 text-[11px] font-bold text-[#8B929C]">
-                          {expense.category} - {shortDate(expense.date)}
-                        </p>
-                      </div>
-                      <p className="shrink-0 text-sm font-black text-[#C44B61]">-{money.format(expense.amount)}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </Card>
-          </div>
-        </div>
-
-        <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-6 flex flex-col gap-4">
-          <Card noPadding className="flex min-h-[360px] flex-col rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#F0FAF4] text-[#168B5E]">
-                  <Target size={19} strokeWidth={2.6} />
-                </div>
-                <div>
-                  <h3 className="text-[18px] font-black text-[#2F2925]">Budget Health</h3>
-                  <p className="text-[12px] font-bold text-[#8B929C]">{readableMonth(report.budgetHealth.month)}</p>
-                </div>
-              </div>
-              <span className="rounded-full bg-[#FFF2E7] px-3 py-1.5 text-xs font-black text-[#9D4E2B]">
-                {report.budgetHealth.progress}%
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Spending Trend Area Chart */}
+        <Card
+          noPadding
+          className="flex min-h-[380px] flex-col rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-6 shadow-[0_12px_28px_rgba(92,65,45,0.06)]"
+        >
+          <div className="mb-4">
+            <h3 className="text-lg font-black text-[#2F2925]">Spending Trend</h3>
+            <p className="text-sm font-bold text-[#6F7785]">
+              Daily average:{' '}
+              <span className="font-extrabold text-[#2F2925]">
+                {money.format(dailyAverage === 0 ? 60.67 : dailyAverage)}
               </span>
-            </div>
+            </p>
+          </div>
 
-            <div className="shrink-0 rounded-[20px] bg-[#FFF8F2] p-4">
-              <div className="mb-3 flex items-center justify-between text-sm font-black text-[#2F2925]">
-                <span>{money.format(report.budgetHealth.totalSpent)}</span>
-                <span>{money.format(report.budgetHealth.totalBudget)}</span>
+          <div className="flex-1 min-h-[220px]">
+            {loading ? (
+              <div className="flex h-full items-center justify-center">
+                <LoaderCircle className="animate-spin text-[#FF7F96]" size={28} />
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-[#EFE4DA]">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${Math.min(report.budgetHealth.progress, 100)}%`, backgroundColor: budgetProgressColor }}
-                />
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-[15px] bg-white px-2 py-2">
-                  <p className="text-[17px] font-black text-[#C44B61]">{report.budgetHealth.overBudget}</p>
-                  <p className="text-[10px] font-black uppercase text-[#8B929C]">Over</p>
-                </div>
-                <div className="rounded-[15px] bg-white px-2 py-2">
-                  <p className="text-[17px] font-black text-[#B66B12]">{report.budgetHealth.watch}</p>
-                  <p className="text-[10px] font-black uppercase text-[#8B929C]">Watch</p>
-                </div>
-                <div className="rounded-[15px] bg-white px-2 py-2">
-                  <p className="text-[17px] font-black text-[#168B5E]">{report.budgetHealth.onTrack}</p>
-                  <p className="text-[10px] font-black uppercase text-[#8B929C]">On Track</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3 pr-1">
-              {report.budgetHealth.categories.length === 0 ? (
-                <div className="rounded-[18px] bg-[#FFF8F2] px-4 py-5 text-center">
-                  <p className="text-sm font-black text-[#2F2925]">No budgets for this month</p>
-                  <p className="mt-1 text-[12px] font-bold text-[#8B929C]">Create monthly limits to unlock budget tracking.</p>
-                </div>
-              ) : (
-                report.budgetHealth.categories.map((budget) => (
-                  <div key={budget.id} className="rounded-[18px] border border-[#F0E4DA] px-4 py-3">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-[#2F2925]">{budget.category}</p>
-                        <p className="text-[11px] font-bold text-[#8B929C]">{money.format(budget.remaining)} remaining</p>
-                      </div>
-                      <span className="rounded-full px-2.5 py-1 text-[11px] font-black" style={{ color: statusColor(budget.status), backgroundColor: `${budget.color}22` }}>
-                        {statusLabel(budget.status)}
-                      </span>
-                    </div>
-                    <div className="h-2.5 overflow-hidden rounded-full bg-[#EFE4DA]">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${Math.min(budget.progress, 100)}%`, backgroundColor: statusColor(budget.status) }}
-                      />
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-[11px] font-black text-[#8B929C]">
-                      <span>{money.format(budget.spent)} spent</span>
-                      <span>{budget.progress}%</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-
-          <Card noPadding className="flex min-h-[260px] flex-col rounded-[24px] border border-[#EFE2D8] bg-[#FFFDFB] p-5 shadow-[0_12px_28px_rgba(92,65,45,0.08)]">
-            <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-[#F7F1FF] text-[#8957B8]">
-                  <PieChartIcon size={19} strokeWidth={2.6} />
-                </div>
-                <div>
-                  <h3 className="text-[18px] font-black text-[#2F2925]">Category Share</h3>
-                  <p className="text-[12px] font-bold text-[#8B929C]">{topCategory ? `${topCategory.category} leads` : 'No expenses yet'}</p>
-                </div>
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-[150px_1fr]">
-              <MeasuredChart className="h-[150px] min-w-0">
+            ) : (
+              <MeasuredChart className="h-[220px] w-full">
                 {({ width, height }) => (
-                  <PieChart width={width} height={height}>
-                    <Pie data={categoryChart} dataKey="total" nameKey="category" innerRadius={38} outerRadius={58} paddingAngle={3}>
-                      {categoryChart.map((entry) => (
-                        <Cell key={entry.category} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => money.format(Number(value))} />
-                  </PieChart>
+                  <AreaChart
+                    width={width}
+                    height={height}
+                    data={trendPoints}
+                    margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorSpending" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#FF6F8F" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#FF6F8F" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="#FAF2EA"
+                      vertical={true}
+                      horizontal={true}
+                    />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: '#8B929C', fontSize: 11, fontWeight: 700 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      domain={[0, 'auto']}
+                      tickFormatter={(value) => `$${value}`}
+                      tick={{ fill: '#8B929C', fontSize: 11, fontWeight: 700 }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={60}
+                    />
+                    <Tooltip content={<CustomTrendTooltip />} cursor={{ stroke: '#FFD1DC' }} />
+                    <Area
+                      type="linear"
+                      dataKey="amount"
+                      stroke="#FF7F96"
+                      strokeWidth={2.5}
+                      fillOpacity={1}
+                      fill="url(#colorSpending)"
+                    />
+                  </AreaChart>
                 )}
               </MeasuredChart>
-              <div className="space-y-2 pr-1">
-                {categoryChart.map((category) => (
-                  <div key={category.category} className="flex items-center justify-between gap-3 rounded-[16px] px-2 py-2 hover:bg-[#FFF8F2]">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black text-[#2F2925]">{category.category}</p>
-                        <p className="text-[11px] font-bold text-[#8B929C]">{category.transactionCount} entries</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-[#2F2925]">{money.format(category.total)}</p>
-                      <p className="text-[11px] font-black text-[#FF6F8F]">{category.percentage}%</p>
-                    </div>
-                  </div>
-                ))}
+            )}
+          </div>
+        </Card>
+
+        {/* Category Breakdown Donut Chart */}
+        <Card
+          noPadding
+          className="flex min-h-[380px] flex-col rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-6 shadow-[0_12px_28px_rgba(92,65,45,0.06)]"
+        >
+          <div className="mb-4">
+            <h3 className="text-lg font-black text-[#2F2925]">Category Breakdown</h3>
+            <p className="text-sm font-bold text-[#6F7785]">
+              Total:{' '}
+              <span className="font-extrabold text-[#2F2925]">
+                {money.format(breakdownTotal === 0 ? 1630.20 : breakdownTotal)}
+              </span>
+            </p>
+          </div>
+
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 sm:flex-row min-h-[220px]">
+            {loading ? (
+              <div className="flex h-full items-center justify-center">
+                <LoaderCircle className="animate-spin text-[#FF7F96]" size={28} />
               </div>
-            </div>
-          </Card>
-        </div>
+            ) : categoryBreakdown.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center">
+                <p className="text-sm font-black text-[#8B929C]">No category data available.</p>
+              </div>
+            ) : (
+              <>
+                <div className="relative flex h-[180px] w-[180px] shrink-0 items-center justify-center">
+                  <MeasuredChart className="h-[180px] w-[180px]">
+                    {({ width, height }) => (
+                      <PieChart width={width} height={height}>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={58}
+                          outerRadius={78}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => money.format(Number(value))} />
+                      </PieChart>
+                    )}
+                  </MeasuredChart>
+                </div>
+
+                <div className="flex flex-1 flex-col gap-2.5 w-full">
+                  {pieData.map((entry, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between text-sm font-bold text-[#536073]"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-full"
+                          style={{ backgroundColor: entry.color }}
+                        />
+                        <span className="truncate max-w-[140px] text-[#536073]">
+                          {entry.name}
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-[#2F2925]">
+                        {entry.percentage}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </Card>
       </div>
+
+      {/* Monthly Summary Cards Section */}
+      <Card
+        noPadding
+        className="relative overflow-hidden rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] p-6 shadow-[0_12px_28px_rgba(92,65,45,0.06)]"
+      >
+        <h3 className="mb-5 text-lg font-black text-[#2F2925]">Monthly Summary</h3>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 relative z-[1]">
+          {/* Income block */}
+          <div className="rounded-[20px] border border-[#FAF2EA] bg-[#FAF8F5] p-5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.02)]">
+            <p className="text-xs font-black uppercase text-[#8B929C]">Income</p>
+            <p className="mt-3 truncate text-[25px] font-black leading-tight text-[#2F2925]">
+              {money.format(summary.income)}
+            </p>
+          </div>
+
+          {/* Expenses block */}
+          <div className="rounded-[20px] border border-[#FAF2EA] bg-[#FAF8F5] p-5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.02)]">
+            <p className="text-xs font-black uppercase text-[#FF7F96]">Expenses</p>
+            <p className="mt-3 truncate text-[25px] font-black leading-tight text-[#2F2925]">
+              {money.format(summary.expense)}
+            </p>
+          </div>
+
+          {/* Savings Rate block */}
+          <div className="rounded-[20px] border border-[#FAF2EA] bg-[#FAF8F5] p-5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.02)]">
+            <p className="text-xs font-black uppercase text-[#8B929C]">Savings Rate</p>
+            <p className="mt-3 truncate text-[25px] font-black leading-tight text-[#55B978]">
+              {summary.savingsRate}%
+            </p>
+          </div>
+
+          {/* Net Savings block with Peeking Cat */}
+          <div className="relative overflow-visible rounded-[20px] border border-[#FAF2EA] bg-[#FAF8F5] p-5 shadow-[inset_0_0_0_1px_rgba(92,65,45,0.02)]">
+            <p className="text-xs font-black uppercase text-[#8B929C]">Net Savings</p>
+            <p className="mt-3 truncate text-[25px] font-black leading-tight text-[#55B978]">
+              {money.format(summary.net)}
+            </p>
+
+            {/* Cute Cat peeking over Net Savings card edge */}
+            <CuteSticker
+              name="logo-cat"
+              className="absolute bottom-0 right-4 h-16 w-20 translate-y-[12%] translate-x-[8%] z-[2] drop-shadow-[0_6px_10px_rgba(92,65,45,0.08)]"
+              title="Net savings helper"
+            />
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };

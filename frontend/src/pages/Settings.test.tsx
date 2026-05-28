@@ -63,42 +63,72 @@ describe('Settings', () => {
     });
   });
 
-  it('renders backend settings with profile and summary cards', async () => {
+  it('renders backend settings with profile and settings cards', async () => {
     render(<Settings />);
 
     expect(await screen.findByText('Mimi')).toBeInTheDocument();
     expect(screen.getByText('mimi@example.com')).toBeInTheDocument();
-    expect(screen.getAllByText('USD').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Day 1').length).toBeGreaterThan(0);
-    expect(screen.getByText('3/4')).toBeInTheDocument();
+    expect(screen.getByText('Preferences')).toBeInTheDocument();
+    expect(screen.getByText('Account & Security')).toBeInTheDocument();
+    expect(screen.getByText('Need Help?')).toBeInTheDocument();
   });
 
-  it('patches edited settings and updates the auth store profile name', async () => {
+  it('patches edited profile settings when editing is completed', async () => {
     const user = userEvent.setup();
     render(<Settings />);
 
-    const displayName = await screen.findByLabelText(/display name/i);
+    // Click Edit Profile button
+    const editBtn = await screen.findByRole('button', { name: /edit profile/i });
+    await user.click(editBtn);
+
+    // Modify Display Name
+    const displayName = screen.getByLabelText(/display name/i);
     await user.clear(displayName);
     await user.type(displayName, 'Mimi Ledger');
-    await user.click(screen.getByRole('button', { name: 'CNY Chinese Yuan' }));
-    await user.selectOptions(screen.getByLabelText(/month start day/i), '5');
-    await user.click(screen.getByRole('button', { name: /receipt reminders/i }));
-    await user.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Change Currency select
+    const currencySelect = screen.getByLabelText(/default currency/i);
+    await user.selectOptions(currencySelect, 'CNY');
+
+    // Click Save Profile button
+    const saveBtn = screen.getByRole('button', { name: /save profile/i });
+    await user.click(saveBtn);
 
     await waitFor(() => {
       expect(mockedApi.patch).toHaveBeenCalledWith('/settings', {
         displayName: 'Mimi Ledger',
         defaultCurrency: 'CNY',
-        monthStartDay: 5,
-        receiptReminders: false,
+        monthStartDay: 1,
+        receiptReminders: true,
         budgetAlerts: true,
         weeklyReport: false,
         aiAssistEnabled: true,
       });
     });
 
-    expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
+    expect(screen.queryByText('Settings saved.')).not.toBeInTheDocument();
     expect(useAuthStore.getState().user?.name).toBe('Mimi Ledger');
+  });
+
+  it('auto-saves toggled notification settings', async () => {
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    // Toggle Transaction Alerts (mapped to receiptReminders)
+    const transactionToggle = await screen.findByRole('button', { name: /transaction alerts/i });
+    await user.click(transactionToggle);
+
+    await waitFor(() => {
+      expect(mockedApi.patch).toHaveBeenCalledWith('/settings', {
+        displayName: 'Mimi',
+        defaultCurrency: 'USD',
+        monthStartDay: 1,
+        receiptReminders: false,
+        budgetAlerts: true,
+        weeklyReport: false,
+        aiAssistEnabled: true,
+      });
+    });
   });
 
   it('falls back to a local preview if settings cannot be loaded', async () => {
@@ -107,6 +137,6 @@ describe('Settings', () => {
 
     expect(await screen.findByText('Local Preview')).toBeInTheDocument();
     expect(screen.getByText('mimi@example.com')).toBeInTheDocument();
-    expect(screen.getByText('Control Shelf')).toBeInTheDocument();
+    expect(screen.getByText('Need Help?')).toBeInTheDocument();
   });
 });
