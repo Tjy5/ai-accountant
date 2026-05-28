@@ -1,8 +1,11 @@
 package com.aiaccountant.backend.exception;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,8 +18,14 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(ApiException.class)
-    public ResponseEntity<Map<String, Object>> handleApiException(ApiException ex) {
+    public ResponseEntity<Map<String, Object>> handleApiException(ApiException ex, HttpServletRequest request) {
+        if (ex.getStatus().is5xxServerError()) {
+            log.error("ApiException {} on {} {}: {}", ex.getStatus().value(),
+                request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("error", ex.getMessage());
         if (ex.getCode() != null) body.put("code", ex.getCode());
@@ -49,7 +58,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleUnexpected(Exception ex) {
+    public ResponseEntity<Map<String, Object>> handleUnexpected(Exception ex, HttpServletRequest request) {
+        log.error("Unhandled exception on {} {}", request.getMethod(), request.getRequestURI(), ex);
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "服务器内部错误", null);
     }
 
