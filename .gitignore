@@ -38,6 +38,7 @@ output/
 tmp/
 
 # Local tool/editor artifacts
+STARTUP.md
 .codex/
 .claude/
 .ace-tool/
