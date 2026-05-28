@@ -21,7 +21,8 @@ public interface AiProviderClient {
         String model,
         Duration timeout,
         int maxOutputTokens,
-        BigDecimal temperature
+        BigDecimal temperature,
+        AiJsonMode jsonMode
     ) {
     }
 

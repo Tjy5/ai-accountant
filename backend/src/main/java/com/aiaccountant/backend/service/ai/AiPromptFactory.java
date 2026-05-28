@@ -18,13 +18,21 @@ public class AiPromptFactory {
     }
 
     public List<Map<String, Object>> textMessages(AiRecognitionRequest request) {
+        return textMessages(request, AiJsonMode.JSON_SCHEMA_STRICT);
+    }
+
+    public List<Map<String, Object>> textMessages(AiRecognitionRequest request, AiJsonMode jsonMode) {
         return List.of(
-            message("system", systemPrompt(request)),
+            message("system", systemPrompt(request, jsonMode)),
             message("user", "Parse the following bookkeeping text into transaction drafts:\n\n" + nullToEmpty(request.text()))
         );
     }
 
     public List<Map<String, Object>> imageMessages(AiRecognitionRequest request) {
+        return imageMessages(request, AiJsonMode.JSON_SCHEMA_STRICT);
+    }
+
+    public List<Map<String, Object>> imageMessages(AiRecognitionRequest request, AiJsonMode jsonMode) {
         List<Map<String, Object>> content = new ArrayList<>();
         String hint = nullToEmpty(request.text());
         String filename = nullToEmpty(request.filename());
@@ -39,26 +47,35 @@ public class AiPromptFactory {
             "image_url", object("url", request.image())
         ));
         return List.of(
-            message("system", systemPrompt(request)),
+            message("system", systemPrompt(request, jsonMode)),
             object("role", "user", "content", content)
         );
     }
 
     public Map<String, Object> responseFormat() {
-        return object(
-            "type", "json_schema",
-            "json_schema", object(
-                "name", "bookkeeping_recognition",
-                "strict", true,
-                "schema", schema()
-            )
-        );
+        return responseFormat(AiJsonMode.JSON_SCHEMA_STRICT);
     }
 
-    private String systemPrompt(AiRecognitionRequest request) {
+    public Map<String, Object> responseFormat(AiJsonMode jsonMode) {
+        AiJsonMode mode = jsonMode == null ? AiJsonMode.JSON_SCHEMA_STRICT : jsonMode;
+        return switch (mode) {
+            case JSON_SCHEMA_STRICT -> object(
+                "type", "json_schema",
+                "json_schema", object(
+                    "name", "bookkeeping_recognition",
+                    "strict", true,
+                    "schema", schema()
+                )
+            );
+            case JSON_OBJECT -> object("type", "json_object");
+            case PROMPT_ONLY -> null;
+        };
+    }
+
+    private String systemPrompt(AiRecognitionRequest request, AiJsonMode jsonMode) {
         return """
             You are an AI bookkeeping parser for a personal finance application.
-            Return only JSON that matches the provided schema.
+            %s
 
             Rules:
             - Create transaction drafts only when an amount is present or visible.
@@ -75,7 +92,22 @@ public class AiPromptFactory {
             currentDate=%s
             defaultCurrency=%s
             allowedCategories=%s
-            """.formatted(request.currentDate(), request.defaultCurrency(), allowedCategoriesJson(request));
+            """.formatted(
+                jsonInstruction(jsonMode),
+                request.currentDate(),
+                request.defaultCurrency(),
+                allowedCategoriesJson(request)
+            );
+    }
+
+    private String jsonInstruction(AiJsonMode jsonMode) {
+        AiJsonMode mode = jsonMode == null ? AiJsonMode.JSON_SCHEMA_STRICT : jsonMode;
+        return switch (mode) {
+            case JSON_SCHEMA_STRICT -> "Return only JSON that matches the provided schema.";
+            case JSON_OBJECT, PROMPT_ONLY -> "Return exactly one JSON object with keys: "
+                + "intent, reply, needsClarification, clarificationQuestion, drafts, warnings, ignored. "
+                + "Do not wrap the JSON in markdown fences. Do not add prose before or after the JSON.";
+        };
     }
 
     private String allowedCategoriesJson(AiRecognitionRequest request) {

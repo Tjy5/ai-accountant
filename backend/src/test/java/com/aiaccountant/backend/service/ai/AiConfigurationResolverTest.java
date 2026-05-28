@@ -43,6 +43,25 @@ class AiConfigurationResolverTest {
     }
 
     @Test
+    void transientJsonModeOverrideBeatsResolvedMode() {
+        AppProperties properties = properties();
+
+        AiProviderConfig config = resolver(properties).resolveForTest(1L, Map.of("jsonMode", "prompt_only"));
+
+        assertEquals(AiJsonMode.PROMPT_ONLY, config.jsonMode());
+    }
+
+    @Test
+    void resolvedConfigIncludesDefaultJsonModeFromHeuristic() {
+        AppProperties properties = properties();
+        properties.getAi().setModel("qwen3.6-plus");
+
+        AiProviderConfig config = resolver(properties).resolveForTest(1L, Map.of());
+
+        assertEquals(AiJsonMode.PROMPT_ONLY, config.jsonMode());
+    }
+
+    @Test
     void disabledProviderThrowsControlledCode() {
         AppProperties properties = properties();
         properties.getAi().setEnabled(false);
@@ -83,7 +102,13 @@ class AiConfigurationResolverTest {
         UserSettingsMapper settingsMapper,
         ApiKeyCipherService cipher
     ) {
-        return new AiConfigurationResolver(properties, settingsMapper, cipher, new AiBaseUrlValidator(properties));
+        return new AiConfigurationResolver(
+            properties,
+            settingsMapper,
+            cipher,
+            new AiBaseUrlValidator(properties),
+            new AiResponseFormatStrategy(properties)
+        );
     }
 
     private AppProperties properties() {

@@ -19,17 +19,20 @@ public class AiConfigurationResolver {
     private final UserSettingsMapper settingsMapper;
     private final ApiKeyCipherService apiKeyCipherService;
     private final AiBaseUrlValidator baseUrlValidator;
+    private final AiResponseFormatStrategy responseFormatStrategy;
 
     public AiConfigurationResolver(
         AppProperties properties,
         UserSettingsMapper settingsMapper,
         ApiKeyCipherService apiKeyCipherService,
-        AiBaseUrlValidator baseUrlValidator
+        AiBaseUrlValidator baseUrlValidator,
+        AiResponseFormatStrategy responseFormatStrategy
     ) {
         this.properties = properties;
         this.settingsMapper = settingsMapper;
         this.apiKeyCipherService = apiKeyCipherService;
         this.baseUrlValidator = baseUrlValidator;
+        this.responseFormatStrategy = responseFormatStrategy;
     }
 
     public AiProviderConfig resolve(Long userId) {
@@ -80,6 +83,9 @@ public class AiConfigurationResolver {
         int maxOutputTokens = ai.getMaxOutputTokens() <= 0 ? 1200 : ai.getMaxOutputTokens();
         BigDecimal temperature = ai.getTemperature() == null ? BigDecimal.ZERO : ai.getTemperature();
 
+        String jsonModeOverride = RequestValues.trimToNull(RequestValues.first(overrides, "jsonMode", "json_mode"));
+        AiJsonMode jsonMode = responseFormatStrategy.resolve(baseUrl, model, jsonModeOverride);
+
         return new AiProviderConfig(
             userId,
             true,
@@ -88,7 +94,8 @@ public class AiConfigurationResolver {
             model,
             Duration.ofSeconds(timeoutSeconds),
             maxOutputTokens,
-            temperature
+            temperature,
+            jsonMode
         );
     }
 }

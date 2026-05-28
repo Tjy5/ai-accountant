@@ -38,6 +38,10 @@ app:
     api-key: ${AI_API_KEY:}
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}
     model: ${AI_MODEL:gpt-4o-mini}
+    json-mode: ${AI_JSON_MODE:auto}
+    # Optional per-model JSON mode overrides (auto / strict / json_object / prompt_only):
+    # model-json-modes:
+    #   qwen3.6-plus: prompt_only
     base-url-allowlist: ${AI_BASE_URL_ALLOWLIST:}
     encryption-key: ${AI_ENCRYPTION_KEY:}
     request-timeout-seconds: ${AI_REQUEST_TIMEOUT_SECONDS:25}
