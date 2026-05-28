@@ -83,11 +83,24 @@ class BackendJavaApiIntegrationTest {
                 .header("Authorization", auth)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("drafts", List.of(
-                    Map.of("confirmed", true, "type", "expense", "category", "餐饮", "amount", 30, "description", "lunch", "date", "2026-01-10"),
+                    Map.of(
+                        "confirmed", true,
+                        "type", "expense",
+                        "category", "餐饮",
+                        "amount", 30,
+                        "currency", "CNY",
+                        "description", "lunch",
+                        "merchant", "Codex Cafe",
+                        "sourceText", "Codex Cafe lunch 30 CNY",
+                        "date", "2026-01-10"
+                    ),
                     Map.of("confirmed", true, "type", "income", "category", "工资", "amount", 1000, "description", "salary", "date", "2026-01-11")
                 )))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.transactions", hasSize(2)))
+            .andExpect(jsonPath("$.transactions[0].currency", is("CNY")))
+            .andExpect(jsonPath("$.transactions[0].merchant", is("Codex Cafe")))
+            .andExpect(jsonPath("$.transactions[0].sourceText", is("Codex Cafe lunch 30 CNY")))
             .andExpect(jsonPath("$.count", is(2)));
 
         mvc.perform(get("/api/dashboard/summary?startDate=2026-01-01&endDate=2026-01-31").header("Authorization", auth))

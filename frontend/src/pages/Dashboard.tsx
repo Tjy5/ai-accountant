@@ -846,6 +846,15 @@ export const Dashboard = () => {
                           />
                         </div>
 
+                        <input
+                          type="text"
+                          value={editForm.currency ?? ''}
+                          onChange={e => setEditForm({...editForm, currency: e.target.value.toUpperCase()})}
+                          className="text-xs text-[#4E3629] font-bold border-2 border-[#4E3629] rounded-md p-1 w-full bg-white"
+                          placeholder="Currency"
+                          maxLength={8}
+                        />
+
                         <div className="flex justify-end gap-2 mt-1">
                           <button
                             onClick={() => setEditingId(null)}
@@ -900,7 +909,9 @@ export const Dashboard = () => {
                         <div className="flex justify-between items-end mt-4">
                           <div>
                             <p className="text-[10px] text-[#4E3629]/60 font-bold">{draft.date}</p>
-                            <p className="font-black text-lg mt-0.5">{money.format(draft.amount)}</p>
+                            <p className="font-black text-lg mt-0.5">
+                              {draft.currency ? `${draft.currency} ${draft.amount.toFixed(2)}` : money.format(draft.amount)}
+                            </p>
                           </div>
 
                           <button
