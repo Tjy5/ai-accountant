@@ -2,7 +2,9 @@ package com.aiaccountant.backend.service;
 
 import com.aiaccountant.backend.config.AppProperties;
 import com.aiaccountant.backend.entity.Category;
+import com.aiaccountant.backend.entity.UserSettings;
 import com.aiaccountant.backend.exception.ApiException;
+import com.aiaccountant.backend.mapper.UserSettingsMapper;
 import com.aiaccountant.backend.service.ai.AiConfigurationResolver;
 import com.aiaccountant.backend.service.ai.AiProviderClient;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiProviderConfig;
@@ -37,6 +39,7 @@ public class AiBookkeepingService {
     private final AiProviderClient aiProviderClient;
     private final AiRecognitionNormalizer aiRecognitionNormalizer;
     private final TransactionService transactionService;
+    private final UserSettingsMapper userSettingsMapper;
 
     public AiBookkeepingService(
         AppProperties properties,
@@ -44,7 +47,8 @@ public class AiBookkeepingService {
         AiConfigurationResolver aiConfigurationResolver,
         AiProviderClient aiProviderClient,
         AiRecognitionNormalizer aiRecognitionNormalizer,
-        TransactionService transactionService
+        TransactionService transactionService,
+        UserSettingsMapper userSettingsMapper
     ) {
         this.properties = properties;
         this.categoryService = categoryService;
@@ -52,6 +56,7 @@ public class AiBookkeepingService {
         this.aiProviderClient = aiProviderClient;
         this.aiRecognitionNormalizer = aiRecognitionNormalizer;
         this.transactionService = transactionService;
+        this.userSettingsMapper = userSettingsMapper;
     }
 
     public Map<String, Object> analyze(Long userId, Map<String, Object> body) {
@@ -111,8 +116,14 @@ public class AiBookkeepingService {
             filename,
             categories,
             LocalDate.now().toString(),
-            "USD"
+            defaultCurrency(userId)
         );
+    }
+
+    private String defaultCurrency(Long userId) {
+        UserSettings settings = userSettingsMapper.findActiveByUserId(userId);
+        String currency = settings == null ? null : RequestValues.trimToNull(settings.getDefaultCurrency());
+        return currency == null ? "USD" : currency;
     }
 
     private void requireAiEnabled() {
