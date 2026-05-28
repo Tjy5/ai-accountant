@@ -1,5 +1,7 @@
 package com.aiaccountant.backend.service.ai;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionRequest;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -9,6 +11,12 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AiPromptFactory {
+    private final ObjectMapper objectMapper;
+
+    public AiPromptFactory(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
     public List<Map<String, Object>> textMessages(AiRecognitionRequest request) {
         return List.of(
             message("system", systemPrompt(request)),
@@ -67,7 +75,15 @@ public class AiPromptFactory {
             currentDate=%s
             defaultCurrency=%s
             allowedCategories=%s
-            """.formatted(request.currentDate(), request.defaultCurrency(), request.categories());
+            """.formatted(request.currentDate(), request.defaultCurrency(), allowedCategoriesJson(request));
+    }
+
+    private String allowedCategoriesJson(AiRecognitionRequest request) {
+        try {
+            return objectMapper.writeValueAsString(request.categories() == null ? List.of() : request.categories());
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Could not serialize AI categories", ex);
+        }
     }
 
     private Map<String, Object> schema() {
