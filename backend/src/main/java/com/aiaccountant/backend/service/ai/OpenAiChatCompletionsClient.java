@@ -1,6 +1,7 @@
 package com.aiaccountant.backend.service.ai;
 
 import com.aiaccountant.backend.exception.ApiException;
+import com.aiaccountant.backend.entity.AiCallLog;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiConnectionTestResult;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiProviderConfig;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionRequest;
@@ -24,32 +25,34 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
     private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
     private final AiPromptFactory promptFactory;
+    private final AiCallLogService callLogService;
 
     public OpenAiChatCompletionsClient(
         WebClient.Builder webClientBuilder,
         ObjectMapper objectMapper,
-        AiPromptFactory promptFactory
+        AiPromptFactory promptFactory,
+        AiCallLogService callLogService
     ) {
         this.webClientBuilder = webClientBuilder;
         this.objectMapper = objectMapper;
         this.promptFactory = promptFactory;
+        this.callLogService = callLogService;
     }
 
     @Override
     public AiRecognitionResult recognizeText(AiProviderConfig config, AiRecognitionRequest request) {
         Map<String, Object> payload = recognitionPayload(config, promptFactory.textMessages(request));
-        return parseRecognition(send(config, payload));
+        return callProvider(config, request.userId(), "analyze_text", payload, response -> parseRecognition(response));
     }
 
     @Override
     public AiRecognitionResult recognizeImage(AiProviderConfig config, AiRecognitionRequest request) {
         Map<String, Object> payload = recognitionPayload(config, promptFactory.imageMessages(request));
-        return parseRecognition(send(config, payload));
+        return callProvider(config, request.userId(), "analyze_image", payload, response -> parseRecognition(response));
     }
 
     @Override
     public AiConnectionTestResult test(AiProviderConfig config) {
-        long started = Instant.now().toEpochMilli();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", config.model());
         payload.put("temperature", 0);
@@ -58,7 +61,8 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
             Map.of("role", "system", "content", "Return the word ok."),
             Map.of("role", "user", "content", "ping")
         ));
-        send(config, payload);
+        long started = Instant.now().toEpochMilli();
+        callProvider(config, config.userId(), "test_connection", payload, response -> response);
         return new AiConnectionTestResult(
             true,
             config.model(),
@@ -76,6 +80,29 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
         payload.put("response_format", promptFactory.responseFormat());
         payload.put("messages", messages);
         return payload;
+    }
+
+    private <T> T callProvider(
+        AiProviderConfig config,
+        Long userId,
+        String operation,
+        Map<String, Object> payload,
+        ResponseHandler<T> handler
+    ) {
+        long started = Instant.now().toEpochMilli();
+        Map<String, Object> response = null;
+        try {
+            response = send(config, payload);
+            T result = handler.handle(response);
+            recordCall(config, userId, operation, response, started, true, null);
+            return result;
+        } catch (ApiException ex) {
+            recordCall(config, userId, operation, response, started, false, ex.getCode());
+            throw ex;
+        } catch (RuntimeException ex) {
+            recordCall(config, userId, operation, response, started, false, "AI_PROVIDER_UNAVAILABLE");
+            throw ex;
+        }
     }
 
     private Map<String, Object> send(AiProviderConfig config, Map<String, Object> payload) {
@@ -162,6 +189,40 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
         return new ApiException(status == null ? HttpStatus.BAD_GATEWAY : HttpStatus.BAD_GATEWAY, "AI provider is unavailable", "AI_PROVIDER_UNAVAILABLE");
     }
 
+    private void recordCall(
+        AiProviderConfig config,
+        Long userId,
+        String operation,
+        Map<String, Object> response,
+        long started,
+        boolean success,
+        String errorCode
+    ) {
+        AiCallLog entry = new AiCallLog();
+        entry.setUserId(userId);
+        entry.setOperation(operation);
+        entry.setModel(config.model());
+        entry.setBaseUrl(config.baseUrl());
+        entry.setLatencyMs(latencyMs(started));
+        entry.setSuccess(success);
+        entry.setErrorCode(errorCode);
+
+        Map<String, Object> usage = map(response == null ? null : response.get("usage"));
+        if (usage != null) {
+            entry.setPromptTokens(integer(usage.get("prompt_tokens")));
+            entry.setCompletionTokens(integer(usage.get("completion_tokens")));
+            entry.setTotalTokens(integer(usage.get("total_tokens")));
+        }
+
+        callLogService.record(entry);
+    }
+
+    private int latencyMs(long started) {
+        long elapsed = Instant.now().toEpochMilli() - started;
+        if (elapsed < 0) return 0;
+        return elapsed > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) elapsed;
+    }
+
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> listOfMaps(Object value) {
         if (!(value instanceof List<?> list)) return List.of();
@@ -184,5 +245,26 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
         if (value instanceof Boolean b) return b;
         if (value instanceof Number n) return n.intValue() != 0;
         return "true".equalsIgnoreCase(String.valueOf(value));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> map(Object value) {
+        return value instanceof Map<?, ?> raw ? (Map<String, Object>) raw : null;
+    }
+
+    private Integer integer(Object value) {
+        if (value instanceof Number n) return n.intValue();
+        if (value instanceof String s) {
+            try {
+                return Integer.parseInt(s);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return null;
+    }
+
+    @FunctionalInterface
+    private interface ResponseHandler<T> {
+        T handle(Map<String, Object> response);
     }
 }

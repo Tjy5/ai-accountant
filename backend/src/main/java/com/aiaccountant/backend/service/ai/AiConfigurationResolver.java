@@ -81,6 +81,7 @@ public class AiConfigurationResolver {
         BigDecimal temperature = ai.getTemperature() == null ? BigDecimal.ZERO : ai.getTemperature();
 
         return new AiProviderConfig(
+            userId,
             true,
             apiKey,
             baseUrl,

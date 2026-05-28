@@ -30,6 +30,22 @@ CREATE TABLE IF NOT EXISTS user_settings (
   UNIQUE KEY uk_user_settings_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ai_call_log (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  operation VARCHAR(32) NOT NULL,
+  model VARCHAR(100),
+  base_url VARCHAR(255),
+  prompt_tokens INT,
+  completion_tokens INT,
+  total_tokens INT,
+  latency_ms INT,
+  success TINYINT NOT NULL,
+  error_code VARCHAR(64),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_ai_call_log_user_created (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS categories (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
