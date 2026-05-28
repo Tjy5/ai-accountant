@@ -14,6 +14,7 @@ public interface AiProviderClient {
     AiConnectionTestResult test(AiProviderConfig config);
 
     record AiProviderConfig(
+        Long userId,
         boolean enabled,
         String apiKey,
         String baseUrl,

@@ -40,6 +40,7 @@ class AiBookkeepingServiceTest {
         when(categoryService.listInternal(7L)).thenReturn(List.of());
         when(settingsMapper.findActiveByUserId(7L)).thenReturn(settings);
         when(resolver.resolve(7L)).thenReturn(new AiProviderConfig(
+            7L,
             true,
             "user-key",
             "https://api.openai.com/v1",
@@ -94,6 +95,7 @@ class AiBookkeepingServiceTest {
         settings.setDefaultCurrency("USD");
 
         AiProviderConfig userConfig = new AiProviderConfig(
+            7L,
             true,
             "user-key",
             "https://api.openai.com/v1",
