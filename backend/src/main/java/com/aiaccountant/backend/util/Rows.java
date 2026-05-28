@@ -32,6 +32,10 @@ public final class Rows {
         out.put("budget_alerts", settings.getBudgetAlerts());
         out.put("weekly_report", settings.getWeeklyReport());
         out.put("ai_assist_enabled", settings.getAiAssistEnabled());
+        out.put("ai_api_key_configured", settings.getAiApiKeyEncrypted() != null);
+        out.put("ai_api_key_preview", settings.getAiApiKeyLast4() == null ? null : "****" + settings.getAiApiKeyLast4());
+        out.put("ai_base_url", settings.getAiBaseUrl());
+        out.put("ai_model", settings.getAiModel());
         return out;
     }
 

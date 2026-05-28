@@ -838,6 +838,34 @@ class BackendJavaApiIntegrationTest {
     }
 
     @Test
+    void aiProviderSettingsCanSavePersonalKeyWithoutEncryptionKey() throws Exception {
+        String auth = "Bearer " + register("plain.ai.settings@example.com");
+        String originalEncryptionKey = properties.getAi().getEncryptionKey();
+        try {
+            properties.getAi().setEncryptionKey("");
+
+            mvc.perform(patch("/api/settings/ai")
+                    .header("Authorization", auth)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json(Map.of("apiKey", "plain-local-api-key-1234"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.apiKeyConfigured", is(true)))
+                .andExpect(jsonPath("$.apiKeyPreview", is("****1234")))
+                .andExpect(jsonPath("$.usesUserApiKey", is(true)))
+                .andExpect(jsonPath("$.encryptionConfigured", is(false)));
+
+            mvc.perform(get("/api/settings/ai").header("Authorization", auth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.apiKeyConfigured", is(true)))
+                .andExpect(jsonPath("$.apiKeyPreview", is("****1234")))
+                .andExpect(jsonPath("$.usesUserApiKey", is(true)))
+                .andExpect(jsonPath("$.encryptionConfigured", is(false)));
+        } finally {
+            properties.getAi().setEncryptionKey(originalEncryptionKey);
+        }
+    }
+
+    @Test
     void aiProviderAndInputValidationReturnControlledJsonErrors() throws Exception {
         String auth = "Bearer " + register("validation.errors@example.com");
         String originalApiKey = properties.getAi().getApiKey();
@@ -847,10 +875,9 @@ class BackendJavaApiIntegrationTest {
                     .header("Authorization", auth)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(json(Map.of("text", "午餐 30"))))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error", is("AI provider is not configured")))
-                .andExpect(jsonPath("$.code", is("AI_PROVIDER_NOT_CONFIGURED")))
-                .andExpect(jsonPath("$.error", not(containsString("test-api-key"))));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.warnings[0]", containsString("AI provider is not configured")))
+                .andExpect(jsonPath("$.warnings[0]", not(containsString("test-api-key"))));
         } finally {
             properties.getAi().setApiKey(originalApiKey);
         }

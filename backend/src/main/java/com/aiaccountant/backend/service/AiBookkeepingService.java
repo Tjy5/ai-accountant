@@ -3,7 +3,12 @@ package com.aiaccountant.backend.service;
 import com.aiaccountant.backend.config.AppProperties;
 import com.aiaccountant.backend.entity.Category;
 import com.aiaccountant.backend.exception.ApiException;
-import com.aiaccountant.backend.util.AiBaseUrlValidator;
+import com.aiaccountant.backend.service.ai.AiConfigurationResolver;
+import com.aiaccountant.backend.service.ai.AiProviderClient;
+import com.aiaccountant.backend.service.ai.AiProviderClient.AiProviderConfig;
+import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionRequest;
+import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionResult;
+import com.aiaccountant.backend.service.ai.AiRecognitionNormalizer;
 import com.aiaccountant.backend.util.RequestValues;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,28 +32,100 @@ public class AiBookkeepingService {
     private static final Set<String> IMAGE_MIME_TYPES = Set.of("image/png", "image/jpeg", "image/jpg", "image/webp");
 
     private final AppProperties properties;
-    private final AiBaseUrlValidator baseUrlValidator;
     private final CategoryService categoryService;
+    private final AiConfigurationResolver aiConfigurationResolver;
+    private final AiProviderClient aiProviderClient;
+    private final AiRecognitionNormalizer aiRecognitionNormalizer;
     private final TransactionService transactionService;
 
     public AiBookkeepingService(
         AppProperties properties,
-        AiBaseUrlValidator baseUrlValidator,
         CategoryService categoryService,
+        AiConfigurationResolver aiConfigurationResolver,
+        AiProviderClient aiProviderClient,
+        AiRecognitionNormalizer aiRecognitionNormalizer,
         TransactionService transactionService
     ) {
         this.properties = properties;
-        this.baseUrlValidator = baseUrlValidator;
         this.categoryService = categoryService;
+        this.aiConfigurationResolver = aiConfigurationResolver;
+        this.aiProviderClient = aiProviderClient;
+        this.aiRecognitionNormalizer = aiRecognitionNormalizer;
         this.transactionService = transactionService;
     }
 
     public Map<String, Object> analyze(Long userId, Map<String, Object> body) {
-        requireProviderConfigured();
+        requireAiEnabled();
         String text = RequestValues.trimToNull(body == null ? null : body.get("text"));
         if (text == null) throw new ApiException(HttpStatus.BAD_REQUEST, "text is required");
         if (text.length() > MAX_TEXT) throw new ApiException(HttpStatus.BAD_REQUEST, "text is too long");
 
+        try {
+            AiProviderConfig config = aiConfigurationResolver.resolve(userId);
+            AiRecognitionResult raw = aiProviderClient.recognizeText(config, request(userId, text, null, null));
+            return aiRecognitionNormalizer.normalize(userId, raw).toMap();
+        } catch (ApiException ex) {
+            if (!fallbackAllowed(ex)) throw ex;
+            return localFallback(userId, text, "AI provider failed; local deterministic parsing was used: " + ex.getMessage());
+        }
+    }
+
+    public Map<String, Object> analyzeImage(Long userId, Map<String, Object> body) {
+        requireAiEnabled();
+        NormalizedImage image = normalizeImagePayload(body == null ? null : body.get("image"));
+        String textHint = RequestValues.trimToNull(RequestValues.first(body, "text", "ocrText", "description"));
+        String filename = RequestValues.trimToNull(RequestValues.first(body, "filename", "fileName"));
+
+        try {
+            AiProviderConfig config = aiConfigurationResolver.resolve(userId);
+            AiRecognitionResult raw = aiProviderClient.recognizeImage(config, request(userId, textHint, image.dataUri(), filename));
+            return aiRecognitionNormalizer.normalize(userId, raw).toMap();
+        } catch (ApiException ex) {
+            if (!fallbackAllowed(ex)) throw ex;
+            if (textHint != null) {
+                return localFallback(userId, textHint, "AI vision provider failed; local text fallback was used: " + ex.getMessage());
+            }
+            return recognitionResponse(
+                "Image input was accepted but AI vision recognition failed.",
+                List.of(),
+                true,
+                "Please enter the amount and purpose from the receipt, or configure a working AI provider in Settings.",
+                List.of("AI vision provider failed and no OCR text fallback was available: " + ex.getMessage())
+            );
+        }
+    }
+
+    public Map<String, Object> commit(Long userId, Map<String, Object> body) {
+        return transactionService.commitRecognizedDrafts(userId, body);
+    }
+
+    private AiRecognitionRequest request(Long userId, String text, String image, String filename) {
+        List<String> categories = categoryService.listInternal(userId).stream()
+            .map(Category::getName)
+            .filter(name -> name != null && !name.isBlank())
+            .toList();
+        return new AiRecognitionRequest(
+            userId,
+            text,
+            image,
+            filename,
+            categories,
+            LocalDate.now().toString(),
+            "USD"
+        );
+    }
+
+    private void requireAiEnabled() {
+        if (!properties.getAi().isEnabled()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "AI provider is disabled", "AI_PROVIDER_DISABLED");
+        }
+    }
+
+    private boolean fallbackAllowed(ApiException ex) {
+        return !"AI_PROVIDER_DISABLED".equals(ex.getCode());
+    }
+
+    private Map<String, Object> localFallback(Long userId, String text, String warning) {
         List<Map<String, Object>> drafts = extractSimpleDrafts(userId, text);
         boolean needsClarification = drafts.isEmpty();
         return recognitionResponse(
@@ -57,42 +134,9 @@ public class AiBookkeepingService {
             needsClarification,
             needsClarification ? "Please include an amount and purpose, for example: lunch 30." : null,
             needsClarification
-                ? List.of("The input did not contain enough information to create a transaction draft.")
-                : List.of("Provider configuration is present; local deterministic parsing produced the draft structure.")
+                ? List.of(warning, "The fallback parser did not contain enough information to create a transaction draft.")
+                : List.of(warning)
         );
-    }
-
-    public Map<String, Object> analyzeImage(Long userId, Map<String, Object> body) {
-        requireProviderConfigured();
-        normalizeImagePayload(body == null ? null : body.get("image"));
-        String textHint = RequestValues.trimToNull(RequestValues.first(body, "text", "ocrText", "description"));
-        List<Map<String, Object>> drafts = textHint == null ? List.of() : extractSimpleDrafts(userId, textHint);
-        boolean needsClarification = drafts.isEmpty();
-        return recognitionResponse(
-            needsClarification ? "Image input was accepted but no complete draft was recognized." : "Recognized " + drafts.size() + " bookkeeping draft(s) from image context.",
-            drafts,
-            needsClarification,
-            needsClarification ? "Please confirm the amount, category, and date from the image." : null,
-            needsClarification
-                ? List.of("Image validation passed; no local OCR text was available for deterministic draft extraction.")
-                : List.of("Image validation passed; supplied OCR context was converted to draft structure.")
-        );
-    }
-
-    public Map<String, Object> commit(Long userId, Map<String, Object> body) {
-        return transactionService.commitRecognizedDrafts(userId, body);
-    }
-
-    private void requireProviderConfigured() {
-        AppProperties.Ai ai = properties.getAi();
-        if (!ai.isEnabled()) throw new ApiException(HttpStatus.BAD_REQUEST, "AI provider is disabled", "AI_PROVIDER_DISABLED");
-        if (RequestValues.trimToNull(ai.getApiKey()) == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AI provider is not configured", "AI_PROVIDER_NOT_CONFIGURED");
-        }
-        baseUrlValidator.normalize(ai.getBaseUrl());
-        if (RequestValues.trimToNull(ai.getModel()) == null) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "AI model is not configured", "AI_MODEL_NOT_CONFIGURED");
-        }
     }
 
     private List<Map<String, Object>> extractSimpleDrafts(Long userId, String text) {
@@ -133,7 +177,7 @@ public class AiBookkeepingService {
         return "expense";
     }
 
-    private String normalizeImagePayload(Object raw) {
+    private NormalizedImage normalizeImagePayload(Object raw) {
         String image = RequestValues.trimToNull(raw);
         if (image == null) throw new ApiException(HttpStatus.BAD_REQUEST, "image is required");
         String base64 = image;
@@ -152,7 +196,8 @@ public class AiBookkeepingService {
         } catch (IllegalArgumentException ex) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "image must be valid base64");
         }
-        return base64;
+        String dataUri = image.startsWith("data:") ? image : "data:image/png;base64," + base64;
+        return new NormalizedImage(dataUri, base64);
     }
 
     private Map<String, Object> recognitionResponse(
@@ -174,5 +219,8 @@ public class AiBookkeepingService {
         out.put("ignored", List.of());
         out.put("timestamp", System.currentTimeMillis());
         return out;
+    }
+
+    private record NormalizedImage(String dataUri, String base64) {
     }
 }

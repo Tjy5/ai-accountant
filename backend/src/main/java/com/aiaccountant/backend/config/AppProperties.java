@@ -1,5 +1,7 @@
 package com.aiaccountant.backend.config;
 
+import java.math.BigDecimal;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
@@ -59,6 +61,10 @@ public class AppProperties {
         private String baseUrl = "https://api.openai.com/v1";
         private String model = "gpt-4o-mini";
         private String baseUrlAllowlist = "";
+        private String encryptionKey = "";
+        private int requestTimeoutSeconds = 25;
+        private int maxOutputTokens = 1200;
+        private BigDecimal temperature = BigDecimal.ZERO;
 
         public boolean isEnabled() {
             return enabled;
@@ -98,6 +104,38 @@ public class AppProperties {
 
         public void setBaseUrlAllowlist(String baseUrlAllowlist) {
             this.baseUrlAllowlist = baseUrlAllowlist;
+        }
+
+        public String getEncryptionKey() {
+            return encryptionKey;
+        }
+
+        public void setEncryptionKey(String encryptionKey) {
+            this.encryptionKey = encryptionKey;
+        }
+
+        public int getRequestTimeoutSeconds() {
+            return requestTimeoutSeconds;
+        }
+
+        public void setRequestTimeoutSeconds(int requestTimeoutSeconds) {
+            this.requestTimeoutSeconds = requestTimeoutSeconds;
+        }
+
+        public int getMaxOutputTokens() {
+            return maxOutputTokens;
+        }
+
+        public void setMaxOutputTokens(int maxOutputTokens) {
+            this.maxOutputTokens = maxOutputTokens;
+        }
+
+        public BigDecimal getTemperature() {
+            return temperature;
+        }
+
+        public void setTemperature(BigDecimal temperature) {
+            this.temperature = temperature;
         }
     }
 }

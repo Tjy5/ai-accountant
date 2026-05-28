@@ -182,8 +182,8 @@ public class TransactionService {
     private Transaction normalizeTransaction(Long userId, Map<String, Object> body, boolean resolveCategory) {
         if (body == null) throw new ApiException(HttpStatus.BAD_REQUEST, "draft is invalid");
         Object confirmed = RequestValues.first(body, "confirmed", "isConfirmed");
-        if (confirmed != null && !RequestValues.bool(confirmed)) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "draft must be confirmed before commit");
+        if (resolveCategory && !RequestValues.bool(confirmed)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "draft must be confirmed before commit", "DRAFT_CONFIRMATION_REQUIRED");
         }
 
         String type = RequestValues.trimToNull(RequestValues.first(body, "type"));

@@ -39,3 +39,7 @@ app:
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}
     model: ${AI_MODEL:gpt-4o-mini}
     base-url-allowlist: ${AI_BASE_URL_ALLOWLIST:}
+    encryption-key: ${AI_ENCRYPTION_KEY:}
+    request-timeout-seconds: ${AI_REQUEST_TIMEOUT_SECONDS:25}
+    max-output-tokens: ${AI_MAX_OUTPUT_TOKENS:1200}
+    temperature: ${AI_TEMPERATURE:0}
