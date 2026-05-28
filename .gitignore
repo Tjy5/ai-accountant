@@ -43,6 +43,7 @@ STARTUP.md
 .claude/
 .ace-tool/
 .agent/
+.agents/
 frontend-design/
 openspec/
 *.code-workspace
