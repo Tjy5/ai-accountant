@@ -28,7 +28,9 @@ final class PresentationOptions {
         "wallet",
         "target",
         "heart-handshake",
-        "more-horizontal"
+        "more-horizontal",
+        "car",
+        "shield"
     );
 
     static final Set<String> COLORS = Set.of(

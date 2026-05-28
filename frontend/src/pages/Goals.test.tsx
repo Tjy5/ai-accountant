@@ -96,31 +96,32 @@ describe('Goals', () => {
   it('renders backend goals with summary and progress', async () => {
     render(<Goals />);
 
+    expect(await screen.findByText('Goals Overview')).toBeInTheDocument();
     expect((await screen.findAllByText('Japan Trip')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Emergency Fund').length).toBeGreaterThan(0);
     expect(screen.getByText('$3,400.00')).toBeInTheDocument();
     expect(screen.getByText('$1,900.00')).toBeInTheDocument();
-    expect(screen.getAllByText('$1,500.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('56%').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('80 days left').length).toBeGreaterThan(0);
+    expect(screen.getByText('Flights and hotels')).toBeInTheDocument();
+    expect(screen.getByText('Three months of basics')).toBeInTheDocument();
+    expect(screen.getByLabelText(/sort by/i)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(mockedApi.get).toHaveBeenCalledWith('/goals', { params: {} });
     });
   });
 
-  it('filters goals by status and search query', async () => {
+  it('searches goals from the header control', async () => {
     const user = userEvent.setup();
     render(<Goals />);
 
     await screen.findAllByText('Japan Trip');
-    await user.selectOptions(screen.getByLabelText(/goal status/i), 'completed');
+    await user.click(screen.getByRole('button', { name: /toggle search/i }));
     await user.type(screen.getByLabelText(/search goals/i), 'Emergency');
 
     await waitFor(() => {
       expect(mockedApi.get).toHaveBeenLastCalledWith('/goals', {
         params: {
-          status: 'completed',
           search: 'Emergency',
         },
       });
@@ -162,9 +163,10 @@ describe('Goals', () => {
 
     render(<Goals />);
 
-    expect(await screen.findByText('Local Preview')).toBeInTheDocument();
-    expect(screen.getByText('Goals')).toBeInTheDocument();
-    expect(screen.getByText('Goal Buddy')).toBeInTheDocument();
+    expect(await screen.findByText('Goals Overview')).toBeInTheDocument();
     expect(screen.getAllByText('Japan Trip').length).toBeGreaterThan(0);
+    expect(screen.getByText('Emergency Fund')).toBeInTheDocument();
+    expect(screen.getByText('Design Course')).toBeInTheDocument();
+    expect(screen.getByText(/Consistent saving today/)).toBeInTheDocument();
   });
 });

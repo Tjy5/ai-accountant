@@ -14,7 +14,7 @@ import sprout from '../assets/kawaii/ui-sprout.png';
 import moneyBag from '../assets/kawaii/ui-money-bag.png';
 import shoppingBag from '../assets/kawaii/ui-shopping-bag.png';
 import piggyBank from '../assets/kawaii/ui-piggy-bank.png';
-import avatar from '../assets/kawaii/ui-user-avatar.png';
+import avatar from '../assets/sarah_avatar.png';
 
 type StickerName =
   | 'logo-cat'
