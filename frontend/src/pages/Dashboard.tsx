@@ -200,7 +200,13 @@ export const Dashboard = () => {
     if (nextDrafts.length > 0) {
       addDrafts(nextDrafts);
       setDraftDrawerDismissed(false);
+      return;
     }
+    setDraftError(
+      response.clarificationQuestion
+      || response.reply
+      || 'No bookkeeping draft was recognized. Try including an amount and purpose, e.g. "Lunch 30".'
+    );
   };
 
   const handleAnalyzeText = async (text: string) => {
@@ -749,7 +755,14 @@ export const Dashboard = () => {
       </div>
 
       {drawerOpen && (
-        <div className="fixed inset-0 bg-[#4E3629]/20 z-50 flex items-end justify-center backdrop-blur-xs transition-opacity">
+        <div
+          className="fixed inset-0 bg-[#4E3629]/20 z-50 flex items-end justify-center backdrop-blur-xs transition-opacity"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setDraftDrawerDismissed(true);
+            }
+          }}
+        >
           <div className="w-full max-w-[1100px] bg-[#FAF8F5] border-t border-x border-[#EFE2D8] rounded-t-[32px] p-6 shadow-2xl animate-slide-up flex flex-col gap-5 max-h-[80vh] overflow-y-auto">
 
             <div className="flex items-center justify-between border-b border-[#4E3629]/10 pb-4">
