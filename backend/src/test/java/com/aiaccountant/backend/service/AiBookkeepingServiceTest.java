@@ -11,6 +11,7 @@ import com.aiaccountant.backend.config.AppProperties;
 import com.aiaccountant.backend.entity.UserSettings;
 import com.aiaccountant.backend.mapper.UserSettingsMapper;
 import com.aiaccountant.backend.service.ai.AiConfigurationResolver;
+import com.aiaccountant.backend.service.ai.AiJsonMode;
 import com.aiaccountant.backend.service.ai.AiProviderClient;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiProviderConfig;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionRequest;
@@ -47,7 +48,8 @@ class AiBookkeepingServiceTest {
             "gpt-test",
             Duration.ofSeconds(5),
             1200,
-            BigDecimal.ZERO
+            BigDecimal.ZERO,
+            AiJsonMode.JSON_SCHEMA_STRICT
         ));
 
         AiRecognitionResult rawResult = new AiRecognitionResult(
@@ -102,7 +104,8 @@ class AiBookkeepingServiceTest {
             "gpt-test",
             Duration.ofSeconds(5),
             1200,
-            BigDecimal.ZERO
+            BigDecimal.ZERO,
+            AiJsonMode.JSON_SCHEMA_STRICT
         );
         AiRecognitionResult rawResult = new AiRecognitionResult(
             "ok",

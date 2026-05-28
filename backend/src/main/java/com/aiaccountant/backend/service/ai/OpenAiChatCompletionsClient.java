@@ -6,6 +6,7 @@ import com.aiaccountant.backend.service.ai.AiProviderClient.AiConnectionTestResu
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiProviderConfig;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionRequest;
 import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionResult;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -25,30 +26,38 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
     private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
     private final AiPromptFactory promptFactory;
+    private final AiResponseFormatStrategy responseFormatStrategy;
+    private final AiJsonContentExtractor jsonContentExtractor;
     private final AiCallLogService callLogService;
 
     public OpenAiChatCompletionsClient(
         WebClient.Builder webClientBuilder,
         ObjectMapper objectMapper,
         AiPromptFactory promptFactory,
+        AiResponseFormatStrategy responseFormatStrategy,
+        AiJsonContentExtractor jsonContentExtractor,
         AiCallLogService callLogService
     ) {
         this.webClientBuilder = webClientBuilder;
         this.objectMapper = objectMapper;
         this.promptFactory = promptFactory;
+        this.responseFormatStrategy = responseFormatStrategy;
+        this.jsonContentExtractor = jsonContentExtractor;
         this.callLogService = callLogService;
     }
 
     @Override
     public AiRecognitionResult recognizeText(AiProviderConfig config, AiRecognitionRequest request) {
-        Map<String, Object> payload = recognitionPayload(config, promptFactory.textMessages(request));
-        return callProvider(config, request.userId(), "analyze_text", payload, response -> parseRecognition(response));
+        AiJsonMode jsonMode = resolveJsonMode(config);
+        Map<String, Object> payload = recognitionPayload(config, jsonMode, promptFactory.textMessages(request, jsonMode));
+        return callProvider(config, request.userId(), "analyze_text", payload, this::parseRecognition);
     }
 
     @Override
     public AiRecognitionResult recognizeImage(AiProviderConfig config, AiRecognitionRequest request) {
-        Map<String, Object> payload = recognitionPayload(config, promptFactory.imageMessages(request));
-        return callProvider(config, request.userId(), "analyze_image", payload, response -> parseRecognition(response));
+        AiJsonMode jsonMode = resolveJsonMode(config);
+        Map<String, Object> payload = recognitionPayload(config, jsonMode, promptFactory.imageMessages(request, jsonMode));
+        return callProvider(config, request.userId(), "analyze_image", payload, this::parseRecognition);
     }
 
     @Override
@@ -72,14 +81,23 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
         );
     }
 
-    private Map<String, Object> recognitionPayload(AiProviderConfig config, List<Map<String, Object>> messages) {
+    private Map<String, Object> recognitionPayload(AiProviderConfig config, AiJsonMode jsonMode, List<Map<String, Object>> messages) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", config.model());
         payload.put("temperature", config.temperature());
         payload.put("max_tokens", config.maxOutputTokens());
-        payload.put("response_format", promptFactory.responseFormat());
+        Map<String, Object> responseFormat = promptFactory.responseFormat(jsonMode);
+        if (responseFormat != null) {
+            payload.put("response_format", responseFormat);
+        }
         payload.put("messages", messages);
         return payload;
+    }
+
+    private AiJsonMode resolveJsonMode(AiProviderConfig config) {
+        return config.jsonMode() == null
+            ? responseFormatStrategy.resolve(config.baseUrl(), config.model())
+            : config.jsonMode();
     }
 
     private <T> T callProvider(
@@ -135,7 +153,7 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
         }
 
         try {
-            Map<String, Object> parsed = objectMapper.readValue(content, new TypeReference<>() {});
+            Map<String, Object> parsed = parseRecognitionContent(content);
             List<Map<String, Object>> drafts = listOfMaps(parsed.get("drafts"));
             List<String> warnings = listOfStrings(parsed.get("warnings"));
             List<Object> ignored = parsed.get("ignored") instanceof List<?> list ? List.copyOf(list) : List.of();
@@ -154,6 +172,16 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
             throw ex;
         } catch (Exception ex) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "AI provider response was not valid JSON", "AI_RESPONSE_SCHEMA_INVALID");
+        }
+    }
+
+    private Map<String, Object> parseRecognitionContent(String content) throws JsonProcessingException {
+        try {
+            return objectMapper.readValue(content, new TypeReference<>() {});
+        } catch (JsonProcessingException directParseFailure) {
+            String extracted = jsonContentExtractor.extractBalancedJsonObject(content).orElse(null);
+            if (extracted == null) throw directParseFailure;
+            return objectMapper.readValue(extracted, new TypeReference<>() {});
         }
     }
 

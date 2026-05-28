@@ -1,6 +1,8 @@
 package com.aiaccountant.backend.config;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -60,6 +62,8 @@ public class AppProperties {
         private String apiKey = "";
         private String baseUrl = "https://api.openai.com/v1";
         private String model = "gpt-4o-mini";
+        private String jsonMode = "auto";
+        private Map<String, String> modelJsonModes = new LinkedHashMap<>();
         private String baseUrlAllowlist = "";
         private String encryptionKey = "";
         private int requestTimeoutSeconds = 25;
@@ -96,6 +100,22 @@ public class AppProperties {
 
         public void setModel(String model) {
             this.model = model;
+        }
+
+        public String getJsonMode() {
+            return jsonMode;
+        }
+
+        public void setJsonMode(String jsonMode) {
+            this.jsonMode = jsonMode;
+        }
+
+        public Map<String, String> getModelJsonModes() {
+            return modelJsonModes;
+        }
+
+        public void setModelJsonModes(Map<String, String> modelJsonModes) {
+            this.modelJsonModes = modelJsonModes == null ? new LinkedHashMap<>() : modelJsonModes;
         }
 
         public String getBaseUrlAllowlist() {
