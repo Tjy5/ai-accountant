@@ -35,6 +35,7 @@ import { CuteSticker } from '../components/CuteStickers';
 import { ToggleSwitch } from '../components/ToggleSwitch';
 import { AiProviderSettingsCard } from '../components/settings/AiProviderSettingsCard';
 import { useAuthStore } from '../store/useAuthStore';
+import { useAiChatStore } from '../store/useAiChatStore';
 import sarahAvatar from '../assets/sarah_avatar.png';
 
 interface SettingsData {
@@ -266,9 +267,17 @@ export const Settings = () => {
   };
 
   // Local preferences change handler
-  const handleLocalChange = <T extends string | boolean>(key: string, value: T, setter: (val: T) => void) => {
+  const handleLocalChange = (
+    key: string,
+    value: string | boolean,
+    setter: ((val: string) => void) | ((val: boolean) => void)
+  ) => {
     setError(null);
-    setter(value);
+    if (typeof value === 'boolean') {
+      (setter as (val: boolean) => void)(value);
+    } else {
+      (setter as (val: string) => void)(value);
+    }
     localStorage.setItem(key, String(value));
   };
 
@@ -398,12 +407,10 @@ export const Settings = () => {
   };
 
   const handleChatWithAI = () => {
+    useAiChatStore.getState().open();
     const chatInput = document.getElementById('ai-chat-input') || document.getElementById('ai-assistant-input');
     if (chatInput) {
       chatInput.focus();
-    } else {
-      // Navigate to dashboard where chat usually sits
-      window.location.href = '/';
     }
   };
 
@@ -427,7 +434,7 @@ export const Settings = () => {
             type="button"
             onClick={handleChatWithAI}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#536073] hover:bg-[#FFF8F2] hover:text-[#2F2925] shadow-sm transition cursor-pointer"
-            aria-label="Search"
+            aria-label="Chat with AI"
           >
             <Search size={16} strokeWidth={2.5} />
           </button>

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -13,7 +13,9 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { CuteSticker } from './CuteStickers';
+import { AiChatDrawer } from './ai/AiChatDrawer';
 import { userLabel } from '../utils/profile';
+import { useAiChatStore } from '../store/useAiChatStore';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,9 +26,16 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
   const location = useLocation();
+  const aiChatOpen = useAiChatStore((state) => state.isOpen);
 
   const [profileOpen, setProfileOpen] = useState(false);
   const profileLabel = userLabel(user);
+
+  useEffect(() => {
+    if (aiChatOpen && location.pathname !== '/') {
+      navigate('/', { replace: true });
+    }
+  }, [aiChatOpen, location.pathname, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -34,16 +43,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const handleNewEntry = () => {
-    if (location.pathname !== '/') {
-      navigate('/');
-      setTimeout(() => {
-        const input = document.getElementById('ai-chat-input') as HTMLInputElement;
-        input?.focus();
-      }, 300);
-    } else {
-      const input = document.getElementById('ai-chat-input') as HTMLInputElement;
-      input?.focus();
-    }
+    useAiChatStore.getState().open();
+    setProfileOpen(false);
   };
 
   const menuItems = [
@@ -192,6 +193,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         </main>
       </div>
       </div>
+      <AiChatDrawer />
     </div>
   );
 };

@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import api from '../api/axiosInstance';
+import { useAiChatStore } from '../store/useAiChatStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { Settings } from './Settings';
 
@@ -85,6 +86,15 @@ describe('Settings', () => {
       token: 'token-1',
       isAuthenticated: true,
     });
+    useAiChatStore.setState({
+      isOpen: false,
+      isMinimized: false,
+      currentSessionId: null,
+      sessions: [],
+      messages: [],
+      pending: false,
+      error: '',
+    });
   });
 
   it('renders backend settings with profile and settings cards', async () => {
@@ -151,6 +161,20 @@ describe('Settings', () => {
         weeklyReport: false,
       });
     });
+  });
+
+  it('uses chat semantics for the top AI action', async () => {
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    await screen.findByText('Mimi');
+
+    expect(screen.queryByRole('button', { name: /^search$/i })).not.toBeInTheDocument();
+    const chatButtons = screen.getAllByRole('button', { name: /chat with ai/i });
+
+    await user.click(chatButtons[0]);
+
+    expect(useAiChatStore.getState().isOpen).toBe(true);
   });
 
   it('falls back to a local preview if settings cannot be loaded', async () => {
