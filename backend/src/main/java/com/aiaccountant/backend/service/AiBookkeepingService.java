@@ -139,11 +139,18 @@ public class AiBookkeepingService {
     private Map<String, Object> localFallback(Long userId, String text, String warning) {
         List<Map<String, Object>> drafts = extractSimpleDrafts(userId, text);
         boolean needsClarification = drafts.isEmpty();
+        String reply = needsClarification
+            ? "本喵没能看懂这一笔账单喵~ 可以跟本喵说说具体的金额和用途吗？比如：午餐30喵~"
+            : "好棒喵！本喵已经帮主人认出了 " + drafts.size() + " 笔账单草稿，主人快来看看对不对喵~";
+        String clarificationQuestion = needsClarification
+            ? "主人可以补充具体金额和用途吗？比如：午餐 30 喵~"
+            : null;
+
         return recognitionResponse(
-            needsClarification ? "No complete bookkeeping draft was recognized." : "Recognized " + drafts.size() + " bookkeeping draft(s).",
+            reply,
             drafts,
             needsClarification,
-            needsClarification ? "Please include an amount and purpose, for example: lunch 30." : null,
+            clarificationQuestion,
             needsClarification
                 ? List.of(warning, "The fallback parser did not contain enough information to create a transaction draft.")
                 : List.of(warning)

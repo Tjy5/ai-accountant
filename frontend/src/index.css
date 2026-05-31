@@ -97,6 +97,33 @@
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes aiDrawerUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ai-chat-drawer-panel {
+  height: min(58svh, 560px);
+  min-height: 320px;
+}
+
+.animate-ai-drawer-up {
+  animation: aiDrawerUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (max-width: 640px) {
+  .ai-chat-drawer-panel {
+    height: min(62svh, 480px);
+    min-height: 300px;
+  }
+}
+
 
 
 .dashboard-wide-grid {

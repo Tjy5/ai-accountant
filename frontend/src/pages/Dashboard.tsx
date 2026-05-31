@@ -1,18 +1,16 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card } from '../components/Card';
 import { CuteSticker } from '../components/CuteStickers';
-import { CurledCorner, Thumbtack } from '../components/DraftNoteChrome';
-import { NOTE_BACKGROUNDS } from '../constants/draftStyles';
+import { AiDraftCard } from '../components/ai/AiDraftCard';
+import { AiMessageBubble } from '../components/ai/AiMessageBubble';
 import { useAuthStore } from '../store/useAuthStore';
 import { useDraftStore } from '../store/useDraftStore';
-import type { DraftTransaction } from '../store/useDraftStore';
+import { useAiChatStore } from '../store/useAiChatStore';
 import api from '../api/axiosInstance';
-import { analyzeImageDrafts, analyzeTextDrafts, commitDrafts, readFileAsDataUrl } from '../api/aiDrafts';
 import { money } from '../utils/formatters';
 import { asRecord, asRecordArray, toNumber, type RawRecord } from '../utils/records';
 import { userLabel } from '../utils/profile';
 import { Link } from 'react-router-dom';
-import type { AiDraftResponse } from '../types/ai';
 import {
   PieChart,
   Pie,
@@ -20,17 +18,7 @@ import {
   ResponsiveContainer,
   Tooltip
 } from 'recharts';
-import {
-  Search,
-  Bell,
-  Camera,
-  Send,
-  X,
-  Edit2,
-  Trash2,
-  Save,
-  PawPrint
-} from 'lucide-react';
+import { Search, Bell, Camera, MessageSquareText, Plus, Send, Trash2, X } from 'lucide-react';
 
 interface SummaryData {
   balance: number;
@@ -147,9 +135,40 @@ const FINANCIAL_TIPS = [
   "💡 Tip: Pay yourself first by setting aside savings immediately when income arrives."
 ];
 
+const formatChatSessionTime = (timestamp: number) => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const chatSessionPreview = (messages: { text?: string; filename?: string; error?: string }[]) => {
+  const lastMessage = messages[messages.length - 1];
+  const preview = lastMessage?.text || lastMessage?.filename || lastMessage?.error || '新对话';
+  return preview.replace(/\s+/g, ' ').trim() || '新对话';
+};
+
 export const Dashboard = () => {
   const user = useAuthStore((state) => state.user);
-  const { drafts, addDrafts, updateDraft, removeDraft, clearDrafts } = useDraftStore();
+  const drafts = useDraftStore((state) => state.drafts);
+  const aiChatOpen = useAiChatStore((state) => state.isOpen);
+  const aiChatSessions = useAiChatStore((state) => state.sessions);
+  const currentAiChatSessionId = useAiChatStore((state) => state.currentSessionId);
+  const aiChatMessages = useAiChatStore((state) => state.messages);
+  const aiChatPending = useAiChatStore((state) => state.pending);
+  const openAiChat = useAiChatStore((state) => state.open);
+  const clearAiChat = useAiChatStore((state) => state.clear);
+  const closeAiChat = useAiChatStore((state) => state.close);
+  const newAiConversation = useAiChatStore((state) => state.newConversation);
+  const selectAiConversation = useAiChatStore((state) => state.selectConversation);
+  const deleteAiConversation = useAiChatStore((state) => state.deleteConversation);
+  const sendText = useAiChatStore((state) => state.sendText);
+  const sendImage = useAiChatStore((state) => state.sendImage);
   const displayName = userLabel(user, 'there');
 
   const [summary, setSummary] = useState<SummaryData>(DEFAULT_SUMMARY);
@@ -157,23 +176,19 @@ export const Dashboard = () => {
   const [recentTransactions, setRecentTransactions] = useState<TransactionData[]>([]);
 
   const [textInput, setTextInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [draftDrawerDismissed, setDraftDrawerDismissed] = useState(false);
-  const [draftError, setDraftError] = useState('');
-  const drawerOpen = drafts.length > 0 && !draftDrawerDismissed;
-
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<DraftTransaction>>({});
+  const [textSubmitting, setTextSubmitting] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         const [summaryRes, chartsRes] = await Promise.all([
           api.get('/dashboard/summary'),
-          api.get('/dashboard/charts')
+          api.get('/dashboard/charts'),
         ]);
 
         const recent = normalizeRecentTransactions(summaryRes.data);
@@ -188,92 +203,80 @@ export const Dashboard = () => {
     };
 
     fetchDashboardData();
+    window.addEventListener('ledger-updated', fetchDashboardData);
+    return () => window.removeEventListener('ledger-updated', fetchDashboardData);
   }, []);
 
-  const errorMessage = (error: unknown, fallback: string) => {
-    const maybe = error as { response?: { data?: { error?: string } } };
-    return maybe.response?.data?.error || fallback;
-  };
-
-  const applyAiResponse = (response: AiDraftResponse) => {
-    const nextDrafts = response.drafts || [];
-    if (nextDrafts.length > 0) {
-      addDrafts(nextDrafts);
-      setDraftDrawerDismissed(false);
+  useEffect(() => {
+    const scrollNode = scrollRef.current;
+    if (!aiChatOpen || !scrollNode || typeof scrollNode.scrollTo !== 'function') {
       return;
     }
-    setDraftError(
-      response.clarificationQuestion
-      || response.reply
-      || 'No bookkeeping draft was recognized. Try including an amount and purpose, e.g. "Lunch 30".'
-    );
+
+    scrollNode.scrollTo({
+      top: scrollNode.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [aiChatOpen, aiChatMessages.length, aiChatPending]);
+
+  const sendQuickAiText = (text: string) => {
+    if (!text.trim()) return;
+    void sendText(text);
   };
 
-  const handleAnalyzeText = async (text: string) => {
-    if (!text.trim()) return;
-
-    setDraftError('');
-    setLoading(true);
-    try {
-      applyAiResponse(await analyzeTextDrafts(text));
-    } catch (error) {
-      setDraftError(errorMessage(error, 'Unable to analyze this entry. Please try again.'));
-    } finally {
-      setLoading(false);
+  const handleOpenAiChat = () => {
+    if (!aiChatOpen) {
+      setHistoryOpen(false);
     }
+    openAiChat();
+  };
+
+  const handleCloseAiChat = () => {
+    setHistoryOpen(false);
+    closeAiChat();
+  };
+
+  const handleNewConversation = () => {
+    setTextInput('');
+    newAiConversation();
   };
 
   const handleTextAnalyze = async () => {
     const text = textInput.trim();
-    if (!text) return;
-    await handleAnalyzeText(text);
+    if (!text || aiChatPending) return;
+
     setTextInput('');
+    setTextSubmitting(true);
+    try {
+      await sendText(text);
+    } finally {
+      setTextSubmitting(false);
+    }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.currentTarget;
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
     const file = input.files?.[0];
-    if (!file) return;
 
-    setDraftError('');
-    setUploading(true);
+    if (!file || aiChatPending) {
+      input.value = '';
+      return;
+    }
+
+    const note = textInput.trim();
+    setTextInput('');
+    setImageUploading(true);
     try {
-      const image = await readFileAsDataUrl(file);
-      applyAiResponse(await analyzeImageDrafts(image, { filename: file.name }));
-    } catch (error) {
-      setDraftError(errorMessage(error, 'Unable to scan this receipt. Please try again.'));
+      await sendImage(file, note ? { text: note } : undefined);
     } finally {
       input.value = '';
-      setUploading(false);
+      setImageUploading(false);
     }
   };
 
   const triggerFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleCommitDraft = async (draftId: string) => {
-    const draft = drafts.find(d => d.id === draftId);
-    if (!draft) return;
-
-    setDraftError('');
-    try {
-      await commitDrafts([draft]);
-      removeDraft(draftId);
-    } catch {
-      setDraftError('Unable to save this draft. It is still here for retry.');
-    }
-  };
-
-  const handleCommitAll = async () => {
-    if (drafts.length === 0) return;
-
-    setDraftError('');
-    try {
-      await commitDrafts(drafts);
-      clearDrafts();
-    } catch {
-      setDraftError('Unable to save drafts. Nothing was removed.');
+    if (!aiChatPending) {
+      fileInputRef.current?.click();
     }
   };
 
@@ -286,9 +289,11 @@ export const Dashboard = () => {
   const averageEntry = summary.transactionCount > 0 ? flowTotal / summary.transactionCount : 0;
   const entryLabel = `${summary.transactionCount} ${summary.transactionCount === 1 ? 'entry' : 'entries'} this month`;
   const financialTip = FINANCIAL_TIPS[new Date().getDate() % FINANCIAL_TIPS.length];
+  const linkedDraftIds = new Set(aiChatMessages.flatMap((message) => message.draftIds || []));
+  const unlinkedDrafts = drafts.filter((draft) => !linkedDraftIds.has(draft.id));
 
   return (
-    <div className="dashboard-page flex flex-col gap-4 relative flex-grow min-h-0">
+    <div className="dashboard-page flex flex-col gap-4 relative flex-grow min-h-0 pb-[104px] sm:pb-[116px]">
       <div className="flex flex-col gap-4 min-[1120px]:flex-row min-[1120px]:items-start min-[1120px]:justify-between">
         <div>
           <h2 className="text-[32px] leading-tight font-black text-[#2F2925] tracking-tight">
@@ -579,32 +584,32 @@ export const Dashboard = () => {
             </h4>
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => handleAnalyzeText("Coffee 5")}
-                disabled={loading || uploading}
+                onClick={() => sendQuickAiText("Coffee 5")}
+                disabled={aiChatPending}
                 className="flex items-center justify-between rounded-xl bg-[#FFF8F2] hover:bg-[#FFF2E7] border border-[#EFE2D8] px-3 py-2 text-xs font-bold text-[#4E3629] transition-all cursor-pointer disabled:opacity-50"
               >
                 <span>☕ Coffee</span>
                 <span className="font-black text-[#FF7F96]">$5</span>
               </button>
               <button
-                onClick={() => handleAnalyzeText("Lunch 15")}
-                disabled={loading || uploading}
+                onClick={() => sendQuickAiText("Lunch 15")}
+                disabled={aiChatPending}
                 className="flex items-center justify-between rounded-xl bg-[#FFF8F2] hover:bg-[#FFF2E7] border border-[#EFE2D8] px-3 py-2 text-xs font-bold text-[#4E3629] transition-all cursor-pointer disabled:opacity-50"
               >
                 <span>🍔 Lunch</span>
                 <span className="font-black text-[#FF7F96]">$15</span>
               </button>
               <button
-                onClick={() => handleAnalyzeText("Subway 3")}
-                disabled={loading || uploading}
+                onClick={() => sendQuickAiText("Subway 3")}
+                disabled={aiChatPending}
                 className="flex items-center justify-between rounded-xl bg-[#FFF8F2] hover:bg-[#FFF2E7] border border-[#EFE2D8] px-3 py-2 text-xs font-bold text-[#4E3629] transition-all cursor-pointer disabled:opacity-50"
               >
                 <span>🚇 Subway</span>
                 <span className="font-black text-[#FF7F96]">$3</span>
               </button>
               <button
-                onClick={() => handleAnalyzeText("Shopping 50")}
-                disabled={loading || uploading}
+                onClick={() => sendQuickAiText("Shopping 50")}
+                disabled={aiChatPending}
                 className="flex items-center justify-between rounded-xl bg-[#FFF8F2] hover:bg-[#FFF2E7] border border-[#EFE2D8] px-3 py-2 text-xs font-bold text-[#4E3629] transition-all cursor-pointer disabled:opacity-50"
               >
                 <span>🛍️ Shopping</span>
@@ -688,262 +693,273 @@ export const Dashboard = () => {
         </Card>
       </div>
 
-      {draftError && (
-        <div className="rounded-[18px] border-2 border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-600" role="alert">
-          {draftError}
-        </div>
-      )}
-
       <input
         type="file"
         ref={fileInputRef}
-        accept="image/*"
+        accept="image/png,image/jpeg,image/jpg,image/webp"
         onChange={handleFileUpload}
         className="hidden"
       />
 
-      <div className="mt-1 rounded-[22px] border border-[#EFE2D8] bg-[#FFFDFB] px-5 py-4 shadow-[0_12px_32px_rgba(92,65,45,0.08)] flex items-center gap-4 select-none">
-        <div className="w-[78px] h-[66px] shrink-0 relative pointer-events-none select-none">
-          <CuteSticker
-            name="waving-cat"
-            className="w-full h-full scale-110 drop-shadow-[0_8px_10px_rgba(92,65,45,0.1)]"
-            title="Waving Cat Mascot"
-          />
-        </div>
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[65] px-3 pb-3 sm:px-6 sm:pb-5 md:left-[264px] md:right-2 md:px-8">
+        {aiChatOpen && (
+          <section
+            className="ai-chat-drawer-panel animate-ai-drawer-up pointer-events-auto mx-auto flex w-full flex-col overflow-hidden rounded-t-[22px] border border-b-0 border-[#EFE2D8] bg-[#FFFDFB] shadow-[0_-22px_60px_rgba(92,65,45,0.16)]"
+            aria-label="Cat AI bookkeeping conversation"
+          >
+            <header className="shrink-0 border-b border-[#EFE2D8] bg-[#FFFDFB] px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="h-12 w-12 shrink-0 rounded-[18px] border border-[#F0D9C7] bg-[#FFF1E2] p-1.5 shadow-[0_8px_18px_rgba(92,65,45,0.08)]">
+                    <CuteSticker name="waving-cat" className="h-full w-full" title="Cat AI assistant" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-[17px] font-black text-[#2F2925]">猫咪 AI 记账</h3>
+                    <p className="truncate text-[11px] font-bold text-[#7B8491]">
+                      {drafts.length > 0 ? `待确认草稿 ${drafts.length} 笔` : '正在与主人聊天记账喵~'}
+                    </p>
+                  </div>
+                </div>
 
-        <div className="flex-grow relative flex items-center">
-          <input
-            id="ai-chat-input"
-            type="text"
-            placeholder='Try: "Lunch 38, Taxi 22" or upload a receipt'
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleTextAnalyze()}
-            disabled={loading || uploading}
-            className="w-full pl-6 pr-28 py-3.5 bg-[#FFF8F3] border border-[#EFE2D8] rounded-full focus:outline-none focus:ring-4 focus:ring-[#FFD1DC]/40 text-sm font-bold text-[#4E3629] placeholder-[#A7A0A0] shadow-inner transition-all"
-          />
-
-          <div className="absolute right-3 flex items-center gap-2">
-            <button
-              onClick={triggerFileUpload}
-              disabled={loading || uploading}
-              aria-label="Upload receipt"
-              className="p-1.5 text-gray-500 hover:text-[#4E3629] transition-colors cursor-pointer rounded-full hover:bg-gray-50 disabled:opacity-50"
-              title="Upload Receipt Scanner"
-            >
-              {uploading ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#4E3629]"></div>
-              ) : (
-                <Camera size={20} strokeWidth={2.25} />
-              )}
-            </button>
-
-            <button
-              onClick={handleTextAnalyze}
-              disabled={loading || !textInput.trim()}
-              aria-label="Analyze"
-              className="w-9 h-9 bg-[#FF9BAB] hover:bg-[#FF7F96] text-white rounded-full flex items-center justify-center transition-all cursor-pointer disabled:opacity-50 shadow-[0_8px_18px_rgba(255,127,150,0.28)]"
-            >
-              {loading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              ) : (
-                <Send size={14} className="transform translate-x-[-1px] translate-y-[1px]" strokeWidth={3} />
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {drawerOpen && (
-        <div
-          className="fixed inset-0 bg-[#4E3629]/20 z-50 flex items-end justify-center backdrop-blur-xs transition-opacity"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setDraftDrawerDismissed(true);
-            }
-          }}
-        >
-          <div className="w-full max-w-[1100px] bg-[#FAF8F5] border-t border-x border-[#EFE2D8] rounded-t-[32px] p-6 shadow-2xl animate-slide-up flex flex-col gap-5 max-h-[80vh] overflow-y-auto">
-
-            <div className="flex items-center justify-between border-b border-[#4E3629]/10 pb-4">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📋</span>
-                <div>
-                  <h3 className="text-lg font-black text-[#4E3629] flex items-center gap-2">
-                    AI Parsed Drafts
-                    <span className="bg-[#FFD1DC] text-[#4E3629] text-xs py-0.5 px-2 rounded-full font-black">
-                      {drafts.length}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-gray-500 font-bold mt-0.5">Please review and confirm transactions to save to ledger</p>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryOpen((open) => !open)}
+                    className={`relative flex h-9 w-9 items-center justify-center rounded-full border border-[#EFE2D8] bg-white transition-colors hover:bg-[#FFF8F2] hover:text-[#4E3629] cursor-pointer ${
+                      historyOpen ? 'text-[#FF7F96]' : 'text-[#6F7785]'
+                    }`}
+                    aria-label={historyOpen ? 'Hide chat history' : 'Show chat history'}
+                    title="Chat history"
+                  >
+                    <MessageSquareText size={16} strokeWidth={2.5} />
+                    {aiChatSessions.length > 0 && (
+                      <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF8A9B] px-1 text-[9px] font-black leading-none text-white">
+                        {Math.min(aiChatSessions.length, 9)}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNewConversation}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#6F7785] transition-colors hover:bg-[#FFF8F2] hover:text-[#4E3629] cursor-pointer"
+                    aria-label="New chat conversation"
+                    title="New conversation"
+                  >
+                    <Plus size={16} strokeWidth={2.6} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearAiChat}
+                    disabled={aiChatMessages.length === 0}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#6F7785] transition-colors hover:bg-[#FFF8F2] hover:text-[#4E3629] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                    aria-label="Clear chat messages"
+                    title="Clear chat messages"
+                  >
+                    <Trash2 size={16} strokeWidth={2.4} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseAiChat}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-[#EFE2D8] bg-white text-[#6F7785] transition-colors hover:bg-[#FFF8F2] hover:text-[#4E3629] cursor-pointer"
+                    aria-label="Close cat AI chat"
+                    title="Close chat"
+                  >
+                    <X size={16} strokeWidth={2.6} />
+                  </button>
                 </div>
               </div>
+            </header>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleCommitAll}
-                  className="px-5 py-2 bg-[#FFAE58] hover:bg-[#EAA050] text-white rounded-full font-black text-sm transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm"
-                >
-                  Save All to Ledger ✨
-                </button>
-                <button
-                  onClick={() => setDraftDrawerDismissed(true)}
-                  aria-label="Close drafts"
-                  className="p-1.5 border border-[#EFE2D8] rounded-full hover:bg-gray-100 cursor-pointer"
-                >
-                  <X size={16} strokeWidth={3} />
-                </button>
-              </div>
-            </div>
+            <div className="flex min-h-0 flex-1 flex-col bg-[#FAF8F5] lg:flex-row">
+              <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 scrollbar-thin">
+                {aiChatMessages.length === 0 && unlinkedDrafts.length === 0 && !aiChatPending ? (
+                  <div className="flex h-full min-h-[220px] flex-col items-center justify-center text-center">
+                    <CuteSticker
+                      name="waving-cat"
+                      className="h-[104px] w-[116px] drop-shadow-[0_10px_16px_rgba(92,65,45,0.12)]"
+                      title="Bookkeeping Buddy"
+                    />
+                    <h3 className="mt-3 text-lg font-black text-[#2F2925]">主人今天想记哪一笔喵？</h3>
+                    <p className="mt-1 max-w-[280px] text-sm font-bold leading-relaxed text-[#7B8491]">
+                      收据照片、快捷便签、或者补充问题都会在这里显示哦。
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {aiChatMessages.map((message) => (
+                      <AiMessageBubble key={message.id} message={message} />
+                    ))}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 py-4 overflow-y-auto flex-grow max-h-[50vh]">
-              {drafts.map((draft, index) => {
-                const bgClass = NOTE_BACKGROUNDS[index % NOTE_BACKGROUNDS.length];
-                const isEditing = editingId === draft.id;
-
-                return (
-                  <div
-                    key={draft.id}
-                    className={`cute-sticky-card ${bgClass} border border-[#E2CFC2] rounded-[15px] p-5 shadow-[0_10px_24px_rgba(92,65,45,0.12)] transform transition-all select-none relative`}
-                    style={{
-                      transform: isEditing ? 'none' : `rotate(${index % 2 === 0 ? '2deg' : '-2deg'})`,
-                      zIndex: isEditing ? 20 : 1
-                    }}
-                  >
-                    <Thumbtack />
-                    <CurledCorner />
-
-                    {isEditing ? (
-                      <div className="flex flex-col gap-2.5 mt-2">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={editForm.category || ''}
-                            onChange={e => setEditForm({...editForm, category: e.target.value})}
-                            className="text-xs font-black px-2 py-1 rounded-md border-2 border-[#4E3629] w-full bg-white text-[#4E3629]"
-                            placeholder="Category"
-                          />
-                          <select
-                            value={editForm.type || 'expense'}
-                            onChange={e => setEditForm({...editForm, type: e.target.value as 'income'|'expense'})}
-                            className="text-xs font-black px-2 py-1 rounded-md border-2 border-[#4E3629] w-full bg-white text-[#4E3629]"
-                          >
-                            <option value="expense">Expense</option>
-                            <option value="income">Income</option>
-                          </select>
+                    {unlinkedDrafts.length > 0 && (
+                      <section className="rounded-[20px] border border-[#EFE2D8] bg-[#FFFDFB] px-3 py-3 shadow-[0_8px_20px_rgba(92,65,45,0.06)]">
+                        <div className="mb-3 flex items-center justify-between border-b border-[#EFE2D8]/30 pb-2">
+                          <h3 className="text-sm font-black text-[#2F2925]">待确认草稿</h3>
+                          <span className="rounded-full bg-[#FFD1DC] px-2 py-0.5 text-xs font-black text-[#4E3629]">
+                            {unlinkedDrafts.length}
+                          </span>
                         </div>
-
-                        <textarea
-                          value={editForm.description || ''}
-                          onChange={e => setEditForm({...editForm, description: e.target.value})}
-                          className="font-bold text-[#4E3629] text-xs w-full border-2 border-[#4E3629] rounded-md p-1.5 bg-white resize-none"
-                          rows={2}
-                          placeholder="Description"
-                        />
-
-                        <input
-                          type="date"
-                          value={editForm.date || ''}
-                          onChange={e => setEditForm({...editForm, date: e.target.value})}
-                          className="text-xs text-[#4E3629] font-bold border-2 border-[#4E3629] rounded-md p-1 w-full bg-white"
-                        />
-
-                        <div className="flex items-center gap-1 border-2 border-[#4E3629] rounded-md p-1 bg-white">
-                          <span className="text-[#4E3629]/50 font-black pl-1">$</span>
-                          <input
-                            type="number"
-                            value={editForm.amount || ''}
-                            onChange={e => setEditForm({...editForm, amount: parseFloat(e.target.value) || 0})}
-                            className="font-black text-sm text-[#4E3629] w-full outline-none bg-transparent"
-                            step="0.01"
-                          />
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {unlinkedDrafts.map((draft, index) => (
+                            <AiDraftCard key={draft.id} draft={draft} index={index} compact />
+                          ))}
                         </div>
+                      </section>
+                    )}
 
-                        <input
-                          type="text"
-                          value={editForm.currency ?? ''}
-                          onChange={e => setEditForm({...editForm, currency: e.target.value.toUpperCase()})}
-                          className="text-xs text-[#4E3629] font-bold border-2 border-[#4E3629] rounded-md p-1 w-full bg-white"
-                          placeholder="Currency"
-                          maxLength={8}
-                        />
-
-                        <div className="flex justify-end gap-2 mt-1">
-                          <button
-                            onClick={() => setEditingId(null)}
-                            className="text-gray-500 hover:text-gray-700 bg-white/60 border-2 border-[#4E3629] rounded-full p-1 cursor-pointer"
-                            title="Cancel"
-                          >
-                            <X size={14} />
-                          </button>
-                          <button
-                            onClick={() => {
-                              updateDraft(draft.id, editForm);
-                              setEditingId(null);
-                            }}
-                            className="bg-emerald-400 hover:bg-emerald-500 text-white border-2 border-[#4E3629] p-1 rounded-full cursor-pointer transition-colors"
-                            title="Save"
-                          >
-                            <Save size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col justify-between h-full min-h-[140px] pr-2 pt-2">
-                        <div>
-                          <div className="flex justify-between items-start gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-wider bg-white/70 border-2 border-[#4E3629] px-2 py-0.5 rounded-full">
-                              {draft.category}
-                            </span>
-                            <div className="flex gap-1.5 z-10">
-                              <button
-                                onClick={() => {
-                                  setEditingId(draft.id);
-                                  setEditForm(draft);
-                                }}
-                                className="text-[#4E3629] hover:text-blue-600 bg-white/50 border-2 border-[#4E3629] p-1 rounded-md cursor-pointer transition-colors"
-                              >
-                                <Edit2 size={11} />
-                              </button>
-                              <button
-                                onClick={() => removeDraft(draft.id)}
-                                className="text-[#4E3629] hover:text-red-500 bg-white/50 border-2 border-[#4E3629] p-1 rounded-md cursor-pointer transition-colors"
-                              >
-                                <Trash2 size={11} />
-                              </button>
-                            </div>
-                          </div>
-
-                          <h3 className="font-bold text-sm text-[#4E3629] mt-3 line-clamp-2 leading-tight">
-                            {draft.description}
-                          </h3>
-                        </div>
-
-                        <div className="flex justify-between items-end mt-4">
-                          <div>
-                            <p className="text-[10px] text-[#4E3629]/60 font-bold">{draft.date}</p>
-                            <p className="font-black text-lg mt-0.5">
-                              {draft.currency ? `${draft.currency} ${draft.amount.toFixed(2)}` : money.format(draft.amount)}
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={() => handleCommitDraft(draft.id)}
-                            className="w-8 h-8 bg-white border-2 border-[#4E3629] rounded-full flex items-center justify-center text-pink-500 shadow-sm hover:bg-pink-500 hover:text-white cursor-pointer transition-all group"
-                            title="Confirm Draft"
-                          >
-                            <PawPrint size={14} className="group-hover:scale-110 transition-transform text-[#4E3629] hover:text-white" />
-                          </button>
-                        </div>
+                    {aiChatPending && (
+                      <div className="flex items-center gap-2 pl-12 text-xs font-black text-[#8B929C]">
+                        <span className="h-2 w-2 animate-pulse rounded-full bg-[#FF8A9B]" />
+                        本喵正在扒拉账单喵~
                       </div>
                     )}
                   </div>
-                );
-              })}
+                )}
+              </div>
+
+              {historyOpen && (
+                <aside className="flex max-h-[150px] shrink-0 flex-col border-t border-[#EFE2D8] bg-[#FFFDFB] lg:max-h-none lg:w-[286px] lg:border-l lg:border-t-0">
+                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#EFE2D8] px-3 py-2.5">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <MessageSquareText size={15} strokeWidth={2.5} className="shrink-0 text-[#FF7F96]" />
+                      <p className="truncate text-xs font-black text-[#2F2925]">历史会话</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleNewConversation}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#EFE2D8] bg-[#FFF8F2] text-[#4E3629] transition-colors hover:bg-[#FFF1EA] cursor-pointer"
+                      aria-label="New chat conversation"
+                      title="New conversation"
+                    >
+                      <Plus size={15} strokeWidth={2.6} />
+                    </button>
+                  </div>
+
+                  <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 scrollbar-thin">
+                    {aiChatSessions.length === 0 ? (
+                      <div className="flex h-full min-h-[72px] items-center justify-center rounded-[14px] border border-dashed border-[#EFE2D8] px-3 text-center text-[11px] font-bold text-[#8B929C]">
+                        暂无历史会话
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-x-visible">
+                        {aiChatSessions.map((session) => {
+                          const active = session.id === currentAiChatSessionId;
+                          const preview = chatSessionPreview(session.messages);
+
+                          return (
+                            <div
+                              key={session.id}
+                              className={`group flex min-w-[220px] items-start gap-1 rounded-[14px] border px-2 py-2 transition-colors lg:min-w-0 ${
+                                active
+                                  ? 'border-[#FFD1DC] bg-[#FFF1EA] text-[#2F2925]'
+                                  : 'border-transparent bg-[#FAF8F5] text-[#4E3629] hover:border-[#EFE2D8] hover:bg-[#FFF8F2]'
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => selectAiConversation(session.id)}
+                                className="flex min-w-0 flex-1 items-start gap-2 text-left"
+                              >
+                                <MessageSquareText size={15} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#FF7F96]" />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-[12px] font-black">{session.title}</span>
+                                  <span className="mt-0.5 block truncate text-[10px] font-bold text-[#8B929C]">{preview}</span>
+                                  <span className="mt-1 block truncate text-[10px] font-black text-[#A7A0A0]">
+                                    {formatChatSessionTime(session.updatedAt)}
+                                  </span>
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Delete conversation ${session.title}`}
+                                title="Delete conversation"
+                                onClick={() => deleteAiConversation(session.id)}
+                                className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#A7A0A0] opacity-100 transition-colors hover:bg-white hover:text-red-500 lg:opacity-0 lg:group-hover:opacity-100"
+                              >
+                                <Trash2 size={13} strokeWidth={2.5} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </aside>
+              )}
+            </div>
+          </section>
+        )}
+
+        <div
+          onClick={handleOpenAiChat}
+          className={`pointer-events-auto mx-auto flex w-full shrink-0 items-center gap-3 border border-[#EFE2D8] bg-[#FFFDFB] px-3 py-3 shadow-[0_12px_32px_rgba(92,65,45,0.12)] select-none transition-all sm:gap-4 sm:px-5 sm:py-4 ${
+            aiChatOpen ? 'rounded-b-[22px] rounded-t-none border-t bg-[#FFFDFB]' : 'rounded-[22px]'
+          }`}
+        >
+          <div className="relative h-[56px] w-[66px] shrink-0 pointer-events-none select-none sm:h-[66px] sm:w-[78px]">
+            <CuteSticker
+              name="waving-cat"
+              className="w-full h-full scale-110 drop-shadow-[0_8px_10px_rgba(92,65,45,0.1)]"
+              title="Waving Cat Mascot"
+            />
+          </div>
+
+          <div className="flex-grow relative flex items-center">
+            <input
+              id="ai-chat-input"
+              type="text"
+              placeholder='Try: "Lunch 38, Taxi 22" or upload a receipt'
+              value={textInput}
+              onFocus={handleOpenAiChat}
+              onClick={handleOpenAiChat}
+              onChange={(event) => setTextInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  void handleTextAnalyze();
+                }
+              }}
+              disabled={aiChatPending}
+              className="w-full pl-6 pr-28 py-3.5 bg-[#FFF8F3] border border-[#EFE2D8] rounded-full focus:outline-none focus:ring-4 focus:ring-[#FFD1DC]/40 text-sm font-bold text-[#4E3629] placeholder-[#A7A0A0] shadow-inner transition-all"
+            />
+
+            <div className="absolute right-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  triggerFileUpload();
+                }}
+                disabled={aiChatPending}
+                aria-label="Upload receipt"
+                className="p-1.5 text-gray-500 hover:text-[#4E3629] transition-colors cursor-pointer rounded-full hover:bg-gray-50 disabled:opacity-50"
+                title="Upload Receipt Scanner"
+              >
+                {imageUploading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#4E3629]"></div>
+                ) : (
+                  <Camera size={20} strokeWidth={2.25} />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleTextAnalyze();
+                }}
+                disabled={aiChatPending || !textInput.trim()}
+                aria-label="Analyze"
+                className="w-9 h-9 bg-[#FF9BAB] hover:bg-[#FF7F96] text-white rounded-full flex items-center justify-center transition-all cursor-pointer disabled:opacity-50 shadow-[0_8px_18px_rgba(255,127,150,0.28)]"
+              >
+                {textSubmitting ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                ) : (
+                  <Send size={14} className="transform translate-x-[-1px] translate-y-[1px]" strokeWidth={3} />
+                )}
+              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

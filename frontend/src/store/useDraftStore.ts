@@ -22,7 +22,7 @@ export type DraftInput = Partial<Omit<DraftTransaction, 'type' | 'amount'>> & {
 
 interface DraftState {
   drafts: DraftTransaction[];
-  addDrafts: (newDrafts: DraftInput[]) => void;
+  addDrafts: (newDrafts: DraftInput[]) => DraftTransaction[];
   updateDraft: (id: string, updatedDraft: Partial<DraftTransaction>) => void;
   removeDraft: (id: string) => void;
   clearDrafts: () => void;
@@ -46,9 +46,13 @@ const normalizeDraft = (draft: DraftInput, index: number): DraftTransaction => (
 
 export const useDraftStore = create<DraftState>((set) => ({
   drafts: [],
-  addDrafts: (newDrafts) => set((state) => ({
-    drafts: [...state.drafts, ...newDrafts.map((draft, index) => normalizeDraft(draft, index))]
-  })),
+  addDrafts: (newDrafts) => {
+    const normalizedDrafts = newDrafts.map((draft, index) => normalizeDraft(draft, index));
+    set((state) => ({
+      drafts: [...state.drafts, ...normalizedDrafts]
+    }));
+    return normalizedDrafts;
+  },
   updateDraft: (id, updatedDraft) => set((state) => ({
     drafts: state.drafts.map((draft) => 
       draft.id === id ? { ...draft, ...updatedDraft } : draft
