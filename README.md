@@ -3,6 +3,7 @@
 AI Accountant 是一个面向个人记账场景的全栈应用。它提供交易流水、分类、预算、储蓄目标、仪表盘报表和 AI 辅助记账能力，适合用于学习、二次开发或自托管个人财务工具。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![CI](https://github.com/Tjy5/ai-accountant/actions/workflows/ci.yml/badge.svg)](https://github.com/Tjy5/ai-accountant/actions/workflows/ci.yml)
 [![Backend](https://img.shields.io/badge/backend-Spring%20Boot-6DB33F.svg)](./backend)
 [![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-646CFF.svg)](./frontend)
 
