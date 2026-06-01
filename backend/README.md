@@ -36,6 +36,9 @@ Environment variables:
 - `AI_BASE_URL`: default `https://api.openai.com/v1`
 - `AI_MODEL`: default `gpt-4o-mini`
 - `AI_BASE_URL_ALLOWLIST`: optional comma-separated host allowlist
+- `AI_ENCRYPTION_KEY`: optional base64-encoded AES-128/192/256 key for encrypting user-saved AI API keys
+
+`backend/.env.example` is a reference file for local and deployment configuration. Spring Boot does not load `.env` automatically; set variables in your shell, IDE run configuration, system environment, or deployment platform.
 
 ## Run
 
@@ -51,7 +54,7 @@ MySQL is still supported through the explicit `mysql` profile. Provision a MySQL
 
 ```sql
 CREATE DATABASE ai_accountant CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-CREATE USER 'ai_accountant'@'%' IDENTIFIED BY 'ai_accountant';
+CREATE USER 'ai_accountant'@'%' IDENTIFIED BY 'change-me';
 GRANT ALL PRIVILEGES ON ai_accountant.* TO 'ai_accountant'@'%';
 FLUSH PRIVILEGES;
 SOURCE src/main/resources/db/mysql/schema.sql;
@@ -62,7 +65,7 @@ Start the backend with the profile:
 ```powershell
 $env:MYSQL_URL = "jdbc:mysql://localhost:3306/ai_accountant?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
 $env:MYSQL_USER = "ai_accountant"
-$env:MYSQL_PASSWORD = "ai_accountant"
+$env:MYSQL_PASSWORD = "change-me"
 .\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=mysql
 ```
 

@@ -49,6 +49,14 @@ interface PresetOption {
   label: string;
 }
 
+interface TrendTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value?: number | string;
+    payload?: Partial<TrendPoint>;
+  }>;
+}
+
 const RANGE_PRESETS: PresetOption[] = [
   { key: '7d', label: '7D' },
   { key: '30d', label: '300' }, // Match the mockup's visual representation of 30D
@@ -94,31 +102,30 @@ const CHART_COLORS = ['#FF8C94', '#64B5F6', '#FFD54F', '#BA68C8', '#8C9EFF', '#7
 const getDatesForPreset = (preset: RangePresetKey) => {
   const today = new Date();
   const endDate = today.toISOString().slice(0, 10);
-  let startDate = '';
-
-  if (preset === '7d') {
-    const d = new Date();
-    d.setDate(today.getDate() - 7);
-    startDate = d.toISOString().slice(0, 10);
-  } else if (preset === '30d') {
-    const d = new Date();
-    d.setDate(today.getDate() - 30);
-    startDate = d.toISOString().slice(0, 10);
-  } else if (preset === '3m') {
-    const d = new Date();
-    d.setMonth(today.getMonth() - 3);
-    startDate = d.toISOString().slice(0, 10);
-  } else if (preset === '6m') {
-    const d = new Date();
-    d.setMonth(today.getMonth() - 6);
-    startDate = d.toISOString().slice(0, 10);
-  } else if (preset === '1y') {
-    const d = new Date();
-    d.setFullYear(today.getFullYear() - 1);
-    startDate = d.toISOString().slice(0, 10);
-  } else {
-    startDate = '2000-01-01';
-  }
+  const startDate = (() => {
+    const d = new Date(today);
+    if (preset === '7d') {
+      d.setDate(today.getDate() - 7);
+      return d.toISOString().slice(0, 10);
+    }
+    if (preset === '30d') {
+      d.setDate(today.getDate() - 30);
+      return d.toISOString().slice(0, 10);
+    }
+    if (preset === '3m') {
+      d.setMonth(today.getMonth() - 3);
+      return d.toISOString().slice(0, 10);
+    }
+    if (preset === '6m') {
+      d.setMonth(today.getMonth() - 6);
+      return d.toISOString().slice(0, 10);
+    }
+    if (preset === '1y') {
+      d.setFullYear(today.getFullYear() - 1);
+      return d.toISOString().slice(0, 10);
+    }
+    return '2000-01-01';
+  })();
 
   return { startDate, endDate };
 };
@@ -182,6 +189,51 @@ export const Reports = () => {
   const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryShare[]>(MOCK_CATEGORIES);
   const [trendPoints, setTrendPoints] = useState<TrendPoint[]>(MOCK_TREND_DATA);
   const [categoryOptions, setCategoryOptions] = useState<string[]>(['Food & Dining', 'Transport', 'Shopping', 'Entertainment', 'Others']);
+
+  const resetToMockData = useCallback(() => {
+    if (categoryFilter === 'all') {
+      setSummary({
+        income: 5200,
+        expense: 1820.20,
+        savingsRate: 62.7,
+        net: 3379.80,
+      });
+      setCategoryBreakdown(MOCK_CATEGORIES);
+      setTrendPoints(MOCK_TREND_DATA);
+    } else {
+      const selected = MOCK_CATEGORIES.find((c) => c.category === categoryFilter);
+      if (selected) {
+        const net = 5200 - selected.total;
+        setSummary({
+          income: 5200,
+          expense: selected.total,
+          savingsRate: Math.round((net / 5200) * 1000) / 10,
+          net,
+        });
+        setCategoryBreakdown([
+          {
+            category: selected.category,
+            total: selected.total,
+            percentage: 100,
+          },
+        ]);
+        const scaledTrend = MOCK_TREND_DATA.map((pt) => ({
+          ...pt,
+          amount: Math.round(pt.amount * (selected.percentage / 100) * 100) / 100,
+        }));
+        setTrendPoints(scaledTrend);
+      } else {
+        setSummary({
+          income: 5200,
+          expense: 0,
+          savingsRate: 100,
+          net: 5200,
+        });
+        setCategoryBreakdown([]);
+        setTrendPoints([]);
+      }
+    }
+  }, [categoryFilter]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -313,55 +365,10 @@ export const Reports = () => {
     } finally {
       setLoading(false);
     }
-  }, [preset, categoryFilter]);
-
-  const resetToMockData = () => {
-    if (categoryFilter === 'all') {
-      setSummary({
-        income: 5200,
-        expense: 1820.20,
-        savingsRate: 62.7,
-        net: 3379.80,
-      });
-      setCategoryBreakdown(MOCK_CATEGORIES);
-      setTrendPoints(MOCK_TREND_DATA);
-    } else {
-      const selected = MOCK_CATEGORIES.find((c) => c.category === categoryFilter);
-      if (selected) {
-        const net = 5200 - selected.total;
-        setSummary({
-          income: 5200,
-          expense: selected.total,
-          savingsRate: Math.round((net / 5200) * 1000) / 10,
-          net,
-        });
-        setCategoryBreakdown([
-          {
-            category: selected.category,
-            total: selected.total,
-            percentage: 100,
-          },
-        ]);
-        const scaledTrend = MOCK_TREND_DATA.map((pt) => ({
-          ...pt,
-          amount: Math.round(pt.amount * (selected.percentage / 100) * 100) / 100,
-        }));
-        setTrendPoints(scaledTrend);
-      } else {
-        setSummary({
-          income: 5200,
-          expense: 0,
-          savingsRate: 100,
-          net: 5200,
-        });
-        setCategoryBreakdown([]);
-        setTrendPoints([]);
-      }
-    }
-  };
+  }, [preset, categoryFilter, resetToMockData]);
 
   useEffect(() => {
-    loadData();
+    void Promise.resolve().then(loadData);
   }, [loadData]);
 
   const dailyAverage = useMemo(() => {
@@ -383,12 +390,13 @@ export const Reports = () => {
     return categoryBreakdown.reduce((sum, item) => sum + item.total, 0);
   }, [categoryBreakdown]);
 
-  const CustomTrendTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
+  const CustomTrendTooltip = ({ active, payload }: TrendTooltipProps) => {
+    const item = payload?.[0];
+    if (active && item) {
       return (
         <div className="rounded-[14px] border border-[#EFE2D8] bg-[#FFFDFB] p-2.5 shadow-[0_8px_20px_rgba(92,65,45,0.12)]">
-          <p className="text-[11px] font-black text-[#8B929C]">{payload[0].payload.date}</p>
-          <p className="mt-1 text-sm font-black text-[#FF6F8F]">{money.format(payload[0].value)}</p>
+          <p className="text-[11px] font-black text-[#8B929C]">{item.payload?.date}</p>
+          <p className="mt-1 text-sm font-black text-[#FF6F8F]">{money.format(Number(item.value ?? 0))}</p>
         </div>
       );
     }

@@ -156,8 +156,6 @@ export const AiProviderSettingsCard = ({ onAiAssistChange }: AiProviderSettingsC
     return () => {
       aliveRef.current = false;
     };
-    // notifyAiAssistChange is a stable closure over refs; safe to omit
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const keySource = useMemo<SourceLabel>(() => {
