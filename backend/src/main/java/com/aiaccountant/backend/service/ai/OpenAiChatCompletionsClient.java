@@ -2,10 +2,6 @@ package com.aiaccountant.backend.service.ai;
 
 import com.aiaccountant.backend.exception.ApiException;
 import com.aiaccountant.backend.entity.AiCallLog;
-import com.aiaccountant.backend.service.ai.AiProviderClient.AiConnectionTestResult;
-import com.aiaccountant.backend.service.ai.AiProviderClient.AiProviderConfig;
-import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionRequest;
-import com.aiaccountant.backend.service.ai.AiProviderClient.AiRecognitionResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -185,7 +181,6 @@ public class OpenAiChatCompletionsClient implements AiProviderClient {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private String extractContent(Map<String, Object> raw) {
         if (raw == null) return null;
         Object choicesRaw = raw.get("choices");
