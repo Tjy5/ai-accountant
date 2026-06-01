@@ -6,6 +6,20 @@ AI Accountant 是一个面向个人记账场景的全栈应用。它提供交易
 [![Backend](https://img.shields.io/badge/backend-Spring%20Boot-6DB33F.svg)](./backend)
 [![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-646CFF.svg)](./frontend)
 
+## 界面预览
+
+| Dashboard | Transactions |
+| --- | --- |
+| ![Dashboard 页面](./docs/screenshots/dashboard.png) | ![Transactions 页面](./docs/screenshots/transactions.png) |
+
+| Reports | Goals |
+| --- | --- |
+| ![Reports 页面](./docs/screenshots/reports.png) | ![Goals 页面](./docs/screenshots/goals.png) |
+
+| Budgets |
+| --- |
+| ![Budgets 页面](./docs/screenshots/budgets.png) |
+
 ## 功能特性
 
 - **账户与认证：** 基于 JWT Bearer Token 的注册、登录和用户态接口访问。
@@ -31,6 +45,7 @@ AI Accountant 是一个面向个人记账场景的全栈应用。它提供交易
 ```text
 .
 ├── backend/              # Spring Boot API 服务
+├── docs/screenshots/     # README 界面预览截图
 ├── frontend/             # React + Vite 前端应用
 ├── LICENSE               # MIT 许可证
 ├── README.md             # 项目总览与快速开始
